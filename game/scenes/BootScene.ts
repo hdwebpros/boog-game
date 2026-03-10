@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { WorldGenerator } from '../world/WorldGenerator'
-import { SaveManager } from '../systems/SaveManager'
+import { SaveManager, parseSaveTiles } from '../systems/SaveManager'
 import { generateAllSprites } from '../assets/SpriteGenerator'
 import { AudioManager } from '../systems/AudioManager'
 import { WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
@@ -143,7 +143,7 @@ export class BootScene extends Phaser.Scene {
           weight: 60,
           fn: () => {
             const worldData = {
-              tiles: new Uint8Array(saveData.tiles),
+              tiles: parseSaveTiles(saveData.tiles),
               width: WORLD_WIDTH,
               height: WORLD_HEIGHT,
               seed: saveData.seed,

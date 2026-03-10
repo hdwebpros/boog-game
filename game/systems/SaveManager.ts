@@ -1,11 +1,53 @@
 import type { WorldData } from '../world/WorldGenerator'
 import type { ItemStack, ArmorSlots } from './InventoryManager'
 import type { PlacedStation } from '../world/ChunkManager'
+import { WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 
 type NpcPosition = { tx: number; ty: number }
 
 const INDEX_KEY = 'starfall_save_index'
 const SLOT_PREFIX = 'starfall_save_'
+
+// ── Tile compression (RLE + base64) ─────────────────────
+// Format: [value, countHigh, countLow] triplets, base64-encoded
+
+function compressTiles(tiles: Uint8Array): string {
+  const runs: number[] = []
+  let i = 0
+  while (i < tiles.length) {
+    const val = tiles[i]!
+    let count = 1
+    while (i + count < tiles.length && tiles[i + count] === val && count < 65535) {
+      count++
+    }
+    runs.push(val, (count >> 8) & 0xFF, count & 0xFF)
+    i += count
+  }
+  const bytes = new Uint8Array(runs)
+  let binary = ''
+  const chunk = 8192
+  for (let j = 0; j < bytes.length; j += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(j, Math.min(j + chunk, bytes.length)))
+  }
+  return btoa(binary)
+}
+
+function decompressTiles(compressed: string, totalSize: number): Uint8Array {
+  const binary = atob(compressed)
+  const bytes = new Uint8Array(binary.length)
+  for (let k = 0; k < binary.length; k++) {
+    bytes[k] = binary.charCodeAt(k)
+  }
+  const tiles = new Uint8Array(totalSize)
+  let pos = 0
+  for (let i = 0; i < bytes.length; i += 3) {
+    const val = bytes[i]!
+    const count = (bytes[i + 1]! << 8) | bytes[i + 2]!
+    tiles.fill(val, pos, pos + count)
+    pos += count
+  }
+  return tiles
+}
 
 export interface SkillSaveData {
   xp: number
@@ -20,11 +62,19 @@ export interface SaveSlotInfo {
   timestamp: number
 }
 
+/** Parse tiles from save data — handles both compressed (string) and legacy (number[]) formats */
+export function parseSaveTiles(tiles: number[] | string): Uint8Array {
+  if (typeof tiles === 'string') {
+    return decompressTiles(tiles, WORLD_WIDTH * WORLD_HEIGHT)
+  }
+  return new Uint8Array(tiles)
+}
+
 export interface SaveData {
   version: 1
   name: string
   seed: string
-  tiles: number[] // compressed from Uint8Array
+  tiles: number[] | string // string = RLE+base64 compressed, number[] = legacy
   playerX: number
   playerY: number
   hp: number
@@ -74,7 +124,7 @@ export class SaveManager {
         version: 1,
         name,
         seed: worldData.seed,
-        tiles: Array.from(worldData.tiles),
+        tiles: compressTiles(worldData.tiles),
         playerX,
         playerY,
         hp,

@@ -135,8 +135,8 @@ export class CombatSystem {
         burn.enemy.takeDamage(burn.dps, 0, 0)
         this.spawnDamageNumber(burn.enemy.sprite.x, burn.enemy.sprite.y - burn.enemy.def.height / 2, burn.dps, 0xff6633)
       }
-      if (burn.enemy.sprite.active) burn.enemy.sprite.setTint(0xff6633)
-      if (burn.remaining <= 0 && burn.enemy.sprite.active) burn.enemy.sprite.clearTint()
+      if (burn.enemy.sprite.active && burn.enemy.sprite instanceof Phaser.GameObjects.Image) burn.enemy.sprite.setTint(0xff6633)
+      if (burn.remaining <= 0 && burn.enemy.sprite.active && burn.enemy.sprite instanceof Phaser.GameObjects.Image) burn.enemy.sprite.clearTint()
     }
     this.burns = this.burns.filter(b => b.remaining > 0)
 
@@ -145,10 +145,10 @@ export class CombatSystem {
       if (!slow.enemy.alive) { slow.remaining = 0; continue }
       slow.remaining -= dt * 1000
       slow.enemy.speedMult = 1 - slow.factor
-      if (slow.enemy.sprite.active) slow.enemy.sprite.setTint(0x6688ff)
+      if (slow.enemy.sprite.active && slow.enemy.sprite instanceof Phaser.GameObjects.Image) slow.enemy.sprite.setTint(0x6688ff)
       if (slow.remaining <= 0) {
         slow.enemy.speedMult = 1
-        if (slow.enemy.sprite.active) slow.enemy.sprite.clearTint()
+        if (slow.enemy.sprite.active && slow.enemy.sprite instanceof Phaser.GameObjects.Image) slow.enemy.sprite.clearTint()
       }
     }
     this.slows = this.slows.filter(s => s.remaining > 0)
