@@ -279,9 +279,7 @@ export class UIScene extends Phaser.Scene {
     // ── Mini-map ──────────────────────────────────────
     const worldData = this.registry.get('worldData') as WorldData
     if (worldData) {
-      const mapX = width - 160 - 6
-      const mapY = 28
-      this.miniMap = new MiniMap(this, mapX, mapY, worldData)
+      this.miniMap = new MiniMap(this, worldData)
 
       // Restore explored data from save
       const exploredMap = this.registry.get('exploredMap') as number[] | undefined
@@ -290,6 +288,14 @@ export class UIScene extends Phaser.Scene {
         this.registry.remove('exploredMap')
       }
     }
+
+    // Map toggle (N) and zoom ([ / ])
+    const keyN = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.N)
+    keyN.on('down', () => { if (this.miniMap) this.miniMap.toggle() })
+    const keyBracketOpen = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.OPEN_BRACKET)
+    keyBracketOpen.on('down', () => { if (this.miniMap) this.miniMap.zoomOut() })
+    const keyBracketClose = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.CLOSED_BRACKET)
+    keyBracketClose.on('down', () => { if (this.miniMap) this.miniMap.zoomIn() })
 
     // Clean up minimap texture on scene shutdown
     this.events.on('shutdown', () => {
@@ -1766,12 +1772,19 @@ export class UIScene extends Phaser.Scene {
         this.skillGfx.fillCircle(nx + SKILL_NODE_SIZE - 2, ny - 2, 5)
       }
 
-      // Hover detection
+      // Hover & click detection
       if (pointer.x >= nx && pointer.x < nx + SKILL_NODE_SIZE &&
           pointer.y >= ny && pointer.y < ny + SKILL_NODE_SIZE) {
         hoveredSkill = skill
         this.skillGfx.lineStyle(2, 0xffffff, 0.5)
         this.skillGfx.strokeRect(nx - 1, ny - 1, SKILL_NODE_SIZE + 2, SKILL_NODE_SIZE + 2)
+
+        // Click to unlock (manual hit test — zones are unreliable)
+        if (this.pointerJustDown) {
+          if (skills.unlock(skill.id)) {
+            AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+          }
+        }
       }
     }
 

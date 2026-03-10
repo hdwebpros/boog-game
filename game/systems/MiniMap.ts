@@ -2,59 +2,170 @@ import Phaser from 'phaser'
 import type { WorldData } from '../world/WorldGenerator'
 import { TileType, TILE_PROPERTIES, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 
-const MAP_W = 160
-const MAP_H = 48
-const CELL_W = Math.ceil(WORLD_WIDTH / MAP_W)  // 25 tiles per pixel
-const CELL_H = Math.ceil(WORLD_HEIGHT / MAP_H) // 25 tiles per pixel
-const REVEAL_R = 3 // cells around player to reveal
+const MAP_W = 240
+const MAP_H = 64
+const CELL_W = Math.ceil(WORLD_WIDTH / MAP_W)
+const CELL_H = Math.ceil(WORLD_HEIGHT / MAP_H)
+const REVEAL_R = 4
+
+const SCALES = [1, 2, 4]
+const MAX_DISPLAY_W = MAP_W // 240
+const MAX_DISPLAY_H = 128
+const MARGIN = 8
 
 export class MiniMap {
   private scene: Phaser.Scene
   private explored: Uint8Array
   private canvasTex!: Phaser.Textures.CanvasTexture
   private mapImage!: Phaser.GameObjects.Image
-  private overlay: Phaser.GameObjects.Graphics
+  private gfx!: Phaser.GameObjects.Graphics
+  private bgGfx!: Phaser.GameObjects.Graphics
+  private label!: Phaser.GameObjects.Text
   private tiles: Uint8Array
   private worldW: number
   private worldH: number
   private lastCellX = -1
   private lastCellY = -1
-  private mapX: number
-  private mapY: number
+  private _visible = false
+  private zoomIdx = 0
+  private playerMapX = 0
+  private playerMapY = 0
+  // Current view state
+  private cropX = 0
+  private cropY = 0
+  private cropW = MAP_W
+  private cropH = MAP_H
+  private imgX = 0
+  private imgY = 0
+  private currentScale = 1
 
-  constructor(scene: Phaser.Scene, x: number, y: number, worldData: WorldData) {
+  constructor(scene: Phaser.Scene, worldData: WorldData) {
     this.scene = scene
     this.tiles = worldData.tiles
     this.worldW = worldData.width
     this.worldH = worldData.height
-    this.mapX = x
-    this.mapY = y
     this.explored = new Uint8Array(MAP_W * MAP_H)
 
-    // Remove old texture if scene restarted
     if (scene.textures.exists('_minimap')) {
       scene.textures.remove('_minimap')
     }
-
     this.canvasTex = scene.textures.createCanvas('_minimap', MAP_W, MAP_H)!
     const ctx = this.canvasTex.context
     ctx.fillStyle = '#0a0a15'
     ctx.fillRect(0, 0, MAP_W, MAP_H)
     this.canvasTex.refresh()
 
-    this.mapImage = scene.add.image(x, y, '_minimap')
-      .setOrigin(0, 0)
-      .setDepth(195)
-      .setAlpha(0.9)
+    // Background behind the map
+    this.bgGfx = scene.add.graphics().setDepth(194).setVisible(false)
 
-    this.overlay = scene.add.graphics().setDepth(196)
+    // Map image
+    this.mapImage = scene.add.image(0, 0, '_minimap')
+      .setOrigin(0, 0).setDepth(195).setAlpha(0.85).setVisible(false)
+
+    // Overlay (border, player dot, viewport rect)
+    this.gfx = scene.add.graphics().setDepth(196).setVisible(false)
+
+    // Zoom label
+    this.label = scene.add.text(0, 0, '', {
+      fontFamily: 'monospace', fontSize: '10px', color: '#8899bb',
+    }).setOrigin(0, 1).setDepth(197).setVisible(false)
+  }
+
+  get visible() { return this._visible }
+
+  toggle() {
+    this._visible = !this._visible
+    this.mapImage.setVisible(this._visible)
+    this.gfx.setVisible(this._visible)
+    this.bgGfx.setVisible(this._visible)
+    this.label.setVisible(this._visible)
+    if (this._visible) this.applyZoom()
+    else this.gfx.clear(), this.bgGfx.clear()
+  }
+
+  zoomIn() {
+    if (!this._visible || this.zoomIdx >= SCALES.length - 1) return
+    this.zoomIdx++
+    this.applyZoom()
+  }
+
+  zoomOut() {
+    if (!this._visible || this.zoomIdx <= 0) return
+    this.zoomIdx--
+    this.applyZoom()
+  }
+
+  private applyZoom() {
+    const s = SCALES[this.zoomIdx]!
+    this.currentScale = s
+    this.mapImage.setScale(s)
+
+    if (s === 1) {
+      // Full overview
+      this.cropX = 0
+      this.cropY = 0
+      this.cropW = MAP_W
+      this.cropH = MAP_H
+      this.mapImage.setCrop(0, 0, MAP_W, MAP_H)
+      const screenH = this.scene.cameras.main.height
+      this.imgX = MARGIN
+      this.imgY = screenH - MARGIN - MAP_H
+      this.mapImage.setPosition(this.imgX, this.imgY)
+    } else {
+      this.updateCrop()
+    }
+    this.updateLabel()
+    this.drawBackground()
+  }
+
+  private updateCrop() {
+    const s = this.currentScale
+    const cw = Math.min(Math.floor(MAX_DISPLAY_W / s), MAP_W)
+    const ch = Math.min(Math.floor(MAX_DISPLAY_H / s), MAP_H)
+
+    let cx = Math.round(this.playerMapX - cw / 2)
+    let cy = Math.round(this.playerMapY - ch / 2)
+    cx = Math.max(0, Math.min(MAP_W - cw, cx))
+    cy = Math.max(0, Math.min(MAP_H - ch, cy))
+
+    this.cropX = cx
+    this.cropY = cy
+    this.cropW = cw
+    this.cropH = ch
+    this.mapImage.setCrop(cx, cy, cw, ch)
+
+    const screenH = this.scene.cameras.main.height
+    this.imgX = MARGIN
+    this.imgY = screenH - MARGIN - ch * s
+    this.mapImage.setPosition(this.imgX, this.imgY)
+  }
+
+  private drawBackground() {
+    this.bgGfx.clear()
+    const displayW = this.cropW * this.currentScale
+    const displayH = this.cropH * this.currentScale
+    this.bgGfx.fillStyle(0x000000, 0.5)
+    this.bgGfx.fillRect(this.imgX - 2, this.imgY - 2, displayW + 4, displayH + 4)
+  }
+
+  private updateLabel() {
+    const displayH = this.cropH * this.currentScale
+    const screenH = this.scene.cameras.main.height
+    const topY = screenH - MARGIN - displayH
+    this.label.setPosition(MARGIN + 2, topY - 3)
+    this.label.setText(`MAP ${SCALES[this.zoomIdx]}x`)
   }
 
   update(playerWorldX: number, playerWorldY: number) {
+    const worldPxW = WORLD_WIDTH * TILE_SIZE
+    const worldPxH = WORLD_HEIGHT * TILE_SIZE
+    this.playerMapX = (playerWorldX / worldPxW) * MAP_W
+    this.playerMapY = (playerWorldY / worldPxH) * MAP_H
+
     const cellX = Math.floor(playerWorldX / (CELL_W * TILE_SIZE))
     const cellY = Math.floor(playerWorldY / (CELL_H * TILE_SIZE))
 
-    // Reveal cells around player when they move to a new cell
+    // Reveal cells around player
     if (cellX !== this.lastCellX || cellY !== this.lastCellY) {
       this.lastCellX = cellX
       this.lastCellY = cellY
@@ -77,39 +188,67 @@ export class MiniMap {
       if (dirty) this.canvasTex.refresh()
     }
 
-    // Draw overlay: border, viewport rect, player dot
-    this.overlay.clear()
+    if (!this._visible) return
+
+    // Update crop for zoomed views
+    if (this.currentScale > 1) {
+      this.updateCrop()
+      this.drawBackground()
+      this.updateLabel()
+    }
+
+    // Draw overlay
+    this.gfx.clear()
 
     // Border
-    this.overlay.lineStyle(1, 0x334466, 0.8)
-    this.overlay.strokeRect(this.mapX - 1, this.mapY - 1, MAP_W + 2, MAP_H + 2)
+    const displayW = this.cropW * this.currentScale
+    const displayH = this.cropH * this.currentScale
+    this.gfx.lineStyle(1, 0x334466, 0.8)
+    this.gfx.strokeRect(this.imgX - 1, this.imgY - 1, displayW + 2, displayH + 2)
 
     // Viewport rectangle
     const worldScene = this.scene.scene.get('WorldScene')
     const cam = worldScene?.cameras?.main
     if (cam) {
-      const worldPxW = WORLD_WIDTH * TILE_SIZE
-      const worldPxH = WORLD_HEIGHT * TILE_SIZE
-      const vx = this.mapX + (cam.worldView.x / worldPxW) * MAP_W
-      const vy = this.mapY + (cam.worldView.y / worldPxH) * MAP_H
+      const vx1 = (cam.worldView.x / worldPxW) * MAP_W
+      const vy1 = (cam.worldView.y / worldPxH) * MAP_H
       const vw = (cam.worldView.width / worldPxW) * MAP_W
       const vh = (cam.worldView.height / worldPxH) * MAP_H
-      this.overlay.lineStyle(1, 0xffffff, 0.3)
-      this.overlay.strokeRect(vx, vy, vw, vh)
+
+      const sx = this.imgX + (vx1 - this.cropX) * this.currentScale
+      const sy = this.imgY + (vy1 - this.cropY) * this.currentScale
+      const sw = vw * this.currentScale
+      const sh = vh * this.currentScale
+
+      // Clip to display area
+      const clipX = Math.max(this.imgX, sx)
+      const clipY = Math.max(this.imgY, sy)
+      const clipR = Math.min(this.imgX + displayW, sx + sw)
+      const clipB = Math.min(this.imgY + displayH, sy + sh)
+      if (clipR > clipX && clipB > clipY) {
+        this.gfx.lineStyle(1, 0xffffff, 0.3)
+        this.gfx.strokeRect(clipX, clipY, clipR - clipX, clipB - clipY)
+      }
     }
 
     // Player dot (pulsing)
-    const worldPxW = WORLD_WIDTH * TILE_SIZE
-    const worldPxH = WORLD_HEIGHT * TILE_SIZE
-    const px = this.mapX + (playerWorldX / worldPxW) * MAP_W
-    const py = this.mapY + (playerWorldY / worldPxH) * MAP_H
-    const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.005)
-    this.overlay.fillStyle(0xffffff, pulse)
-    this.overlay.fillRect(Math.round(px) - 1, Math.round(py) - 1, 3, 3)
+    const px = this.imgX + (this.playerMapX - this.cropX) * this.currentScale
+    const py = this.imgY + (this.playerMapY - this.cropY) * this.currentScale
+    // Only draw if within display bounds
+    if (px >= this.imgX && px <= this.imgX + displayW &&
+        py >= this.imgY && py <= this.imgY + displayH) {
+      const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.005)
+      const dotSize = Math.max(2, Math.round(this.currentScale))
+      this.gfx.fillStyle(0xffffff, pulse)
+      this.gfx.fillRect(
+        Math.round(px) - Math.floor(dotSize / 2),
+        Math.round(py) - Math.floor(dotSize / 2),
+        dotSize, dotSize,
+      )
+    }
   }
 
   private drawCell(cx: number, cy: number) {
-    // Sample center tile of this cell
     const tileX = Math.min(cx * CELL_W + Math.floor(CELL_W / 2), this.worldW - 1)
     const tileY = Math.min(cy * CELL_H + Math.floor(CELL_H / 2), this.worldH - 1)
 
@@ -131,7 +270,6 @@ export class MiniMap {
 
     let color: number
     if (tileType === TileType.AIR) {
-      // Sky gradient based on depth
       const t = cy / MAP_H
       if (t < 0.1) color = 0x050520
       else if (t < 0.2) color = 0x0a0a30
@@ -154,7 +292,6 @@ export class MiniMap {
     if (data.length !== MAP_W * MAP_H) return
     this.explored = new Uint8Array(data)
 
-    // Redraw all explored cells
     const ctx = this.canvasTex.context
     ctx.fillStyle = '#0a0a15'
     ctx.fillRect(0, 0, MAP_W, MAP_H)
@@ -170,7 +307,9 @@ export class MiniMap {
 
   destroy() {
     this.mapImage.destroy()
-    this.overlay.destroy()
+    this.gfx.destroy()
+    this.bgGfx.destroy()
+    this.label.destroy()
     if (this.scene.textures.exists('_minimap')) {
       this.scene.textures.remove('_minimap')
     }

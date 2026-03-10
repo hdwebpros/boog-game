@@ -67,7 +67,7 @@ export const RECIPES: Recipe[] = [
 
   // ── Tech Bench ─────────────────────────────────────────
   { id: 'tech_bench',   station: StationType.ANVIL,      inputs: [{ itemId: 101, count: 8 }, { itemId: 100, count: 5 }, { itemId: 104, count: 3 }], output: { itemId: 113, count: 1 } },
-  { id: 'diamond',      station: StationType.TECH_BENCH, inputs: [{ itemId: TileType.DIAMOND_ORE, count: 3 }], output: { itemId: 101, count: 1 } },
+  { id: 'diamond',      station: StationType.FURNACE,    inputs: [{ itemId: TileType.DIAMOND_ORE, count: 3 }], output: { itemId: 101, count: 1 } },
   { id: 'titanium_bar', station: StationType.TECH_BENCH, inputs: [{ itemId: TileType.TITANIUM_ORE, count: 4 }], output: { itemId: 102, count: 1 } },
   { id: 'dia_pick',     station: StationType.TECH_BENCH, inputs: [{ itemId: 101, count: 6 }, { itemId: 100, count: 3 }], output: { itemId: 123, count: 1 } },
   { id: 'dia_sword',    station: StationType.TECH_BENCH, inputs: [{ itemId: 101, count: 5 }, { itemId: 100, count: 2 }], output: { itemId: 133, count: 1 } },

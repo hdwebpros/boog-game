@@ -952,6 +952,38 @@ function makeEnemyAnglerfish(): PixelGrid {
   return g
 }
 
+function makeEnemyFish(): PixelGrid {
+  const g = makeGrid(14, 8)
+  const body = 0xff8844
+  const dark = darken(body, 0.25)
+  const belly = lighten(body, 0.3)
+  const stripe = 0xffdd44
+
+  // Body — compact oval
+  for (let y = 1; y <= 6; y++)
+    for (let x = 2; x <= 10; x++)
+      g[y]![x] = body
+  for (let y = 2; y <= 5; y++) { g[y]![1] = body; g[y]![11] = body }
+  // Lighter belly
+  for (let y = 4; y <= 6; y++)
+    for (let x = 3; x <= 9; x++)
+      g[y]![x] = belly
+  // Stripe along mid
+  for (let x = 3; x <= 9; x++) g[3]![x] = stripe
+  // Eye
+  g[2]![9] = 0xffffff; g[2]![10] = 0xffffff
+  g[3]![9] = 0x111111
+  // Tail fin
+  g[2]![0] = dark; g[3]![0] = dark; g[4]![0] = dark; g[5]![0] = dark
+  g[1]![1] = dark; g[6]![1] = dark
+  // Dorsal fin
+  g[0]![5] = dark; g[0]![6] = dark; g[0]![7] = dark
+  g[1]![4] = dark; g[1]![8] = dark
+  // Mouth
+  g[3]![12] = dark; g[4]![12] = dark
+  return g
+}
+
 function makeEnemySerpent(): PixelGrid {
   const g = makeGrid(16, 24)
   const body = 0xff6622
@@ -3003,6 +3035,7 @@ export function generateAllSprites(scene: Phaser.Scene) {
   drawToTexture(scene, 'enemy_cave_bat', makeEnemyBat())
   drawToTexture(scene, 'enemy_rock_golem', makeEnemyGolem())
   drawToTexture(scene, 'enemy_anglerfish', makeEnemyAnglerfish())
+  drawToTexture(scene, 'enemy_fish', makeEnemyFish())
   drawToTexture(scene, 'enemy_lava_serpent', makeEnemySerpent())
   drawToTexture(scene, 'enemy_corrupted_drone', makeEnemyDrone())
   drawToTexture(scene, 'enemy_vampire', makeEnemyVampire())
