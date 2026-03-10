@@ -8,7 +8,7 @@ const GRAVITY = 600
 const DESPAWN_DIST = 800 // pixels from camera edge
 
 export class Enemy {
-  sprite: Phaser.GameObjects.Rectangle
+  sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
   def: EnemyDef
   alive = true
   hp: number
@@ -34,7 +34,12 @@ export class Enemy {
     this.def = def
     this.hp = def.hp
 
-    this.sprite = scene.add.rectangle(x, y, def.width, def.height, def.color)
+    const texKey = `enemy_${def.type}`
+    if (scene.textures.exists(texKey)) {
+      this.sprite = scene.add.image(x, y, texKey)
+    } else {
+      this.sprite = scene.add.rectangle(x, y, def.width, def.height, def.color)
+    }
     this.sprite.setDepth(9)
     this.patrolDir = Math.random() > 0.5 ? 1 : -1
     this.facingRight = this.patrolDir > 0
@@ -46,9 +51,11 @@ export class Enemy {
     let result = { shootAtPlayer: false }
 
     this.iFrames -= dt * 1000
+    const wasFlashing = this.flashTimer > 0
     this.flashTimer -= dt * 1000
-    if (this.flashTimer <= 0 && this.sprite.fillColor !== this.def.color) {
-      this.sprite.fillColor = this.def.color
+    if (wasFlashing && this.flashTimer <= 0) {
+      if ('clearTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).clearTint()
+      else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = this.def.color
     }
 
     // Despawn check
@@ -102,7 +109,8 @@ export class Enemy {
     this.vy += knockbackY * (1 - resist)
 
     // Flash white
-    this.sprite.fillColor = 0xffffff
+    if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(0xffffff)
+    else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = 0xffffff
     this.flashTimer = 100
 
     if (this.hp <= 0) {
@@ -188,17 +196,33 @@ export class Enemy {
     }
 
     this.facingRight = this.vx > 0
+    const prevX = this.sprite.x
+    const prevY = this.sprite.y
     this.sprite.x += this.vx * dt
     this.sprite.y += this.vy * dt
 
-    // Bounce off solid tiles
-    const tx = Math.floor(this.sprite.x / TILE_SIZE)
-    const ty = Math.floor(this.sprite.y / TILE_SIZE)
-    if (chunks.isSolid(tx, ty)) {
+    // Bounce off solid tiles — check bounding box, not just center
+    const hw = this.def.width / 2
+    const hh = this.def.height / 2
+    const tl = Math.floor((this.sprite.x - hw) / TILE_SIZE)
+    const tr = Math.floor((this.sprite.x + hw - 0.001) / TILE_SIZE)
+    const tt = Math.floor((this.sprite.y - hh) / TILE_SIZE)
+    const tb = Math.floor((this.sprite.y + hh - 0.001) / TILE_SIZE)
+    let hitSolid = false
+    for (let ty = tt; ty <= tb && !hitSolid; ty++) {
+      for (let tx = tl; tx <= tr; tx++) {
+        if (chunks.isSolid(tx, ty)) {
+          hitSolid = true
+          break
+        }
+      }
+    }
+    if (hitSolid) {
+      // Revert to previous position and reverse velocity
+      this.sprite.x = prevX
+      this.sprite.y = prevY
       this.vx *= -1
       this.vy *= -1
-      this.sprite.x += this.vx * dt * 2
-      this.sprite.y += this.vy * dt * 2
     }
 
     return { shootAtPlayer: false }
@@ -261,6 +285,7 @@ export class Enemy {
     }
 
     this.facingRight = this.vx > 0
+    if ('setFlipX' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setFlipX(!this.facingRight)
     this.sprite.x += this.vx * dt
     this.sprite.y += this.vy * dt
 
@@ -331,17 +356,32 @@ export class Enemy {
     }
 
     this.facingRight = dx > 0
+    const prevRX = this.sprite.x
+    const prevRY = this.sprite.y
     this.sprite.x += this.vx * dt
     this.sprite.y += this.vy * dt
 
-    // Bounce off walls
-    const tx = Math.floor(this.sprite.x / TILE_SIZE)
-    const ty = Math.floor(this.sprite.y / TILE_SIZE)
-    if (chunks.isSolid(tx, ty)) {
+    // Bounce off walls — check bounding box
+    const rhw = this.def.width / 2
+    const rhh = this.def.height / 2
+    const rtl = Math.floor((this.sprite.x - rhw) / TILE_SIZE)
+    const rtr = Math.floor((this.sprite.x + rhw - 0.001) / TILE_SIZE)
+    const rtt = Math.floor((this.sprite.y - rhh) / TILE_SIZE)
+    const rtb = Math.floor((this.sprite.y + rhh - 0.001) / TILE_SIZE)
+    let rHitSolid = false
+    for (let ty = rtt; ty <= rtb && !rHitSolid; ty++) {
+      for (let tx = rtl; tx <= rtr; tx++) {
+        if (chunks.isSolid(tx, ty)) {
+          rHitSolid = true
+          break
+        }
+      }
+    }
+    if (rHitSolid) {
+      this.sprite.x = prevRX
+      this.sprite.y = prevRY
       this.vx *= -1
       this.vy *= -1
-      this.sprite.x += this.vx * dt * 2
-      this.sprite.y += this.vy * dt * 2
     }
 
     // Shoot at player
@@ -360,6 +400,20 @@ export class Enemy {
     const hw = this.def.width / 2
     const hh = this.def.height / 2
 
+    // Safety: if already stuck inside a solid tile, push out
+    const cx = Math.floor(this.sprite.x / TILE_SIZE)
+    const cy = Math.floor(this.sprite.y / TILE_SIZE)
+    if (chunks.isSolid(cx, cy)) {
+      // Push up to nearest open tile
+      for (let tryY = cy - 1; tryY >= cy - 5; tryY--) {
+        if (!chunks.isSolid(cx, tryY)) {
+          this.sprite.y = tryY * TILE_SIZE + TILE_SIZE - hh
+          this.vy = 0
+          break
+        }
+      }
+    }
+
     // X
     const newX = this.sprite.x + this.vx * dt
     const tl = Math.floor((newX - hw) / TILE_SIZE)
@@ -368,16 +422,16 @@ export class Enemy {
     const tb = Math.floor((this.sprite.y + hh - 0.001) / TILE_SIZE)
 
     let blockedX = false
-    for (let ty = tt; ty <= tb; ty++) {
+    for (let ty = tt; ty <= tb && !blockedX; ty++) {
       for (let tx = tl; tx <= tr; tx++) {
         if (chunks.isSolid(tx, ty)) {
           blockedX = true
           if (this.vx > 0) this.sprite.x = tx * TILE_SIZE - hw
           else this.sprite.x = (tx + 1) * TILE_SIZE + hw
           this.vx = 0
+          break
         }
       }
-      if (blockedX) break
     }
     if (!blockedX) this.sprite.x = newX
 
@@ -390,7 +444,7 @@ export class Enemy {
 
     let blockedY = false
     this.isGrounded = false
-    for (let ty = tt2; ty <= tb2; ty++) {
+    for (let ty = tt2; ty <= tb2 && !blockedY; ty++) {
       for (let tx = tl2; tx <= tr2; tx++) {
         if (chunks.isSolid(tx, ty)) {
           blockedY = true
@@ -401,9 +455,9 @@ export class Enemy {
             this.sprite.y = (ty + 1) * TILE_SIZE + hh
           }
           this.vy = 0
+          break
         }
       }
-      if (blockedY) break
     }
     if (!blockedY) this.sprite.y = newY
 

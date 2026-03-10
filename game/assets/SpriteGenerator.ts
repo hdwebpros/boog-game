@@ -1,0 +1,1027 @@
+import Phaser from 'phaser'
+import { TileType } from '../world/TileRegistry'
+
+// Simple seeded random for consistent tile detail
+function mulberry32(seed: number) {
+  return () => {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed)
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t
+    return ((t ^ t >>> 14) >>> 0) / 4294967296
+  }
+}
+
+type PixelGrid = (number | null)[][]
+
+function makeGrid(w: number, h: number): PixelGrid {
+  return Array.from({ length: h }, () => Array(w).fill(null))
+}
+
+function fillGrid(g: PixelGrid, color: number) {
+  for (let y = 0; y < g.length; y++)
+    for (let x = 0; x < g[0]!.length; x++)
+      g[y]![x] = color
+}
+
+function drawToTexture(scene: Phaser.Scene, key: string, grid: PixelGrid) {
+  // Skip if a PNG texture was already loaded (e.g. from PixelLab)
+  if (scene.textures.exists(key)) return
+
+  const h = grid.length
+  const w = grid[0]!.length
+  const gfx = scene.add.graphics()
+  gfx.setVisible(false)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const c = grid[y]![x]
+      if (c != null) {
+        gfx.fillStyle(c)
+        gfx.fillRect(x, y, 1, 1)
+      }
+    }
+  }
+  gfx.generateTexture(key, w, h)
+  gfx.destroy()
+}
+
+// Color helpers
+function darken(c: number, f: number): number {
+  const r = Math.max(0, Math.floor(((c >> 16) & 0xff) * (1 - f)))
+  const g = Math.max(0, Math.floor(((c >> 8) & 0xff) * (1 - f)))
+  const b = Math.max(0, Math.floor((c & 0xff) * (1 - f)))
+  return (r << 16) | (g << 8) | b
+}
+
+function lighten(c: number, f: number): number {
+  const r = Math.min(255, Math.floor(((c >> 16) & 0xff) * (1 + f)))
+  const g = Math.min(255, Math.floor(((c >> 8) & 0xff) * (1 + f)))
+  const b = Math.min(255, Math.floor((c & 0xff) * (1 + f)))
+  return (r << 16) | (g << 8) | b
+}
+
+function speckle(g: PixelGrid, base: number, density: number, variance: number, rng: () => number) {
+  for (let y = 0; y < g.length; y++)
+    for (let x = 0; x < g[0]!.length; x++)
+      if (rng() < density)
+        g[y]![x] = rng() > 0.5 ? darken(base, variance * rng()) : lighten(base, variance * rng())
+}
+
+// ─── TILE TEXTURES ─────────────────────────────────────────
+
+function makeTileGrass(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(101)
+  const dirt = 0x8b5e3c
+  const grass = 0x4a8c2a
+  fillGrid(g, dirt)
+  speckle(g, dirt, 0.3, 0.15, rng)
+  // Grass top layer
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 4; y++) g[y]![x] = grass
+  }
+  // Grass blades
+  const bladePositions = [1, 3, 5, 7, 9, 11, 13, 14]
+  for (const bx of bladePositions) {
+    const h = rng() > 0.5 ? 5 : 6
+    for (let y = 0; y < h; y++) g[y]![bx] = lighten(grass, 0.05 + rng() * 0.1)
+  }
+  // Darker edge at grass/dirt transition
+  for (let x = 0; x < 16; x++) g[4]![x] = darken(grass, 0.2)
+  // Highlights on grass
+  g[0]![2] = lighten(grass, 0.3)
+  g[0]![8] = lighten(grass, 0.25)
+  g[1]![12] = lighten(grass, 0.2)
+  return g
+}
+
+function makeTileDirt(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(102)
+  const base = 0x8b5e3c
+  fillGrid(g, base)
+  speckle(g, base, 0.4, 0.2, rng)
+  // Pebbles
+  g[3]![5] = darken(base, 0.3)
+  g[3]![6] = darken(base, 0.25)
+  g[8]![11] = darken(base, 0.3)
+  g[12]![3] = darken(base, 0.28)
+  g[12]![4] = darken(base, 0.22)
+  // Roots
+  g[7]![2] = 0x5a3a20
+  g[7]![3] = 0x5a3a20
+  return g
+}
+
+function makeTileStone(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(103)
+  const base = 0x808080
+  fillGrid(g, base)
+  speckle(g, base, 0.35, 0.15, rng)
+  // Crack pattern
+  for (let x = 4; x < 12; x++) g[7]![x] = darken(base, 0.25)
+  g[6]![4] = darken(base, 0.2)
+  g[8]![11] = darken(base, 0.2)
+  g[5]![8] = darken(base, 0.15)
+  // Highlight
+  g[2]![3] = lighten(base, 0.2)
+  g[2]![4] = lighten(base, 0.15)
+  g[13]![10] = lighten(base, 0.18)
+  return g
+}
+
+function makeTileWood(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(104)
+  const base = 0x6b4226
+  fillGrid(g, base)
+  // Wood grain - horizontal lines with slight variation
+  for (let y = 0; y < 16; y++) {
+    if (y % 3 === 0) {
+      for (let x = 0; x < 16; x++) g[y]![x] = darken(base, 0.15 + rng() * 0.1)
+    }
+    if (y % 5 === 2) {
+      for (let x = 0; x < 16; x++) g[y]![x] = lighten(base, 0.1 + rng() * 0.05)
+    }
+  }
+  // Knot
+  g[5]![8] = darken(base, 0.35)
+  g[5]![9] = darken(base, 0.3)
+  g[6]![8] = darken(base, 0.3)
+  g[6]![9] = darken(base, 0.25)
+  // Bark edge
+  for (let y = 0; y < 16; y++) {
+    g[y]![0] = darken(base, 0.2)
+    g[y]![15] = darken(base, 0.2)
+  }
+  return g
+}
+
+function makeTileLeaves(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(105)
+  const base = 0x2d6b1e
+  fillGrid(g, base)
+  // Leaf cluster pattern
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const v = rng()
+      if (v < 0.25) g[y]![x] = lighten(base, 0.2 + rng() * 0.15)
+      else if (v < 0.4) g[y]![x] = darken(base, 0.15 + rng() * 0.1)
+    }
+  }
+  // Light gaps
+  g[3]![7] = lighten(base, 0.4)
+  g[10]![4] = lighten(base, 0.35)
+  return g
+}
+
+function makeTileIronOre(): PixelGrid {
+  const g = makeTileStone()
+  const rng = mulberry32(106)
+  const ore = 0xc19a6b
+  // Ore deposits - clusters
+  const spots = [[3,3],[4,3],[3,4],[4,4], [10,8],[11,8],[10,9],[11,9],[10,10], [6,13],[7,13],[7,12]]
+  for (const [x, y] of spots) {
+    g[y!]![x!] = rng() > 0.3 ? ore : lighten(ore, 0.15)
+  }
+  return g
+}
+
+function makeTileDiamondOre(): PixelGrid {
+  const g = makeTileStone()
+  const rng = mulberry32(107)
+  const gem = 0x4af0e0
+  // Diamond sparkles in stone
+  const spots = [[4,2],[5,3],[4,3], [11,7],[12,7],[11,8], [7,12],[8,12],[7,13]]
+  for (const [x, y] of spots) {
+    g[y!]![x!] = rng() > 0.4 ? gem : lighten(gem, 0.3)
+  }
+  // Sparkle highlights
+  g[2]![4] = 0xffffff
+  g[7]![12] = 0xeeffff
+  return g
+}
+
+function makeTileTitaniumOre(): PixelGrid {
+  const g = makeTileStone()
+  const rng = mulberry32(108)
+  const metal = 0xd4d4d4
+  const spots = [[2,4],[3,4],[2,5],[3,5],[4,5], [9,10],[10,10],[11,10],[10,11],[11,11], [6,1],[7,1]]
+  for (const [x, y] of spots) {
+    g[y!]![x!] = rng() > 0.3 ? metal : lighten(metal, 0.15)
+  }
+  g[4]![2] = 0xeeeeee // shine
+  g[10]![10] = 0xeeeeee
+  return g
+}
+
+function makeTileSand(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(109)
+  const base = 0xe6d5a8
+  fillGrid(g, base)
+  speckle(g, base, 0.5, 0.1, rng)
+  // Tiny shells/pebbles
+  g[5]![3] = 0xf0e8d0
+  g[5]![4] = 0xf0e8d0
+  g[11]![9] = 0xd0c098
+  g[11]![10] = 0xd0c098
+  return g
+}
+
+function makeTileCoral(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(110)
+  const base = 0xff6b9d
+  fillGrid(g, base)
+  // Coral branches/texture
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const v = rng()
+      if (v < 0.2) g[y]![x] = lighten(base, 0.25)
+      else if (v < 0.35) g[y]![x] = darken(base, 0.2)
+    }
+  }
+  // Branch pattern
+  for (let y = 2; y < 14; y++) {
+    g[y]![4] = lighten(base, 0.15)
+    g[y]![10] = lighten(base, 0.15)
+  }
+  g[2]![3] = lighten(base, 0.15)
+  g[2]![5] = lighten(base, 0.15)
+  g[2]![9] = lighten(base, 0.15)
+  g[2]![11] = lighten(base, 0.15)
+  return g
+}
+
+function makeTileCarbonFiber(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(111)
+  const base = 0x2a2a4e
+  fillGrid(g, base)
+  // Woven crosshatch pattern
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      if ((x + y) % 4 === 0) g[y]![x] = lighten(base, 0.2)
+      else if ((x + y) % 4 === 2) g[y]![x] = darken(base, 0.15)
+    }
+  }
+  // Slight shine
+  g[1]![1] = lighten(base, 0.35)
+  g[1]![2] = lighten(base, 0.25)
+  return g
+}
+
+function makeTileLava(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(112)
+  const base = 0xff4400
+  fillGrid(g, base)
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const v = rng()
+      if (v < 0.2) g[y]![x] = 0xff6600
+      else if (v < 0.35) g[y]![x] = 0xff8800
+      else if (v < 0.45) g[y]![x] = 0xffaa00
+      else if (v < 0.5) g[y]![x] = darken(base, 0.3)
+    }
+  }
+  // Bright hot spots
+  g[4]![7] = 0xffcc44
+  g[4]![8] = 0xffcc44
+  g[11]![3] = 0xffcc44
+  return g
+}
+
+function makeTileWater(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(113)
+  const base = 0x2266cc
+  fillGrid(g, base)
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const v = rng()
+      if (v < 0.15) g[y]![x] = lighten(base, 0.2)
+      else if (v < 0.25) g[y]![x] = lighten(base, 0.35)
+      else if (v < 0.35) g[y]![x] = darken(base, 0.15)
+    }
+  }
+  // Surface highlights
+  g[1]![3] = 0x4488ee
+  g[1]![4] = 0x4488ee
+  g[1]![5] = 0x4488ee
+  g[2]![9] = 0x4488ee
+  g[2]![10] = 0x4488ee
+  return g
+}
+
+// ─── PLAYER TEXTURES ───────────────────────────────────────
+
+function makePlayerFrame(frameType: 'idle1' | 'idle2' | 'walk1' | 'walk2' | 'walk3' | 'walk4' | 'jump' | 'fall'): PixelGrid {
+  const g = makeGrid(16, 32)
+  // Astronaut design: white suit, cyan visor, dark boots
+
+  const suit = 0xdddddd
+  const suitDark = 0xbbbbbb
+  const suitShadow = 0x999999
+  const visor = 0x00ffff
+  const visorDark = 0x00bbcc
+  const boot = 0x444444
+  const bootLight = 0x555555
+  const belt = 0x666688
+  const backpack = 0xaaaaaa
+
+  // Helmet (rows 2-9, cols 3-12)
+  for (let y = 2; y <= 9; y++)
+    for (let x = 4; x <= 11; x++)
+      g[y]![x] = suit
+  // Helmet top curve
+  g[2]![4] = null; g[2]![11] = null
+  g[2]![5] = suitDark; g[2]![10] = suitDark
+  // Helmet outline
+  for (let y = 3; y <= 8; y++) { g[y]![3] = suitDark; g[y]![12] = suitShadow }
+  // Visor (rows 4-7, cols 5-10)
+  for (let y = 4; y <= 7; y++)
+    for (let x = 5; x <= 10; x++)
+      g[y]![x] = visor
+  g[4]![5] = visorDark; g[7]![5] = visorDark
+  g[4]![10] = visorDark; g[7]![10] = visorDark
+  // Visor shine
+  g[4]![6] = 0x88ffff
+  g[5]![6] = 0x66ffff
+
+  // Neck (row 10)
+  for (let x = 5; x <= 10; x++) g[10]![x] = suitDark
+
+  // Torso (rows 11-19, cols 3-12)
+  for (let y = 11; y <= 19; y++)
+    for (let x = 3; x <= 12; x++)
+      g[y]![x] = suit
+  // Torso shading
+  for (let y = 11; y <= 19; y++) {
+    g[y]![3] = suitShadow
+    g[y]![12] = suitShadow
+  }
+  // Backpack bump on left side
+  for (let y = 12; y <= 17; y++) {
+    g[y]![2] = backpack
+    g[y]![3] = suitDark
+  }
+  // Belt
+  for (let x = 3; x <= 12; x++) g[18]![x] = belt
+  g[18]![7] = 0x8888aa // buckle
+
+  // Arms (rows 12-18)
+  for (let y = 12; y <= 18; y++) {
+    g[y]![1] = suitShadow  // left arm
+    g[y]![13] = suitShadow  // right arm
+  }
+
+  // Legs (rows 20-27)
+  // Left leg
+  for (let y = 20; y <= 27; y++)
+    for (let x = 4; x <= 7; x++)
+      g[y]![x] = suit
+  // Right leg
+  for (let y = 20; y <= 27; y++)
+    for (let x = 8; x <= 11; x++)
+      g[y]![x] = suit
+  // Leg shading
+  for (let y = 20; y <= 27; y++) {
+    g[y]![4] = suitShadow
+    g[y]![11] = suitShadow
+  }
+  // Gap between legs
+  for (let y = 22; y <= 27; y++) g[y]![7] = suitDark;
+  for (let y = 22; y <= 27; y++) g[y]![8] = suitDark;
+
+  // Boots (rows 28-31)
+  for (let y = 28; y <= 31; y++) {
+    for (let x = 3; x <= 7; x++) g[y]![x] = boot
+    for (let x = 8; x <= 12; x++) g[y]![x] = boot
+  }
+  g[28]![4] = bootLight; g[28]![5] = bootLight
+  g[28]![9] = bootLight; g[28]![10] = bootLight
+
+  // Frame-specific modifications
+  switch (frameType) {
+    case 'idle2':
+      // Slight visor flicker
+      g[5]![7] = 0x88ffff
+      break
+    case 'walk1':
+      // Left leg forward, right back
+      for (let y = 24; y <= 27; y++) { g[y]![4] = null; g[y]![5] = null }
+      for (let x = 2; x <= 5; x++) { g[26]![x] = suit; g[27]![x] = suit }
+      for (let x = 2; x <= 5; x++) { g[28]![x] = boot; g[29]![x] = boot }
+      for (let y = 24; y <= 27; y++) { g[y]![11] = null; g[y]![12] = null }
+      for (let x = 10; x <= 13; x++) { g[22]![x] = suit; g[23]![x] = suit }
+      for (let x = 10; x <= 13; x++) { g[24]![x] = boot; g[25]![x] = boot }
+      break
+    case 'walk2':
+      // Legs neutral (same as idle)
+      break
+    case 'walk3':
+      // Right leg forward, left back
+      for (let y = 24; y <= 27; y++) { g[y]![11] = null; g[y]![12] = null }
+      for (let x = 10; x <= 13; x++) { g[26]![x] = suit; g[27]![x] = suit }
+      for (let x = 10; x <= 13; x++) { g[28]![x] = boot; g[29]![x] = boot }
+      for (let y = 24; y <= 27; y++) { g[y]![4] = null; g[y]![5] = null }
+      for (let x = 2; x <= 5; x++) { g[22]![x] = suit; g[23]![x] = suit }
+      for (let x = 2; x <= 5; x++) { g[24]![x] = boot; g[25]![x] = boot }
+      break
+    case 'walk4':
+      // Same as walk2 (neutral)
+      break
+    case 'jump':
+      // Arms up
+      for (let y = 12; y <= 14; y++) { g[y]![1] = null; g[y]![13] = null }
+      g[9]![1] = suitShadow; g[10]![1] = suitShadow; g[11]![1] = suitShadow
+      g[9]![14] = suitShadow; g[10]![14] = suitShadow; g[11]![14] = suitShadow
+      // Legs tucked
+      for (let y = 26; y <= 27; y++) {
+        for (let x = 4; x <= 7; x++) g[y]![x] = null
+        for (let x = 8; x <= 11; x++) g[y]![x] = null
+      }
+      for (let x = 3; x <= 7; x++) g[28]![x] = null
+      for (let x = 8; x <= 12; x++) g[28]![x] = null
+      break
+    case 'fall':
+      // Arms out wide
+      g[14]![0] = suitShadow; g[14]![15] = suitShadow
+      g[15]![0] = suitShadow; g[15]![15] = suitShadow
+      // Legs spread
+      for (let y = 26; y <= 27; y++) {
+        g[y]![3] = suit; g[y]![12] = suit
+      }
+      break
+  }
+
+  return g
+}
+
+// ─── ENEMY TEXTURES ────────────────────────────────────────
+
+function makeEnemySlug(): PixelGrid {
+  const g = makeGrid(20, 12)
+  const body = 0x88cc44
+  const dark = darken(body, 0.2)
+  const light = lighten(body, 0.2)
+  // Body oval
+  for (let y = 3; y <= 9; y++)
+    for (let x = 2; x <= 17; x++)
+      g[y]![x] = body
+  // Round ends
+  for (let y = 4; y <= 8; y++) { g[y]![1] = body; g[y]![18] = body }
+  // Top curve
+  for (let x = 4; x <= 15; x++) g[2]![x] = body
+  for (let x = 4; x <= 15; x++) g[10]![x] = dark
+  // Eyes
+  g[4]![15] = 0x000000; g[4]![16] = 0x000000
+  g[5]![15] = 0xffffff; g[5]![16] = 0xffffff
+  // Spots on back
+  g[4]![5] = light; g[4]![6] = light
+  g[5]![9] = light; g[5]![10] = light
+  g[6]![13] = light
+  // Slime trail
+  g[10]![3] = 0xaaddaa; g[10]![7] = 0xaaddaa; g[10]![11] = 0xaaddaa
+  // Antennae
+  g[1]![16] = 0xaadd66; g[0]![17] = 0xaadd66
+  g[1]![14] = 0xaadd66; g[0]![13] = 0xaadd66
+  return g
+}
+
+function makeEnemyBat(): PixelGrid {
+  const g = makeGrid(14, 10)
+  const body = 0x664488
+  const wing = darken(body, 0.15)
+  const wingLight = lighten(body, 0.1)
+  // Body center
+  for (let y = 2; y <= 7; y++)
+    for (let x = 5; x <= 8; x++)
+      g[y]![x] = body
+  // Wings spread
+  for (let y = 3; y <= 5; y++) {
+    for (let x = 0; x <= 4; x++) g[y]![x] = wing
+    for (let x = 9; x <= 13; x++) g[y]![x] = wing
+  }
+  // Wing tips
+  g[2]![0] = wing; g[2]![1] = wing; g[2]![12] = wing; g[2]![13] = wing
+  g[6]![1] = wing; g[6]![2] = wing; g[6]![11] = wing; g[6]![12] = wing
+  // Wing membrane detail
+  g[4]![1] = wingLight; g[4]![12] = wingLight
+  // Eyes - red
+  g[3]![5] = 0xff0000; g[3]![8] = 0xff0000
+  // Ears
+  g[1]![5] = body; g[0]![5] = darken(body, 0.1)
+  g[1]![8] = body; g[0]![8] = darken(body, 0.1)
+  // Fangs
+  g[7]![6] = 0xffffff; g[7]![7] = 0xffffff
+  return g
+}
+
+function makeEnemyGolem(): PixelGrid {
+  const g = makeGrid(22, 28)
+  const body = 0x887766
+  const dark = darken(body, 0.2)
+  const light = lighten(body, 0.15)
+  // Blocky body
+  for (let y = 0; y <= 27; y++)
+    for (let x = 3; x <= 18; x++)
+      g[y]![x] = body
+  // Head wider
+  for (let y = 0; y <= 8; y++)
+    for (let x = 2; x <= 19; x++)
+      g[y]![x] = body
+  // Arms
+  for (let y = 9; y <= 20; y++) {
+    g[y]![0] = body; g[y]![1] = body; g[y]![2] = body
+    g[y]![19] = body; g[y]![20] = body; g[y]![21] = body
+  }
+  // Fists
+  for (let x = 0; x <= 3; x++) { g[20]![x] = dark; g[21]![x] = dark }
+  for (let x = 18; x <= 21; x++) { g[20]![x] = dark; g[21]![x] = dark }
+  // Eyes - glowing
+  g[3]![6] = 0xffaa00; g[3]![7] = 0xffaa00; g[4]![6] = 0xffaa00; g[4]![7] = 0xffaa00
+  g[3]![14] = 0xffaa00; g[3]![15] = 0xffaa00; g[4]![14] = 0xffaa00; g[4]![15] = 0xffaa00
+  // Mouth crack
+  for (let x = 8; x <= 13; x++) g[7]![x] = dark
+  // Rock texture
+  g[12]![5] = dark; g[12]![6] = dark; g[13]![6] = dark
+  g[15]![14] = light; g[15]![15] = light
+  g[20]![8] = dark; g[20]![9] = dark
+  // Cracks
+  g[10]![10] = dark; g[11]![11] = dark; g[12]![12] = dark
+  return g
+}
+
+function makeEnemyAnglerfish(): PixelGrid {
+  const g = makeGrid(18, 14)
+  const body = 0x2288aa
+  const dark = darken(body, 0.25)
+  const belly = lighten(body, 0.2)
+  // Body oval
+  for (let y = 4; y <= 11; y++)
+    for (let x = 2; x <= 14; x++)
+      g[y]![x] = body
+  for (let y = 5; y <= 10; y++) { g[y]![1] = body; g[y]![15] = body }
+  for (let x = 4; x <= 12; x++) { g[3]![x] = body; g[12]![x] = body }
+  // Lighter belly
+  for (let y = 8; y <= 11; y++)
+    for (let x = 4; x <= 12; x++)
+      g[y]![x] = belly
+  // Big mouth
+  for (let x = 13; x <= 17; x++) g[6]![x] = dark
+  for (let x = 13; x <= 17; x++) g[9]![x] = dark
+  for (let y = 6; y <= 9; y++) g[y]![17] = dark
+  // Teeth
+  g[7]![14] = 0xffffff; g[7]![16] = 0xffffff
+  g[8]![15] = 0xffffff; g[8]![17] = 0xffffff
+  // Eye (big)
+  g[4]![10] = 0xffffff; g[4]![11] = 0xffffff
+  g[5]![10] = 0xffffff; g[5]![11] = 0x000000
+  // Lure
+  g[1]![6] = 0xffff00; g[0]![5] = 0xffff00; g[0]![6] = 0xffff88
+  g[2]![7] = dark; g[1]![7] = dark
+  // Tail fin
+  g[6]![0] = dark; g[7]![0] = dark; g[5]![0] = dark
+  g[8]![0] = dark; g[9]![0] = dark
+  return g
+}
+
+function makeEnemySerpent(): PixelGrid {
+  const g = makeGrid(16, 24)
+  const body = 0xff6622
+  const dark = darken(body, 0.25)
+  const light = lighten(body, 0.2)
+  const belly = 0xffaa44
+  // Serpentine body
+  for (let y = 0; y <= 23; y++)
+    for (let x = 4; x <= 11; x++)
+      g[y]![x] = body
+  // Wider head
+  for (let y = 0; y <= 5; y++) {
+    g[y]![2] = body; g[y]![3] = body
+    g[y]![12] = body; g[y]![13] = body
+  }
+  // Head top
+  for (let x = 3; x <= 12; x++) g[0]![x] = dark
+  // Eyes
+  g[2]![4] = 0xffff00; g[2]![5] = 0xffff00
+  g[2]![10] = 0xffff00; g[2]![11] = 0xffff00
+  g[3]![5] = 0xff0000; g[3]![10] = 0xff0000
+  // Belly stripe
+  for (let y = 6; y <= 22; y++) { g[y]![7] = belly; g[y]![8] = belly }
+  // Scale pattern
+  for (let y = 6; y < 22; y += 3) {
+    g[y]![5] = dark; g[y]![10] = dark
+  }
+  // Tail taper
+  for (let y = 20; y <= 23; y++) {
+    g[y]![4] = null; g[y]![11] = null
+  }
+  g[22]![5] = null; g[22]![10] = null
+  g[23]![5] = null; g[23]![6] = null; g[23]![9] = null; g[23]![10] = null
+  // Flame particles near mouth
+  g[4]![14] = 0xffaa00; g[3]![15] = 0xff6600
+  return g
+}
+
+function makeEnemyDrone(): PixelGrid {
+  const g = makeGrid(14, 14)
+  const body = 0xcc2244
+  const dark = darken(body, 0.2)
+  const metal = 0x888888
+  // Central body
+  for (let y = 3; y <= 10; y++)
+    for (let x = 3; x <= 10; x++)
+      g[y]![x] = body
+  // Wider middle
+  for (let y = 5; y <= 8; y++) {
+    g[y]![2] = body; g[y]![11] = body
+  }
+  // Top/bottom trim
+  for (let x = 4; x <= 9; x++) { g[2]![x] = metal; g[11]![x] = metal }
+  // Propellers/wings
+  g[4]![0] = metal; g[4]![1] = metal; g[4]![12] = metal; g[4]![13] = metal
+  g[9]![0] = metal; g[9]![1] = metal; g[9]![12] = metal; g[9]![13] = metal
+  // Eye/sensor
+  g[5]![5] = 0xff0000; g[5]![6] = 0xff0000; g[5]![7] = 0xff0000; g[5]![8] = 0xff0000
+  g[6]![5] = 0xff0000; g[6]![6] = 0xff4444; g[6]![7] = 0xff4444; g[6]![8] = 0xff0000
+  // Gun barrel
+  g[8]![6] = dark; g[8]![7] = dark
+  g[12]![6] = metal; g[12]![7] = metal; g[13]![6] = metal; g[13]![7] = metal
+  return g
+}
+
+// ─── BOSS TEXTURES ─────────────────────────────────────────
+
+function makeBossVineGuardian(): PixelGrid {
+  const g = makeGrid(32, 40)
+  const body = 0x33aa33
+  const dark = darken(body, 0.25)
+  const light = lighten(body, 0.2)
+  const vine = 0x227722
+  const eye = 0xffff00
+  // Main body - tree trunk shape
+  for (let y = 5; y <= 35; y++)
+    for (let x = 8; x <= 23; x++)
+      g[y]![x] = body
+  // Wider base
+  for (let y = 30; y <= 39; y++)
+    for (let x = 5; x <= 26; x++)
+      g[y]![x] = body
+  // Crown/top
+  for (let y = 0; y <= 8; y++)
+    for (let x = 4; x <= 27; x++)
+      g[y]![x] = light
+  for (let y = 0; y <= 4; y++) {
+    for (let x = 2; x <= 3; x++) g[y]![x] = light
+    for (let x = 28; x <= 29; x++) g[y]![x] = light
+  }
+  // Eyes
+  for (let y = 12; y <= 15; y++) {
+    g[y]![11] = eye; g[y]![12] = eye; g[y]![13] = eye
+    g[y]![18] = eye; g[y]![19] = eye; g[y]![20] = eye
+  }
+  g[13]![12] = 0x000000; g[13]![19] = 0x000000
+  g[14]![12] = 0x000000; g[14]![19] = 0x000000
+  // Mouth
+  for (let x = 12; x <= 19; x++) g[20]![x] = dark
+  for (let x = 13; x <= 18; x++) g[21]![x] = dark
+  // Vine arms
+  for (let y = 15; y <= 30; y++) {
+    g[y]![3] = vine; g[y]![4] = vine; g[y]![5] = vine
+    g[y]![26] = vine; g[y]![27] = vine; g[y]![28] = vine
+  }
+  // Root feet
+  for (let x = 3; x <= 8; x++) { g[38]![x] = dark; g[39]![x] = dark }
+  for (let x = 23; x <= 28; x++) { g[38]![x] = dark; g[39]![x] = dark }
+  // Bark texture
+  for (let y = 10; y < 35; y += 4) {
+    for (let x = 9; x <= 22; x++) if ((x + y) % 5 === 0) g[y]![x] = dark
+  }
+  return g
+}
+
+function makeBossLeviathan(): PixelGrid {
+  const g = makeGrid(40, 20)
+  const body = 0x1155aa
+  const dark = darken(body, 0.2)
+  const belly = lighten(body, 0.3)
+  // Long body
+  for (let y = 4; y <= 15; y++)
+    for (let x = 4; x <= 35; x++)
+      g[y]![x] = body
+  // Head (wider)
+  for (let y = 2; y <= 17; y++)
+    for (let x = 28; x <= 39; x++)
+      g[y]![x] = body
+  // Tail taper
+  for (let y = 6; y <= 13; y++) { g[y]![2] = body; g[y]![3] = body }
+  for (let y = 7; y <= 12; y++) { g[y]![0] = dark; g[y]![1] = dark }
+  // Tail fin
+  g[4]![0] = dark; g[5]![0] = dark; g[5]![1] = dark
+  g[14]![0] = dark; g[15]![0] = dark; g[14]![1] = dark
+  // Belly
+  for (let y = 12; y <= 15; y++)
+    for (let x = 6; x <= 33; x++)
+      g[y]![x] = belly
+  // Eye
+  g[6]![34] = 0xffffff; g[6]![35] = 0xffffff; g[7]![34] = 0xffffff; g[7]![35] = 0x000000
+  // Teeth
+  for (let x = 36; x <= 39; x++) { g[10]![x] = 0xffffff; g[11]![x] = dark }
+  g[9]![37] = 0xffffff; g[9]![39] = 0xffffff
+  // Dorsal fin
+  for (let x = 15; x <= 22; x++) g[3]![x] = dark
+  for (let x = 17; x <= 20; x++) g[2]![x] = dark
+  g[1]![18] = dark; g[1]![19] = dark
+  // Scale pattern
+  for (let y = 5; y < 12; y += 2)
+    for (let x = 6; x < 30; x += 3)
+      g[y]![x] = lighten(body, 0.1)
+  return g
+}
+
+function makeBossCrystalGolem(): PixelGrid {
+  const g = makeGrid(36, 44)
+  const body = 0x66ddff
+  const dark = darken(body, 0.2)
+  const crystal = 0xaaeeff
+  const glow = 0xffffff
+  // Massive body
+  for (let y = 8; y <= 38; y++)
+    for (let x = 6; x <= 29; x++)
+      g[y]![x] = body
+  // Head
+  for (let y = 0; y <= 12; y++)
+    for (let x = 8; x <= 27; x++)
+      g[y]![x] = body
+  // Crystal spikes on head
+  g[0]![10] = crystal; g[0]![11] = crystal
+  g[0]![24] = crystal; g[0]![25] = crystal
+  for (let x = 12; x <= 15; x++) { g[0]![x] = crystal; g[1]![x] = crystal }
+  for (let x = 20; x <= 23; x++) { g[0]![x] = crystal; g[1]![x] = crystal }
+  // Shoulders wide
+  for (let y = 12; y <= 20; y++) {
+    for (let x = 2; x <= 5; x++) g[y]![x] = body
+    for (let x = 30; x <= 33; x++) g[y]![x] = body
+  }
+  // Arms
+  for (let y = 14; y <= 32; y++) {
+    g[y]![0] = dark; g[y]![1] = dark; g[y]![2] = body; g[y]![3] = body
+    g[y]![32] = body; g[y]![33] = body; g[y]![34] = dark; g[y]![35] = dark
+  }
+  // Eyes - glowing white
+  g[5]![12] = glow; g[5]![13] = glow; g[6]![12] = glow; g[6]![13] = glow
+  g[5]![22] = glow; g[5]![23] = glow; g[6]![22] = glow; g[6]![23] = glow
+  // Legs
+  for (let y = 38; y <= 43; y++) {
+    for (let x = 8; x <= 15; x++) g[y]![x] = dark
+    for (let x = 20; x <= 27; x++) g[y]![x] = dark
+  }
+  // Crystal facets
+  for (let y = 15; y < 36; y += 5)
+    for (let x = 8; x < 28; x += 4)
+      g[y]![x] = crystal
+  return g
+}
+
+function makeBossMagmaWyrm(): PixelGrid {
+  const g = makeGrid(30, 30)
+  const body = 0xff4400
+  const dark = darken(body, 0.3)
+  const hot = 0xffaa00
+  const glow = 0xffcc44
+  // Coiled serpent body
+  for (let y = 4; y <= 25; y++)
+    for (let x = 5; x <= 24; x++)
+      g[y]![x] = body
+  // Head top
+  for (let y = 0; y <= 6; y++)
+    for (let x = 8; x <= 21; x++)
+      g[y]![x] = body
+  // Horns
+  g[0]![6] = dark; g[0]![7] = dark; g[1]![7] = dark
+  g[0]![22] = dark; g[0]![23] = dark; g[1]![22] = dark
+  // Eyes
+  g[3]![10] = 0xffffff; g[3]![11] = 0xffff00
+  g[3]![18] = 0xffffff; g[3]![19] = 0xffff00
+  // Mouth - fire
+  for (let x = 12; x <= 17; x++) { g[7]![x] = glow; g[8]![x] = hot }
+  // Wings
+  for (let y = 10; y <= 18; y++) {
+    g[y]![0] = dark; g[y]![1] = dark; g[y]![2] = body; g[y]![3] = body
+    g[y]![26] = body; g[y]![27] = body; g[y]![28] = dark; g[y]![29] = dark
+  }
+  g[9]![0] = dark; g[9]![1] = dark; g[9]![28] = dark; g[9]![29] = dark
+  // Tail
+  for (let y = 26; y <= 29; y++)
+    for (let x = 10; x <= 19; x++)
+      g[y]![x] = dark
+  g[28]![12] = body; g[28]![13] = body; g[28]![16] = body; g[28]![17] = body
+  // Lava glow lines
+  for (let y = 12; y < 24; y += 3)
+    for (let x = 7; x < 22; x += 2) {
+      if (g[y]![x] === body) g[y]![x] = hot
+    }
+  return g
+}
+
+function makeBossCoreSentinel(): PixelGrid {
+  const g = makeGrid(28, 28)
+  const body = 0xaa22ff
+  const dark = darken(body, 0.2)
+  const light = lighten(body, 0.25)
+  const energy = 0xff44ff
+  const core = 0xffffff
+  // Diamond/octagonal shape
+  for (let y = 4; y <= 23; y++) {
+    const indent = Math.max(0, Math.abs(13 - y) - 5)
+    for (let x = indent + 2; x <= 25 - indent; x++)
+      g[y]![x] = body
+  }
+  // Central core
+  for (let y = 10; y <= 17; y++)
+    for (let x = 10; x <= 17; x++)
+      g[y]![x] = energy
+  g[12]![13] = core; g[12]![14] = core
+  g[13]![13] = core; g[13]![14] = core
+  g[15]![13] = core; g[15]![14] = core
+  // Eye/sensor
+  g[8]![13] = core; g[8]![14] = core
+  g[9]![12] = core; g[9]![13] = 0x000000; g[9]![14] = 0x000000; g[9]![15] = core
+  // Orbiting rings
+  for (let x = 0; x <= 27; x++) { if (x % 3 === 0) { g[2]![x] = light; g[25]![x] = light } }
+  for (let y = 0; y <= 27; y++) { if (y % 3 === 0) { g[y]![1] = light; g[y]![26] = light } }
+  // Energy veins
+  for (let y = 5; y < 23; y += 4) { g[y]![6] = energy; g[y]![21] = energy }
+  return g
+}
+
+function makeBossMothership(): PixelGrid {
+  const g = makeGrid(48, 32)
+  const hull = 0xff44ff
+  const dark = darken(hull, 0.25)
+  const metal = 0xaaaacc
+  const light = 0xff88ff
+  const window = 0x00ffff
+  // Main hull - saucer shape
+  for (let y = 8; y <= 23; y++) {
+    const w = y <= 15 ? 2 + (y - 8) * 2 : 2 + (23 - y) * 2
+    const x0 = 24 - w
+    const x1 = 24 + w - 1
+    for (let x = Math.max(0, x0); x <= Math.min(47, x1); x++)
+      g[y]![x] = hull
+  }
+  // Wider center band
+  for (let y = 12; y <= 19; y++)
+    for (let x = 4; x <= 43; x++)
+      g[y]![x] = hull
+  // Metal trim
+  for (let x = 6; x <= 41; x++) { g[12]![x] = metal; g[19]![x] = metal }
+  // Windows
+  for (let x = 10; x <= 38; x += 4) { g[14]![x] = window; g[14]![x+1] = window }
+  // Bridge dome on top
+  for (let y = 5; y <= 8; y++)
+    for (let x = 18; x <= 29; x++)
+      g[y]![x] = light
+  for (let x = 20; x <= 27; x++) g[4]![x] = light
+  for (let x = 22; x <= 25; x++) g[3]![x] = light
+  // Bridge window
+  g[6]![22] = window; g[6]![23] = window; g[6]![24] = window; g[6]![25] = window
+  // Underside beam emitter
+  for (let x = 20; x <= 27; x++) { g[24]![x] = dark; g[25]![x] = dark }
+  for (let x = 22; x <= 25; x++) { g[26]![x] = 0xffaaff; g[27]![x] = 0xff88ff }
+  // Engine pods
+  for (let y = 20; y <= 25; y++) {
+    g[y]![2] = metal; g[y]![3] = metal; g[y]![4] = dark
+    g[y]![43] = dark; g[y]![44] = metal; g[y]![45] = metal
+  }
+  // Engine glow
+  g[26]![2] = 0xff66ff; g[26]![3] = 0xff66ff
+  g[26]![44] = 0xff66ff; g[26]![45] = 0xff66ff
+  // Detail lines
+  for (let x = 8; x <= 39; x += 5) { g[16]![x] = dark; g[17]![x] = dark }
+  return g
+}
+
+// ─── PROJECTILE TEXTURES ───────────────────────────────────
+
+function makeProjectileArrow(): PixelGrid {
+  const g = makeGrid(5, 5)
+  g[0]![2] = 0xffffff
+  g[1]![1] = 0xcccccc; g[1]![2] = 0xeeeeee; g[1]![3] = 0xcccccc
+  g[2]![2] = 0xdddddd
+  g[3]![2] = 0x8b6b3a
+  g[4]![2] = 0x8b6b3a
+  return g
+}
+
+function makeProjectileMagic(): PixelGrid {
+  const g = makeGrid(8, 8)
+  const core = 0xffffff
+  const mid = 0xaa66ff
+  const outer = 0x6644cc
+  // Glowing orb
+  for (let y = 1; y <= 6; y++)
+    for (let x = 1; x <= 6; x++)
+      g[y]![x] = outer
+  for (let y = 2; y <= 5; y++)
+    for (let x = 2; x <= 5; x++)
+      g[y]![x] = mid
+  g[3]![3] = core; g[3]![4] = core; g[4]![3] = core; g[4]![4] = core
+  return g
+}
+
+function makeProjectileEnemy(): PixelGrid {
+  const g = makeGrid(5, 5)
+  g[1]![2] = 0xff4444
+  g[2]![1] = 0xff4444; g[2]![2] = 0xff6666; g[2]![3] = 0xff4444
+  g[3]![2] = 0xff4444
+  g[0]![2] = 0xff2222; g[4]![2] = 0xff2222; g[2]![0] = 0xff2222; g[2]![4] = 0xff2222
+  return g
+}
+
+function makeSummonMinion(): PixelGrid {
+  const g = makeGrid(10, 10)
+  const body = 0x44aa88
+  const light = lighten(body, 0.3)
+  // Small floating companion
+  for (let y = 2; y <= 7; y++)
+    for (let x = 2; x <= 7; x++)
+      g[y]![x] = body
+  for (let x = 3; x <= 6; x++) { g[1]![x] = body; g[8]![x] = body }
+  // Eyes
+  g[3]![3] = 0xffffff; g[3]![6] = 0xffffff
+  g[4]![3] = 0x000000; g[4]![6] = 0x000000
+  // Glow
+  g[0]![4] = light; g[0]![5] = light
+  g[9]![4] = light; g[9]![5] = light
+  g[4]![0] = light; g[5]![0] = light
+  g[4]![9] = light; g[5]![9] = light
+  return g
+}
+
+// ─── PUBLIC API ────────────────────────────────────────────
+
+export function generateAllSprites(scene: Phaser.Scene) {
+  // Tiles
+  const tileMakers: Record<number, () => PixelGrid> = {
+    [TileType.GRASS]: makeTileGrass,
+    [TileType.DIRT]: makeTileDirt,
+    [TileType.STONE]: makeTileStone,
+    [TileType.WOOD]: makeTileWood,
+    [TileType.LEAVES]: makeTileLeaves,
+    [TileType.IRON_ORE]: makeTileIronOre,
+    [TileType.DIAMOND_ORE]: makeTileDiamondOre,
+    [TileType.TITANIUM_ORE]: makeTileTitaniumOre,
+    [TileType.SAND]: makeTileSand,
+    [TileType.CORAL]: makeTileCoral,
+    [TileType.CARBON_FIBER]: makeTileCarbonFiber,
+    [TileType.LAVA]: makeTileLava,
+    [TileType.WATER]: makeTileWater,
+  }
+
+  for (const [type, maker] of Object.entries(tileMakers)) {
+    drawToTexture(scene, `tile_${type}`, maker())
+  }
+
+  // Player frames
+  const playerFrames: [string, Parameters<typeof makePlayerFrame>[0]][] = [
+    ['player_idle1', 'idle1'],
+    ['player_idle2', 'idle2'],
+    ['player_walk1', 'walk1'],
+    ['player_walk2', 'walk2'],
+    ['player_walk3', 'walk3'],
+    ['player_walk4', 'walk4'],
+    ['player_jump', 'jump'],
+    ['player_fall', 'fall'],
+  ]
+  for (const [key, frame] of playerFrames) {
+    drawToTexture(scene, key, makePlayerFrame(frame))
+  }
+
+  // Enemies
+  drawToTexture(scene, 'enemy_space_slug', makeEnemySlug())
+  drawToTexture(scene, 'enemy_cave_bat', makeEnemyBat())
+  drawToTexture(scene, 'enemy_rock_golem', makeEnemyGolem())
+  drawToTexture(scene, 'enemy_anglerfish', makeEnemyAnglerfish())
+  drawToTexture(scene, 'enemy_lava_serpent', makeEnemySerpent())
+  drawToTexture(scene, 'enemy_corrupted_drone', makeEnemyDrone())
+
+  // Bosses
+  drawToTexture(scene, 'boss_vine_guardian', makeBossVineGuardian())
+  drawToTexture(scene, 'boss_deep_sea_leviathan', makeBossLeviathan())
+  drawToTexture(scene, 'boss_crystal_golem', makeBossCrystalGolem())
+  drawToTexture(scene, 'boss_magma_wyrm', makeBossMagmaWyrm())
+  drawToTexture(scene, 'boss_core_sentinel', makeBossCoreSentinel())
+  drawToTexture(scene, 'boss_mothership', makeBossMothership())
+
+  // Projectiles
+  drawToTexture(scene, 'proj_arrow', makeProjectileArrow())
+  drawToTexture(scene, 'proj_magic', makeProjectileMagic())
+  drawToTexture(scene, 'proj_enemy', makeProjectileEnemy())
+  drawToTexture(scene, 'summon_minion', makeSummonMinion())
+}

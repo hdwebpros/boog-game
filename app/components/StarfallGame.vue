@@ -27,9 +27,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .starfall-container {
-  width: 800px;
-  height: 600px;
-  margin: 0 auto;
+  width: 100vw;
+  height: 100vh;
 }
 
 .starfall-container canvas {

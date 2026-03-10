@@ -5,7 +5,7 @@ import { ChunkManager } from '../world/ChunkManager'
 import { TILE_SIZE } from '../world/TileRegistry'
 
 export class Boss {
-  sprite: Phaser.GameObjects.Rectangle
+  sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
   def: BossDef
   alive = true
   hp: number
@@ -33,7 +33,12 @@ export class Boss {
     this.hp = def.maxHp
     this.phase = def.phases[0]!
 
-    this.sprite = scene.add.rectangle(x, y, def.width, def.height, def.color)
+    const texKey = `boss_${def.type}`
+    if (scene.textures.exists(texKey)) {
+      this.sprite = scene.add.image(x, y, texKey)
+    } else {
+      this.sprite = scene.add.rectangle(x, y, def.width, def.height, def.color)
+    }
     this.sprite.setDepth(9)
 
     this.hpBarGfx = scene.add.graphics().setDepth(20)
@@ -47,11 +52,13 @@ export class Boss {
     if (!this.alive) return { shootAtPlayer: false, spawnMinions: false, projectiles: [] }
 
     this.iFrames -= dt * 1000
-    this.flashTimer -= dt * 1000
     this.attackTimer -= dt * 1000
 
-    if (this.flashTimer <= 0 && this.sprite.fillColor !== this.def.color) {
-      this.sprite.fillColor = this.def.color
+    const wasFlashing = this.flashTimer > 0
+    this.flashTimer -= dt * 1000
+    if (wasFlashing && this.flashTimer <= 0) {
+      if ('clearTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).clearTint()
+      else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = this.def.color
     }
 
     // Update phase based on HP
@@ -96,7 +103,8 @@ export class Boss {
     this.vx += knockbackX * 0.3 // bosses resist knockback
     this.vy += knockbackY * 0.3
 
-    this.sprite.fillColor = 0xffffff
+    if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(0xffffff)
+    else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = 0xffffff
     this.flashTimer = 80
 
     if (this.hp <= 0) {
@@ -128,7 +136,8 @@ export class Boss {
         if (i > this.phaseIndex) {
           this.phaseIndex = i
           // Phase transition flash
-          this.sprite.fillColor = 0xff0000
+          if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(0xff0000)
+          else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = 0xff0000
           this.flashTimer = 300
         }
         break
@@ -378,7 +387,8 @@ export class Boss {
       if (this.phaseIndex >= 1 && Math.random() < 0.3) {
         this.shieldActive = true
         this.shieldTimer = 2000
-        this.sprite.fillColor = 0x8888ff
+        if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(0x8888ff)
+        else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = 0x8888ff
       }
     }
 

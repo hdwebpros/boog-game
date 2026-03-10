@@ -5,6 +5,8 @@ import type { ProjectileConfig } from '../entities/Projectile'
 import { Summon } from '../entities/Summon'
 import { ChunkManager } from '../world/ChunkManager'
 import type { ItemDef } from '../data/items'
+import { AudioManager } from './AudioManager'
+import { SoundId } from '../data/sounds'
 
 const MELEE_RANGE = 48 // px
 const MELEE_ARC = Math.PI * 0.6 // swing arc width
@@ -166,6 +168,7 @@ export class CombatSystem {
       }
     }
 
+    AudioManager.get()?.play(hit ? SoundId.ENEMY_HIT : SoundId.MELEE_SWING)
     return hit
   }
 
@@ -196,6 +199,9 @@ export class CombatSystem {
     }
 
     this.projectiles.push(new Projectile(this.scene, config))
+    AudioManager.get()?.play(
+      weapon.weaponStyle === 'magic' ? SoundId.MAGIC_CAST : SoundId.RANGED_SHOOT
+    )
   }
 
   /** Fire an enemy projectile */
@@ -244,6 +250,7 @@ export class CombatSystem {
       owner
     )
     this.summons.push(summon)
+    AudioManager.get()?.play(SoundId.SUMMON_SPAWN)
   }
 
   spawnDamageNumber(x: number, y: number, amount: number, color: number) {

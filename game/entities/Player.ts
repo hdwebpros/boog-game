@@ -6,6 +6,8 @@ import { CombatSystem } from '../systems/CombatSystem'
 import { Enemy } from './Enemy'
 import { ITEMS, ItemCategory, getItemDef } from '../data/items'
 import { STATION_ITEM_MAP } from '../data/recipes'
+import { AudioManager } from '../systems/AudioManager'
+import { SoundId } from '../data/sounds'
 
 // Physics
 const MOVE_SPEED = 200
@@ -13,9 +15,9 @@ const JUMP_VELOCITY = -380
 const GRAVITY = 900
 const MAX_FALL_SPEED = 700
 
-// Collision box (smaller than visual for forgiving movement)
-const COL_W = 12
-const COL_H = 28
+// Collision box (smaller than 32×64 visual for forgiving movement)
+const COL_W = 20
+const COL_H = 56
 
 // Fall damage
 const FALL_DMG_THRESHOLD = 450
@@ -33,7 +35,7 @@ const IFRAMES_DURATION = 500 // ms
 const RESPAWN_DELAY = 2000 // ms
 
 export class Player {
-  sprite: Phaser.GameObjects.Rectangle
+  sprite: Phaser.GameObjects.Image
   inventory: InventoryManager
 
   vx = 0
@@ -84,14 +86,22 @@ export class Player {
   maxJetpackFuel = 100
   private jetpackFlame: Phaser.GameObjects.Rectangle | null = null
 
+  // Animation
+  private animFrame = 'player_idle1'
+  private walkTimer = 0
+  private walkFrameIndex = 0
+  private actionAnim = '' // 'mining' | 'attacking' | ''
+  private actionAnimTimer = 0
+
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene
     this.inventory = new InventoryManager()
     this.spawnX = x
     this.spawnY = y
 
-    // Visual: 16×32 cyan rectangle
-    this.sprite = scene.add.rectangle(x, y, 16, 32, 0x00ffff)
+    // Visual: 32×64 sprite (pixel art astronaut)
+    const texKey = scene.textures.exists('player_idle1') ? 'player_idle1' : 'player'
+    this.sprite = scene.add.image(x, y, texKey)
     this.sprite.setOrigin(0.5, 0.5)
     this.sprite.setDepth(10)
 
@@ -111,7 +121,7 @@ export class Player {
     for (let i = 0; i <= 9; i++) {
       const key = kb.addKey(48 + i) // KeyCodes 48='0', 49='1', ...
       const slot = i === 0 ? 9 : i - 1
-      key.on('down', () => { this.inventory.selectedSlot = slot })
+      key.on('down', () => { this.inventory.selectedSlot = slot; AudioManager.get()?.play(SoundId.SLOT_CHANGE) })
     }
 
     // Mouse wheel slot cycling
@@ -121,6 +131,7 @@ export class Player {
       } else if (dz < 0) {
         this.inventory.selectedSlot = (this.inventory.selectedSlot + 9) % 10
       }
+      AudioManager.get()?.play(SoundId.SLOT_CHANGE)
     })
 
     // C key toggles crafting UI
@@ -174,11 +185,12 @@ export class Player {
     this.iFrames = IFRAMES_DURATION
     this.vx += kbx
     this.vy += kby
+    AudioManager.get()?.play(SoundId.PLAYER_HURT)
 
     // Flash red
-    this.sprite.fillColor = 0xff0000
+    this.sprite.setTint(0xff0000)
     this.scene.time.delayedCall(150, () => {
-      if (this.sprite.active && !this.dead) this.sprite.fillColor = 0x00ffff
+      if (this.sprite.active && !this.dead) this.sprite.clearTint()
     })
 
     if (combat) {
@@ -194,8 +206,9 @@ export class Player {
     this.dead = true
     this.hp = 0
     this.sprite.setAlpha(0.2)
-    this.sprite.fillColor = 0x666666
+    this.sprite.setTint(0x666666)
     this.respawnTimer = RESPAWN_DELAY
+    AudioManager.get()?.play(SoundId.PLAYER_DIE)
   }
 
   private respawn() {
@@ -204,7 +217,7 @@ export class Player {
     this.mana = this.maxMana
     this.sprite.x = this.spawnX
     this.sprite.y = this.spawnY
-    this.sprite.fillColor = 0x00ffff
+    this.sprite.clearTint()
     this.sprite.setAlpha(1)
     this.iFrames = IFRAMES_DURATION * 2 // extra i-frames on respawn
     this.vx = 0
@@ -220,6 +233,7 @@ export class Player {
     if (def.healAmount && this.hp < this.maxHp) {
       this.hp = Math.min(this.maxHp, this.hp + def.healAmount)
       this.inventory.consumeSelected()
+      AudioManager.get()?.play(SoundId.HEAL)
     }
   }
 
@@ -244,6 +258,9 @@ export class Player {
     if (inRange && tileType !== TileType.AIR && TILE_PROPERTIES[tileType]?.mineable) return
 
     this.attackCooldown = def.attackSpeed ?? 400
+
+    // Play attack animation for melee/ranged
+    this.playAttackAnim()
 
     const cam = this.scene.cameras.main
     const worldCursorX = pointer.x + cam.scrollX
@@ -326,6 +343,7 @@ export class Player {
     if (jump && this.isGrounded) {
       this.vy = JUMP_VELOCITY
       this.isGrounded = false
+      AudioManager.get()?.play(SoundId.JUMP)
     }
 
     // Jetpack flight — hold Space/W while airborne with jetpack
@@ -335,14 +353,15 @@ export class Player {
       if (this.vy < -300) this.vy = -300
       this.jetpackFuel -= 30 * dt
       if (this.jetpackFuel < 0) this.jetpackFuel = 0
+      AudioManager.get()?.play(SoundId.JETPACK_THRUST)
 
       // Show flame
       if (!this.jetpackFlame) {
         this.jetpackFlame = this.scene.add.rectangle(
-          this.sprite.x, this.sprite.y + 18, 6, 10, 0xff6600
+          this.sprite.x, this.sprite.y + 34, 8, 12, 0xff6600
         ).setDepth(9)
       }
-      this.jetpackFlame.setPosition(this.sprite.x, this.sprite.y + 18)
+      this.jetpackFlame.setPosition(this.sprite.x, this.sprite.y + 34)
       this.jetpackFlame.fillColor = Math.random() > 0.5 ? 0xff6600 : 0xffaa00
     } else {
       if (this.jetpackFlame) {
@@ -367,6 +386,65 @@ export class Player {
     const hh = COL_H / 2
     this.sprite.x = Phaser.Math.Clamp(this.sprite.x, hw, WORLD_WIDTH * TILE_SIZE - hw)
     this.sprite.y = Phaser.Math.Clamp(this.sprite.y, hh, WORLD_HEIGHT * TILE_SIZE - hh)
+
+    // Animation frame selection
+    this.updateAnimation(dt)
+  }
+
+  private updateAnimation(dt: number) {
+    // Tick down action animation
+    if (this.actionAnimTimer > 0) {
+      this.actionAnimTimer -= dt * 1000
+    } else {
+      this.actionAnim = ''
+    }
+
+    let newFrame: string
+
+    if (this.actionAnim === 'mining') {
+      // 2-frame mining swing: windup then strike
+      newFrame = this.actionAnimTimer > 150 ? 'player_mine1' : 'player_mine2'
+    } else if (this.actionAnim === 'attacking') {
+      // 2-frame sword swing: windup then slash
+      newFrame = this.actionAnimTimer > 150 ? 'player_attack1' : 'player_attack2'
+    } else if (!this.isGrounded && this.vy < -50) {
+      newFrame = 'player_jump'
+    } else if (!this.isGrounded && this.vy > 50) {
+      newFrame = 'player_fall'
+    } else if (this.vx !== 0) {
+      // Walk cycle
+      this.walkTimer += dt * 1000
+      if (this.walkTimer > 150) {
+        this.walkTimer = 0
+        this.walkFrameIndex = (this.walkFrameIndex + 1) % 4
+      }
+      const walkFrames = ['player_walk1', 'player_walk2', 'player_walk3', 'player_walk4']
+      newFrame = walkFrames[this.walkFrameIndex]!
+    } else {
+      // Idle breathing
+      this.walkTimer += dt * 1000
+      newFrame = this.walkTimer % 1000 < 500 ? 'player_idle1' : 'player_idle2'
+    }
+
+    // Flip sprite based on facing direction
+    this.sprite.setFlipX(!this.facingRight)
+
+    if (newFrame !== this.animFrame && this.scene.textures.exists(newFrame)) {
+      this.animFrame = newFrame
+      this.sprite.setTexture(newFrame)
+    }
+  }
+
+  /** Trigger a mining animation */
+  playMineAnim() {
+    this.actionAnim = 'mining'
+    this.actionAnimTimer = 300
+  }
+
+  /** Trigger an attack animation */
+  playAttackAnim() {
+    this.actionAnim = 'attacking'
+    this.actionAnimTimer = 300
   }
 
   private resolveX(dx: number, chunks: ChunkManager) {
@@ -410,6 +488,7 @@ export class Player {
         if (chunks.isSolid(tx, ty)) {
           if (dy > 0) {
             this.sprite.y = ty * TILE_SIZE - hh
+            if (!this.isGrounded) AudioManager.get()?.play(SoundId.LAND)
             this.isGrounded = true
             if (this.maxFallVy > FALL_DMG_THRESHOLD) this.applyFallDamage()
             this.maxFallVy = 0
@@ -474,6 +553,12 @@ export class Player {
           this.miningRequired = props.hardness * BASE_MINE_TIME
         }
 
+        // Play mining animation while actively mining
+        if (this.actionAnim !== 'mining') {
+          this.playMineAnim()
+          AudioManager.get()?.play(SoundId.MINE_HIT)
+        }
+
         if (this.miningProgress >= this.miningRequired) {
           const stations = chunks.getPlacedStations()
           const station = stations.find(s => s.tx === tx && s.ty === ty)
@@ -485,6 +570,7 @@ export class Player {
             chunks.setTile(tx, ty, TileType.AIR)
             this.inventory.addItem(tileType)
           }
+          AudioManager.get()?.play(SoundId.MINE_BREAK)
           this.miningTX = -1
           this.miningTY = -1
           this.miningProgress = 0
@@ -535,6 +621,7 @@ export class Player {
       chunks.setTile(tx, ty, TileType.STONE)
       chunks.placeStation(tx, ty, item.id)
       this.inventory.consumeSelected()
+      AudioManager.get()?.play(SoundId.PLACE_BLOCK)
       return
     }
 
@@ -543,6 +630,7 @@ export class Player {
 
     chunks.setTile(tx, ty, item.id as TileType)
     this.inventory.consumeSelected()
+    AudioManager.get()?.play(SoundId.PLACE_BLOCK)
   }
 
   private overlapsPlayer(tx: number, ty: number): boolean {

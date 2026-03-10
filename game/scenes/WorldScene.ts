@@ -11,6 +11,11 @@ import { BOSS_DEFS, BossType } from '../data/bosses'
 import { EnemyType, ENEMY_DEFS } from '../data/enemies'
 import { getItemDef, ItemCategory } from '../data/items'
 import type { SaveData } from '../systems/SaveManager'
+import { AudioManager, MusicTrack } from '../systems/AudioManager'
+import { SoundId } from '../data/sounds'
+
+// Y pixel threshold for underground music (UNDERGROUND_START=130 tiles * 16px)
+const UNDERGROUND_Y = 130 * 16
 
 export class WorldScene extends Phaser.Scene {
   private chunkManager!: ChunkManager
@@ -20,6 +25,7 @@ export class WorldScene extends Phaser.Scene {
   private enemySpawner!: EnemySpawner
   private enemies: Enemy[] = []
   private activeBoss: Boss | null = null
+  private keyF!: Phaser.Input.Keyboard.Key
 
   constructor() {
     super({ key: 'WorldScene' })
@@ -83,6 +89,9 @@ export class WorldScene extends Phaser.Scene {
       fontFamily: 'monospace',
     }).setScrollFactor(0).setDepth(100)
 
+    // Boss summon key (registered once, not per-frame)
+    this.keyF = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F)
+
     // Disable right-click context menu so RMB works for placement
     this.input.mouse!.disableContextMenu()
 
@@ -93,6 +102,9 @@ export class WorldScene extends Phaser.Scene {
       this.scene.pause('UIScene')
       this.scene.launch('MenuScene', { pause: true })
     })
+
+    // Start biome-appropriate music
+    this.updateMusic()
 
     // Launch UI overlay
     this.scene.launch('UIScene')
@@ -180,6 +192,7 @@ export class WorldScene extends Phaser.Scene {
         for (const drop of loot) {
           this.player.inventory.addItem(drop.itemId, drop.count)
         }
+        AudioManager.get()?.play(SoundId.ENEMY_DIE)
         if (enemy.sprite.active) enemy.sprite.destroy()
         this.enemies.splice(i, 1)
       }
@@ -189,6 +202,26 @@ export class WorldScene extends Phaser.Scene {
     this.checkJetpack()
 
     this.chunkManager.update()
+    this.updateMusic()
+  }
+
+  private updateMusic() {
+    const audio = AudioManager.get()
+    if (!audio) return
+
+    // Boss music overrides biome music
+    if (this.activeBoss && this.activeBoss.alive) {
+      audio.playMusic(MusicTrack.BOSS)
+      return
+    }
+
+    // Biome-based music
+    const playerY = this.player.sprite.y
+    if (playerY >= UNDERGROUND_Y) {
+      audio.playMusic(MusicTrack.UNDERGROUND)
+    } else {
+      audio.playMusic(MusicTrack.SURFACE)
+    }
   }
 
   private checkJetpack() {
@@ -196,6 +229,7 @@ export class WorldScene extends Phaser.Scene {
       // Check if player has reached the sky (top of world)
       if (this.player.sprite.y < 32) {
         // Trigger ending!
+        AudioManager.get()?.stopMusic()
         this.scene.stop('UIScene')
         this.scene.start('EndingScene')
         return
@@ -206,6 +240,7 @@ export class WorldScene extends Phaser.Scene {
     // Check if player has jetpack item in inventory
     if (this.player.inventory.getCount(186) > 0) {
       this.player.hasJetpack = true
+      AudioManager.get()?.play(SoundId.JETPACK_ASSEMBLED)
 
       const text = this.add.text(
         this.cameras.main.centerX, this.cameras.main.centerY - 100,
@@ -231,10 +266,8 @@ export class WorldScene extends Phaser.Scene {
     const def = getItemDef(item.id)
     if (!def || def.category !== ItemCategory.SPECIAL) return
 
-    // Check if this item summons a boss
     // F key to summon boss
-    const keyF = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F)
-    if (!Phaser.Input.Keyboard.JustDown(keyF)) return
+    if (!Phaser.Input.Keyboard.JustDown(this.keyF)) return
 
     let bossDef = null
     for (const bd of Object.values(BOSS_DEFS)) {
@@ -252,6 +285,7 @@ export class WorldScene extends Phaser.Scene {
     const bx = this.player.sprite.x + (Math.random() > 0.5 ? 150 : -150)
     const by = this.player.sprite.y - 50
     this.activeBoss = new Boss(this, bx, by, bossDef)
+    AudioManager.get()?.play(SoundId.BOSS_APPEAR)
 
     // Boss announcement
     const text = this.add.text(
@@ -268,6 +302,7 @@ export class WorldScene extends Phaser.Scene {
 
   private onBossDefeated() {
     if (!this.activeBoss) return
+    AudioManager.get()?.play(SoundId.BOSS_DIE)
 
     // Drop jetpack component
     this.player.inventory.addItem(this.activeBoss.def.dropItemId)

@@ -5,6 +5,8 @@ import type { ItemStack } from '../systems/InventoryManager'
 import { CraftingManager } from '../systems/CraftingManager'
 import type { Recipe } from '../data/recipes'
 import { ITEMS, getItemDef } from '../data/items'
+import { AudioManager } from '../systems/AudioManager'
+import { SoundId } from '../data/sounds'
 
 const SLOT_SIZE = 40
 const SLOT_GAP = 4
@@ -20,6 +22,7 @@ export class UIScene extends Phaser.Scene {
   private hotbarGfx!: Phaser.GameObjects.Graphics
   private slotTexts: Phaser.GameObjects.Text[] = []
   private slotIcons: Phaser.GameObjects.Rectangle[] = []
+  private slotImages: (Phaser.GameObjects.Image | null)[] = []
   private selectorGfx!: Phaser.GameObjects.Graphics
   private tooltipText!: Phaser.GameObjects.Text
 
@@ -58,6 +61,7 @@ export class UIScene extends Phaser.Scene {
         SLOT_SIZE - 12, SLOT_SIZE - 12, 0x000000, 0
       ).setDepth(201)
       this.slotIcons.push(icon)
+      this.slotImages.push(null)
 
       const txt = this.add.text(sx + SLOT_SIZE - 4, hotbarY + SLOT_SIZE - 4, '', {
         fontSize: '10px', color: '#ffffff', fontFamily: 'monospace',
@@ -157,21 +161,48 @@ export class UIScene extends Phaser.Scene {
   }
 
   private updateSlots(inv: InventoryManager) {
+    const { width, height } = this.scale
+    const hotbarX = (width - HOTBAR_WIDTH) / 2
+    const hotbarY = height - SLOT_SIZE - 12
+
     for (let i = 0; i < HOTBAR_SLOTS; i++) {
       const item = inv.hotbar[i] ?? null
       const icon = this.slotIcons[i]!
       const txt = this.slotTexts[i]!
+      const sx = hotbarX + i * (SLOT_SIZE + SLOT_GAP) + SLOT_SIZE / 2
 
       if (item) {
         const def = getItemDef(item.id)
         const tileProps = TILE_PROPERTIES[item.id as TileType]
-        const color = def?.color ?? tileProps?.color ?? 0xffffff
-        icon.fillColor = color
-        icon.fillAlpha = 1
+        const tileTexKey = `tile_${item.id}`
+
+        // Use sprite texture for blocks if available
+        if (this.textures.exists(tileTexKey) && item.id < 100) {
+          icon.fillAlpha = 0
+          if (!this.slotImages[i] || this.slotImages[i]!.texture.key !== tileTexKey) {
+            if (this.slotImages[i]) this.slotImages[i]!.destroy()
+            this.slotImages[i] = this.add.image(sx, hotbarY + SLOT_SIZE / 2, tileTexKey)
+              .setDisplaySize(SLOT_SIZE - 12, SLOT_SIZE - 12)
+              .setDepth(201)
+          }
+        } else {
+          // Colored rectangle for non-block items
+          const color = def?.color ?? tileProps?.color ?? 0xffffff
+          icon.fillColor = color
+          icon.fillAlpha = 1
+          if (this.slotImages[i]) {
+            this.slotImages[i]!.destroy()
+            this.slotImages[i] = null
+          }
+        }
         txt.setText(item.count > 1 ? `${item.count}` : '')
       } else {
         icon.fillAlpha = 0
         txt.setText('')
+        if (this.slotImages[i]) {
+          this.slotImages[i]!.destroy()
+          this.slotImages[i] = null
+        }
       }
     }
   }
@@ -355,6 +386,7 @@ export class UIScene extends Phaser.Scene {
     if (!player) return
 
     this.craftingManager.craft(entry.recipe, player.inventory)
+    AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
   }
 
   private refreshCraftRowColor(txt: Phaser.GameObjects.Text, rowIndex: number) {

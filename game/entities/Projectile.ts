@@ -15,7 +15,7 @@ export interface ProjectileConfig {
 }
 
 export class Projectile {
-  sprite: Phaser.GameObjects.Rectangle
+  sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
   vx: number
   vy: number
   damage: number
@@ -25,11 +25,19 @@ export class Projectile {
   private elapsed = 0
 
   constructor(scene: Phaser.Scene, config: ProjectileConfig) {
-    this.sprite = scene.add.rectangle(
-      config.x, config.y,
-      config.size, config.size,
-      config.color
-    )
+    const texKey = config.fromPlayer
+      ? (config.size >= 8 ? 'proj_magic' : 'proj_arrow')
+      : 'proj_enemy'
+    if (scene.textures.exists(texKey)) {
+      this.sprite = scene.add.image(config.x, config.y, texKey)
+      ;(this.sprite as Phaser.GameObjects.Image).setTint(config.color)
+    } else {
+      this.sprite = scene.add.rectangle(
+        config.x, config.y,
+        config.size, config.size,
+        config.color
+      )
+    }
     this.sprite.setDepth(12)
     this.vx = config.vx
     this.vy = config.vy

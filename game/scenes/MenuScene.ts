@@ -1,5 +1,7 @@
 import Phaser from 'phaser'
 import { SaveManager } from '../systems/SaveManager'
+import { AudioManager, MusicTrack } from '../systems/AudioManager'
+import { SoundId } from '../data/sounds'
 
 export class MenuScene extends Phaser.Scene {
   private isPause = false
@@ -23,6 +25,9 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private createTitleScreen(width: number, height: number) {
+    // Title screen music — use init() since AudioManager may not exist yet
+    AudioManager.init().playMusic(MusicTrack.TITLE)
+
     // Dark background
     this.cameras.main.setBackgroundColor(0x0a0a1a)
 
@@ -51,6 +56,8 @@ export class MenuScene extends Phaser.Scene {
     newGameBtn.on('pointerover', () => newGameBtn.setColor('#ffffff'))
     newGameBtn.on('pointerout', () => newGameBtn.setColor('#00ff88'))
     newGameBtn.on('pointerdown', () => {
+      AudioManager.get()?.play(SoundId.MENU_SELECT)
+      AudioManager.get()?.stopMusic()
       SaveManager.deleteSave()
       this.scene.start('BootScene')
     })
@@ -64,6 +71,8 @@ export class MenuScene extends Phaser.Scene {
       continueBtn.on('pointerover', () => continueBtn.setColor('#ffffff'))
       continueBtn.on('pointerout', () => continueBtn.setColor('#ffff00'))
       continueBtn.on('pointerdown', () => {
+        AudioManager.get()?.play(SoundId.MENU_SELECT)
+        AudioManager.get()?.stopMusic()
         this.registry.set('loadSave', true)
         this.scene.start('BootScene')
       })
@@ -131,6 +140,7 @@ export class MenuScene extends Phaser.Scene {
     quitBtn.on('pointerover', () => quitBtn.setColor('#ffffff'))
     quitBtn.on('pointerout', () => quitBtn.setColor('#ff4444'))
     quitBtn.on('pointerdown', () => {
+      AudioManager.get()?.stopMusic()
       this.scene.stop('WorldScene')
       this.scene.stop('UIScene')
       this.scene.start('MenuScene', { pause: false })

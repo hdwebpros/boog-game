@@ -36,11 +36,25 @@ export class EnemySpawner {
     const aliveCount = enemies.filter(e => e.alive).length
     if (aliveCount >= MAX_ENEMIES) return
 
-    // Pick a spawn position near the player
-    const angle = Math.random() * Math.PI * 2
-    const dist = SPAWN_RANGE_MIN + Math.random() * (SPAWN_RANGE_MAX - SPAWN_RANGE_MIN)
-    const spawnX = playerX + Math.cos(angle) * dist
-    const spawnY = playerY + Math.sin(angle) * dist
+    // Pick a spawn position near the player but off-screen
+    const cam = this.scene.cameras.main
+    let spawnX = 0
+    let spawnY = 0
+    let attempts = 0
+    do {
+      const angle = Math.random() * Math.PI * 2
+      const dist = SPAWN_RANGE_MIN + Math.random() * (SPAWN_RANGE_MAX - SPAWN_RANGE_MIN)
+      spawnX = playerX + Math.cos(angle) * dist
+      spawnY = playerY + Math.sin(angle) * dist
+      attempts++
+    } while (
+      attempts < 8 &&
+      spawnX > cam.scrollX - 32 && spawnX < cam.scrollX + cam.width + 32 &&
+      spawnY > cam.scrollY - 32 && spawnY < cam.scrollY + cam.height + 32
+    )
+    // If still on-screen after 8 attempts, skip this spawn cycle
+    if (spawnX > cam.scrollX - 32 && spawnX < cam.scrollX + cam.width + 32 &&
+        spawnY > cam.scrollY - 32 && spawnY < cam.scrollY + cam.height + 32) return
 
     const spawnTX = Math.floor(spawnX / TILE_SIZE)
     const spawnTY = Math.floor(spawnY / TILE_SIZE)
@@ -80,6 +94,21 @@ export class EnemySpawner {
       if (groundY === spawnTY) return // no ground found
 
       const finalY = groundY * TILE_SIZE - def.height / 2
+      // Validate the full bounding box is clear of solid tiles
+      const halfW = def.width / 2
+      const halfH = def.height / 2
+      const checkL = Math.floor((spawnX - halfW) / TILE_SIZE)
+      const checkR = Math.floor((spawnX + halfW - 0.001) / TILE_SIZE)
+      const checkT = Math.floor((finalY - halfH) / TILE_SIZE)
+      const checkB = Math.floor((finalY + halfH - 0.001) / TILE_SIZE)
+      let spawnBlocked = false
+      for (let cy = checkT; cy <= checkB && !spawnBlocked; cy++) {
+        for (let cx = checkL; cx <= checkR; cx++) {
+          if (chunks.isSolid(cx, cy)) { spawnBlocked = true; break }
+        }
+      }
+      if (spawnBlocked) return
+
       const enemy = new Enemy(this.scene, spawnX, finalY, def)
       enemies.push(enemy)
     } else {

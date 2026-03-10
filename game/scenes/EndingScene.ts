@@ -12,8 +12,8 @@ export class EndingScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x000000)
 
     // Cutscene: player flies away
-    const player = this.add.rectangle(width / 2, height - 100, 16, 32, 0x00ffff)
-    const flame = this.add.rectangle(width / 2, height - 80, 8, 12, 0xff6600)
+    const player = this.add.rectangle(width / 2, height - 100, 32, 64, 0x00ffff)
+    const flame = this.add.rectangle(width / 2, height - 64, 10, 14, 0xff6600)
 
     // Fly upward animation
     this.tweens.add({

@@ -3,7 +3,7 @@ import { ChunkManager } from '../world/ChunkManager'
 import { TILE_SIZE } from '../world/TileRegistry'
 
 export class Summon {
-  sprite: Phaser.GameObjects.Rectangle
+  sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
   damage: number
   alive = true
   private scene: Phaser.Scene
@@ -27,7 +27,12 @@ export class Summon {
     this.ownerRef = owner
     this.lifetime = lifetime
 
-    this.sprite = scene.add.rectangle(x, y, 10, 10, color)
+    if (scene.textures.exists('summon_minion')) {
+      this.sprite = scene.add.image(x, y, 'summon_minion')
+      ;(this.sprite as Phaser.GameObjects.Image).setTint(color)
+    } else {
+      this.sprite = scene.add.rectangle(x, y, 10, 10, color)
+    }
     this.sprite.setDepth(11)
     this.targetX = x
     this.targetY = y - 30
