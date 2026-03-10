@@ -80,6 +80,7 @@ export class UIScene extends Phaser.Scene {
   private craftVisible = false
   private craftScroll = 0
   private craftRecipes: { recipe: Recipe; canCraft: boolean }[] = []
+  private craftHoveredRow = -1
 
   // Inventory panel
   private invGfx!: Phaser.GameObjects.Graphics
@@ -252,17 +253,22 @@ export class UIScene extends Phaser.Scene {
       const t = this.add.text(craftX + 10, craftY + 38 + i * CRAFT_ROW_H, '', {
         fontSize: '11px', color: '#cccccc', fontFamily: 'monospace',
       }).setDepth(301).setVisible(false)
-        .setInteractive(
-          new Phaser.Geom.Rectangle(-8, -2, CRAFT_W - 4, CRAFT_ROW_H),
-          Phaser.Geom.Rectangle.Contains
-        )
-      t.on('pointerdown', () => this.onCraftClick(i))
-      t.on('pointerover', () => t.setColor('#ffffff'))
-      t.on('pointerout', () => this.refreshCraftRowColor(t, i))
       this.craftTexts.push(t)
     }
 
-    // Scroll crafting with wheel
+    // Craft click & scroll via scene-level input (avoids depth/hit-area issues)
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (!this.craftVisible || this.invVisible) return
+      const cx = (this.scale.width - CRAFT_W) / 2
+      const cy = (this.scale.height - CRAFT_H) / 2 - 20
+      const listTop = cy + 36
+      const listBot = listTop + this.craftTexts.length * CRAFT_ROW_H
+      if (pointer.x < cx + 2 || pointer.x > cx + CRAFT_W - 2) return
+      if (pointer.y < listTop || pointer.y >= listBot) return
+      const row = Math.floor((pointer.y - listTop) / CRAFT_ROW_H)
+      this.onCraftClick(row)
+    })
+
     this.input.on('wheel', (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
       if (this.invVisible) return
       if (!this.craftVisible) return
@@ -1092,6 +1098,17 @@ export class UIScene extends Phaser.Scene {
     const maxScroll = Math.max(0, this.craftRecipes.length - maxVisible)
     this.craftScroll = Phaser.Math.Clamp(this.craftScroll, 0, maxScroll)
 
+    // Detect hovered row from pointer position
+    const pointer = this.input.activePointer
+    const listTop = craftY + 36
+    const listBot = listTop + maxVisible * CRAFT_ROW_H
+    if (pointer.x >= craftX + 2 && pointer.x <= craftX + CRAFT_W - 2 &&
+        pointer.y >= listTop && pointer.y < listBot) {
+      this.craftHoveredRow = Math.floor((pointer.y - listTop) / CRAFT_ROW_H)
+    } else {
+      this.craftHoveredRow = -1
+    }
+
     // Render recipe rows
     for (let i = 0; i < maxVisible; i++) {
       const recipeIdx = i + this.craftScroll
@@ -1111,11 +1128,14 @@ export class UIScene extends Phaser.Scene {
         }).join(', ')
 
         txt.setText(`${outName}${qty}  [${inputStr}]`)
-        txt.setColor(canCraft ? '#00ff88' : '#666666')
+        const hovered = i === this.craftHoveredRow
+        txt.setColor(hovered ? '#ffffff' : canCraft ? '#00ff88' : '#666666')
         txt.setVisible(true)
         txt.setPosition(craftX + 10, craftY + 38 + i * CRAFT_ROW_H)
 
-        if (canCraft) {
+        if (hovered && canCraft) {
+          this.craftGfx.fillStyle(0x004433, 0.5)
+        } else if (canCraft) {
           this.craftGfx.fillStyle(0x003322, 0.3)
         } else {
           this.craftGfx.fillStyle(0x111122, 0.3)
@@ -1141,13 +1161,6 @@ export class UIScene extends Phaser.Scene {
     AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
   }
 
-  private refreshCraftRowColor(txt: Phaser.GameObjects.Text, rowIndex: number) {
-    const recipeIdx = rowIndex + this.craftScroll
-    const entry = this.craftRecipes[recipeIdx]
-    if (entry) {
-      txt.setColor(entry.canCraft ? '#00ff88' : '#666666')
-    }
-  }
 
   // ── Inventory Panel ───────────────────────────────────
 
@@ -1166,7 +1179,7 @@ export class UIScene extends Phaser.Scene {
       for (let i = 0; i < INV_TOTAL_SLOTS; i++) {
         this.invSlotIcons[i]!.setVisible(false)
         this.invSlotTexts[i]!.setVisible(false)
-        this.invSlotZones[i]!.setActive(false)
+        this.invSlotZones[i]!.disableInteractive()
         if (this.invSlotImages[i]) {
           this.invSlotImages[i]!.setVisible(false)
         }
@@ -1174,7 +1187,7 @@ export class UIScene extends Phaser.Scene {
       for (let i = 0; i < 4; i++) {
         this.armorSlotIcons[i]!.setVisible(false)
         this.armorSlotLabels[i]!.setVisible(false)
-        this.armorSlotZones[i]!.setActive(false)
+        this.armorSlotZones[i]!.disableInteractive()
         if (this.armorSlotImages[i]) {
           this.armorSlotImages[i]!.setVisible(false)
         }
@@ -1246,7 +1259,7 @@ export class UIScene extends Phaser.Scene {
         this.invGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
       }
 
-      this.invSlotZones[i]!.setActive(true)
+      this.invSlotZones[i]!.setInteractive()
 
       // Render item
       const icon = this.invSlotIcons[i]!
@@ -1366,7 +1379,7 @@ export class UIScene extends Phaser.Scene {
         }
       }
 
-      this.armorSlotZones[i]!.setActive(true)
+      this.armorSlotZones[i]!.setInteractive()
       this.armorSlotZones[i]!.setPosition(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2)
       this.armorSlotLabels[i]!.setPosition(sx - 2, sy + SLOT_SIZE / 2)
       this.armorSlotLabels[i]!.setVisible(true)
@@ -1652,7 +1665,10 @@ export class UIScene extends Phaser.Scene {
     this.skillTitle.setVisible(this.skillVisible)
     this.skillInfoText.setVisible(this.skillVisible)
 
-    for (const z of this.skillNodeZones) z.setActive(this.skillVisible)
+    for (const z of this.skillNodeZones) {
+      if (this.skillVisible) z.setInteractive()
+      else z.disableInteractive()
+    }
     for (const t of this.skillNodeTexts) t.setVisible(this.skillVisible)
     for (const t of this.skillNameTexts) t.setVisible(this.skillVisible)
     for (const l of this.skillBranchLabels) l.setVisible(this.skillVisible)
