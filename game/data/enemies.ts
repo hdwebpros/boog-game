@@ -15,6 +15,7 @@ export enum EnemyType {
   MIMIC = 'mimic',
   GLOOM_MOTH = 'gloom_moth',
   SHOCK_BEETLE = 'shock_beetle',
+  FISH = 'fish',
   // Biome-specific enemies
   FROST_WOLF = 'frost_wolf',
   ICE_WISP = 'ice_wisp',
@@ -145,6 +146,25 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
       { itemId: 190, count: 1, chance: 0.4 },
     ],
     knockbackResist: 0.1,
+  },
+  [EnemyType.FISH]: {
+    type: EnemyType.FISH,
+    name: 'Fish',
+    hp: 8,
+    damage: 0,
+    speed: 45,
+    color: 0xff8844,
+    width: 14,
+    height: 8,
+    ai: EnemyAI.LURE,
+    biomeYMin: SURFACE - 10,
+    biomeYMax: UNDERGROUND,
+    oceanOnly: true,
+    xp: 2,
+    loot: [
+      { itemId: 11, count: 1, chance: 0.6 },    // sand
+    ],
+    knockbackResist: 0.0,
   },
   [EnemyType.LAVA_SERPENT]: {
     type: EnemyType.LAVA_SERPENT,

@@ -538,6 +538,36 @@ function makeTileCrystalLife(): PixelGrid {
   return g
 }
 
+function makeTileSeaweed(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(142)
+  const base = 0x1a7a30
+  const light = lighten(base, 0.3)
+  const dark = darken(base, 0.2)
+
+  // Wavy central stalk (2px wide, slightly offset per row)
+  const offsets = [7,7,8,8,7,7,6,7,8,8,7,7,8,7,7,8]
+  for (let y = 0; y < 16; y++) {
+    const cx = offsets[y]!
+    g[y]![cx] = y % 4 === 0 ? dark : base
+    g[y]![cx + 1] = y % 4 === 2 ? light : base
+  }
+
+  // Small fronds branching off alternating sides
+  const fronds = [
+    { x: 4, y: 3 }, { x: 5, y: 3 },
+    { x: 9, y: 6 }, { x: 10, y: 6 },
+    { x: 4, y: 9 }, { x: 5, y: 9 }, { x: 6, y: 9 },
+    { x: 9, y: 12 }, { x: 10, y: 12 },
+    { x: 5, y: 15 }, { x: 6, y: 15 },
+  ]
+  for (const f of fronds) {
+    g[f.y]![f.x] = rng() > 0.4 ? light : base
+  }
+
+  return g
+}
+
 function makeTileVine(): PixelGrid {
   const g = makeGrid(16, 16)
   const rng = mulberry32(137)
@@ -2938,6 +2968,7 @@ export function generateAllSprites(scene: Phaser.Scene) {
     [TileType.CRYSTAL_VOID]: makeTileCrystalVoid,
     [TileType.CRYSTAL_LIFE]: makeTileCrystalLife,
     [TileType.VINE]: makeTileVine,
+    [TileType.SEAWEED]: makeTileSeaweed,
     [TileType.CLOUD_BLOCK]: makeTileCloudBlock,
     [TileType.CLOUD_BRICK]: makeTileCloudBrick,
     [TileType.CLOUD_PILLAR]: makeTileCloudPillar,

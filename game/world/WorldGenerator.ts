@@ -499,15 +499,35 @@ export class WorldGenerator {
     surfaceHeights: Float64Array,
     detailNoise: (x: number, y: number) => number
   ) {
+    const rng = this.mulberry32(this.seedNum + 600)
+
     for (let x = 0; x < width; x++) {
       const distFromEdge = Math.min(x, width - 1 - x)
       if (distFromEdge >= OCEAN_WIDTH) continue
 
       const surfaceY = Math.floor(surfaceHeights[x]!)
+
+      // Coral on the ocean floor (replaces sand)
       for (let y = surfaceY; y < surfaceY + 4; y++) {
         const idx = y * width + x
         if (tiles[idx] === TileType.SAND && detailNoise(x * 0.2, y * 0.2) > 0.4) {
           tiles[idx] = TileType.CORAL
+        }
+      }
+
+      // Seaweed growing upward from the ocean floor into the water
+      const floorTile = tiles[surfaceY * width + x]!
+      if ((floorTile === TileType.SAND || floorTile === TileType.CORAL) && rng() < 0.25) {
+        const weedHeight = 1 + Math.floor(rng() * 3) // 1–3 tiles tall
+        for (let wy = 1; wy <= weedHeight; wy++) {
+          const wy2 = surfaceY - wy
+          if (wy2 < 0) break
+          const widx = wy2 * width + x
+          if (tiles[widx] === TileType.WATER) {
+            tiles[widx] = TileType.SEAWEED
+          } else {
+            break // stop if not water
+          }
         }
       }
     }
@@ -548,7 +568,7 @@ export class WorldGenerator {
           minSpacing = 6
           break
         case SurfaceBiome.LAKE:
-          treeChance = 0.06
+          treeChance = 0  // no trees — water fills in after trees pass
           minSpacing = 4
           break
         case SurfaceBiome.SNOW:
