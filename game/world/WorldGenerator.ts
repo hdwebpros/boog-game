@@ -74,10 +74,17 @@ export class WorldGenerator {
 
     // Pre-compute surface biomes
     const surfaceBiomes = new Uint8Array(width)
+    const spawnCenter = Math.floor(width / 2)
+    const SPAWN_BIOME_RADIUS = 80 // Force Plains biome around spawn
     for (let x = 0; x < width; x++) {
       const distFromEdge = Math.min(x, width - 1 - x)
       if (distFromEdge < OCEAN_WIDTH) {
         surfaceBiomes[x] = SurfaceBiome.PLAINS // ocean edges handled separately
+        continue
+      }
+      // Force Plains around spawn so player starts in a safe area
+      if (Math.abs(x - spawnCenter) < SPAWN_BIOME_RADIUS) {
+        surfaceBiomes[x] = SurfaceBiome.PLAINS
         continue
       }
       // Two noise octaves for biome selection — slow variation
@@ -187,7 +194,7 @@ export class WorldGenerator {
     const spawnX = Math.floor(width / 2)
     const spawnY = Math.floor(surfaceHeights[spawnX]!) - 3
 
-    // Clear spawn area so player doesn't spawn inside trees
+    // Clear spawn area so player doesn't spawn inside trees or water
     for (let dx = -4; dx <= 4; dx++) {
       const sx = spawnX + dx
       if (sx < 0 || sx >= width) continue
@@ -196,7 +203,7 @@ export class WorldGenerator {
         if (y < 0) continue
         const idx = y * width + sx
         const t = tiles[idx]!
-        if (t === TileType.WOOD || t === TileType.LEAVES || t === TileType.CACTUS || t === TileType.MUSHROOM_BLOCK) {
+        if (t === TileType.WOOD || t === TileType.LEAVES || t === TileType.CACTUS || t === TileType.MUSHROOM_BLOCK || t === TileType.WATER) {
           tiles[idx] = TileType.AIR
         }
       }
