@@ -4,10 +4,13 @@ import { TileType, TILE_SIZE, TILE_PROPERTIES, WORLD_WIDTH, WORLD_HEIGHT, STATIO
 import { InventoryManager } from '../systems/InventoryManager'
 import { CombatSystem } from '../systems/CombatSystem'
 import { Enemy } from './Enemy'
-import { ITEMS, ItemCategory, getItemDef } from '../data/items'
+import { ITEMS, ItemCategory, getItemDef, ENCHANTMENT_NAMES, ENCHANTMENT_COLORS } from '../data/items'
+import type { EnchantmentType } from '../data/items'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 import { SkillTreeManager } from '../systems/SkillTreeManager'
+import { ACCESSORY_EFFECTS } from '../data/accessories'
+import type { AccessoryEffect } from '../data/accessories'
 
 // Physics
 const MOVE_SPEED = 200
@@ -88,6 +91,7 @@ export class Player {
   craftingOpen = false
   inventoryOpen = false
   skillTreeOpen = false
+  shopOpen = false
 
   // Combat
   private iFrames = 0
@@ -96,6 +100,8 @@ export class Player {
   private spawnX: number
   private spawnY: number
   private flashTimer = 0
+  private forcefieldTimer = 0 // ms remaining
+  private undyingCooldown = 0 // ms remaining for Undying Rage cooldown
 
   // Double jump tracking
   private hasUsedDoubleJump = false
@@ -106,6 +112,9 @@ export class Player {
   maxOxygen = MAX_OXYGEN
   hasRebreather = false
   private drownTimer = 0
+
+  // Climbing
+  isClimbing = false
 
   // Jetpack
   hasJetpack = false
@@ -125,6 +134,9 @@ export class Player {
   private heldItemSprite: Phaser.GameObjects.Image | null = null
   private lastEquipHash = '' // track changes to avoid redrawing every frame
 
+  // Forcefield visual
+  private shieldGfx: Phaser.GameObjects.Graphics
+
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene
     this.inventory = new InventoryManager()
@@ -142,6 +154,10 @@ export class Player {
     // Equipment overlay (armor tint drawn on top of player)
     this.equipOverlay = scene.add.graphics()
     this.equipOverlay.setDepth(11)
+
+    // Forcefield bubble visual
+    this.shieldGfx = scene.add.graphics()
+    this.shieldGfx.setDepth(12)
 
     // Overlay for tile highlights and mining progress
     this.overlay = scene.add.graphics()
@@ -233,17 +249,19 @@ export class Player {
       return
     }
 
-    // Apply skill-based max HP/mana bonuses
+    // Apply skill-based max HP/mana bonuses + armor enchantments
     const mods = this.skills.getModifiers()
-    this.maxHp = MAX_HP + mods.maxHpBonus
-    this.maxMana = MAX_MANA + mods.maxManaBonus
+    const armorEnch = this.getArmorEnchantmentBonuses()
+    this.maxHp = MAX_HP + mods.maxHpBonus + armorEnch.maxHpBonus + this.getAccessoryMaxHpBonus()
+    this.maxMana = MAX_MANA + mods.maxManaBonus + armorEnch.maxManaBonus + this.getAccessoryMaxManaBonus()
 
     // Mana regen (with skill multiplier)
     this.mana = Math.min(this.maxMana, this.mana + MANA_REGEN * mods.manaRegenMult * dt)
 
-    // HP regen from skills
-    if (mods.hpRegen > 0 && this.hp < this.maxHp) {
-      this.hp = Math.min(this.maxHp, this.hp + mods.hpRegen * dt)
+    // HP regen from skills + life enchantment
+    const totalHpRegen = mods.hpRegen + armorEnch.hpRegen
+    if (totalHpRegen > 0 && this.hp < this.maxHp) {
+      this.hp = Math.min(this.maxHp, this.hp + totalHpRegen * dt)
     }
 
     // I-frames
@@ -263,8 +281,22 @@ export class Player {
       if (this.heldItemSprite) this.heldItemSprite.setAlpha(1)
     }
 
+    // Undying Rage cooldown
+    this.undyingCooldown = Math.max(0, this.undyingCooldown - dt * 1000)
+
+    // Forcefield countdown & visual
+    this.forcefieldTimer = Math.max(0, this.forcefieldTimer - dt * 1000)
+    this.shieldGfx.clear()
+    if (this.forcefieldTimer > 0) {
+      const pulse = 0.25 + 0.15 * Math.sin(Date.now() * 0.006)
+      this.shieldGfx.lineStyle(2, 0x44ddff, pulse + 0.3)
+      this.shieldGfx.strokeEllipse(this.sprite.x, this.sprite.y, 28, 40)
+      this.shieldGfx.fillStyle(0x44ddff, pulse)
+      this.shieldGfx.fillEllipse(this.sprite.x, this.sprite.y, 28, 40)
+    }
+
     this.handleMovement(dt, chunks)
-    if (!this.inventoryOpen && !this.skillTreeOpen) {
+    if (!this.inventoryOpen && !this.skillTreeOpen && !this.shopOpen) {
       this.handleMining(dt, chunks)
       this.handleCombat(dt, chunks, combat, enemies)
     }
@@ -274,14 +306,16 @@ export class Player {
   }
 
   takeDamage(amount: number, kbx: number, kby: number, combat?: CombatSystem) {
-    if (this.iFrames > 0 || this.dead) return
+    if (this.iFrames > 0 || this.dead || this.forcefieldTimer > 0) return
     const mods = this.skills.getModifiers()
-    const defense = this.inventory.getTotalDefense() + mods.defenseBonus
+    const armorEnch = this.getArmorEnchantmentBonuses()
+    const defense = this.inventory.getTotalDefense() + mods.defenseBonus + armorEnch.defenseBonus
     amount = Math.max(1, amount - defense)
 
-    // Mana shield: redirect portion of damage to mana
-    if (mods.manaShieldPct > 0 && this.mana > 0) {
-      const shielded = Math.floor(amount * mods.manaShieldPct)
+    // Mana shield: redirect portion of damage to mana (skill + void armor enchant)
+    const totalManaShield = mods.manaShieldPct + armorEnch.manaShieldPct
+    if (totalManaShield > 0 && this.mana > 0) {
+      const shielded = Math.floor(amount * totalManaShield)
       const manaCost = shielded * 2 // each point of shielded damage costs 2 mana
       const actualShield = Math.min(shielded, Math.floor(this.mana / 2))
       this.mana -= actualShield * 2
@@ -305,6 +339,21 @@ export class Player {
     }
 
     if (this.hp <= 0) {
+      // Undying Rage: survive lethal hit with 1 HP + 3s invulnerability
+      if (mods.undying && this.undyingCooldown <= 0) {
+        this.hp = 1
+        this.iFrames = 3000 // 3 seconds of invulnerability
+        this.undyingCooldown = 60000 // 60 second cooldown
+        // Golden flash to signal the proc
+        this.sprite.setTint(0xffdd00)
+        this.scene.time.delayedCall(500, () => {
+          if (this.sprite.active && !this.dead) this.sprite.clearTint()
+        })
+        if (combat) {
+          combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 30, 0, 0xffdd00)
+        }
+        return
+      }
       this.die()
     }
   }
@@ -340,12 +389,69 @@ export class Player {
     const item = this.inventory.getSelectedItem()
     if (!item) return
     const def = getItemDef(item.id)
-    if (!def || def.category !== ItemCategory.CONSUMABLE) return
+    if (!def) return
+
+    // Chant Orb usage (IDs 237-241) — enchant first weapon/armor in hotbar
+    if (item.id >= 237 && item.id <= 241) {
+      this.useChantOrb(item.id)
+      return
+    }
+
+    if (def.category !== ItemCategory.CONSUMABLE) return
+
+    // Forcefield Potion
+    if (item.id === 193) {
+      this.forcefieldTimer = 8000
+      this.inventory.consumeSelected()
+      AudioManager.get()?.play(SoundId.HEAL)
+      return
+    }
 
     if (def.healAmount && this.hp < this.maxHp) {
       this.hp = Math.min(this.maxHp, this.hp + def.healAmount)
       this.inventory.consumeSelected()
       AudioManager.get()?.play(SoundId.HEAL)
+    }
+  }
+
+  private useChantOrb(orbId: number) {
+    const enchantMap: Record<number, EnchantmentType> = {
+      237: 'ember', 238: 'frost', 239: 'storm', 240: 'void', 241: 'life',
+    }
+    const enchType = enchantMap[orbId]
+    if (!enchType) return
+
+    // Find first weapon/armor/tool in hotbar (excluding current slot)
+    const currentSlot = this.inventory.selectedSlot
+    for (let i = 0; i < this.inventory.hotbar.length; i++) {
+      if (i === currentSlot) continue
+      const slot = this.inventory.hotbar[i]
+      if (!slot) continue
+      const slotDef = getItemDef(slot.id)
+      if (!slotDef) continue
+      if (slotDef.category === ItemCategory.WEAPON || slotDef.category === ItemCategory.ARMOR || slotDef.category === ItemCategory.TOOL) {
+        slot.enchantment = enchType
+        this.inventory.consumeSelected()
+        AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+        const ws = this.scene as any
+        if (typeof ws.showNotification === 'function') {
+          ws.showNotification(`${ENCHANTMENT_NAMES[enchType]} chant applied to ${slotDef.name}!`, ENCHANTMENT_COLORS[enchType])
+        }
+        return
+      }
+    }
+    // Also check main inventory
+    for (let i = 0; i < this.inventory.mainInventory.length; i++) {
+      const slot = this.inventory.mainInventory[i]
+      if (!slot) continue
+      const slotDef = getItemDef(slot.id)
+      if (!slotDef) continue
+      if (slotDef.category === ItemCategory.WEAPON || slotDef.category === ItemCategory.ARMOR || slotDef.category === ItemCategory.TOOL) {
+        slot.enchantment = enchType
+        this.inventory.consumeSelected()
+        AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+        return
+      }
     }
   }
 
@@ -383,7 +489,11 @@ export class Player {
     if (inRange && tileType !== TileType.AIR && TILE_PROPERTIES[tileType]?.mineable) return
 
     const mods = this.skills.getModifiers()
-    this.attackCooldown = (def.attackSpeed ?? 400) * mods.attackSpeedMult
+    const enchant = item.enchantment as EnchantmentType | undefined
+
+    // Storm enchantment: +25% attack speed
+    const stormSpeedMult = enchant === 'storm' ? 0.75 : 1
+    this.attackCooldown = (def.attackSpeed ?? 400) * mods.attackSpeedMult * stormSpeedMult
 
     const cam = this.scene.cameras.main
     const wp = cam.getWorldPoint(pointer.x, pointer.y)
@@ -398,22 +508,42 @@ export class Player {
 
     // Calculate damage multiplier from skills
     const lowHpBonus = (this.hp / this.maxHp <= 0.3) ? mods.lowHpDamageMult : 1
-    const crit = Math.random() < mods.critChance ? 2 : 1
+    // Void enchantment: +15% crit chance
+    const enchantCritBonus = enchant === 'void' ? 0.15 : 0
+    const crit = Math.random() < (mods.critChance + enchantCritBonus) ? 2 : 1
+    // Ember enchantment: +30% damage
+    const emberBonus = enchant === 'ember' ? 1.3 : 1
+
+    // Mana Overload: mana >75% grants +100% damage but drains 15% max mana per hit
+    const manaOverloadBonus = (mods.manaOverload && this.mana > this.maxMana * 0.75) ? 2 : 1
+
+    let dmgDealt = 0
 
     switch (def.weaponStyle) {
-      case 'melee':
-        combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies,
-          mods.meleeDamageMult * lowHpBonus * crit)
+      case 'melee': {
+        const mult = mods.meleeDamageMult * lowHpBonus * crit * manaOverloadBonus * emberBonus
+        dmgDealt = combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies, mult)
+        // Arcane Strikes: melee hits release a magic shockwave
+        if (mods.arcaneStrikes && dmgDealt > 0) {
+          const shockDir = this.facingRight ? 1 : -1
+          combat.fireProjectile(
+            { ...def, damage: Math.round((def.damage ?? 0) * mult * 0.5), projectileSpeed: 300, weaponStyle: 'magic', color: 0xcc44ff } as any,
+            this.sprite.x, this.sprite.y,
+            this.sprite.x + shockDir * 100, this.sprite.y,
+            true, 1
+          )
+        }
         break
+      }
       case 'ranged':
         combat.fireProjectile(def, this.sprite.x, this.sprite.y, worldCursorX, worldCursorY, true,
-          mods.rangedDamageMult * lowHpBonus * crit)
+          mods.rangedDamageMult * lowHpBonus * crit * manaOverloadBonus * emberBonus)
         break
       case 'magic':
         if (this.mana >= (def.manaCost ?? 0)) {
           this.mana -= def.manaCost ?? 0
           combat.fireProjectile(def, this.sprite.x, this.sprite.y, worldCursorX, worldCursorY, true,
-            mods.magicDamageMult * lowHpBonus * crit)
+            mods.magicDamageMult * lowHpBonus * crit * manaOverloadBonus * emberBonus)
         }
         break
       case 'summon':
@@ -421,6 +551,52 @@ export class Player {
           this.mana -= def.manaCost ?? 0
           combat.spawnSummon(def, this.sprite.x, this.sprite.y, this.sprite)
         }
+        break
+    }
+
+    // Mana Overload drain
+    if (manaOverloadBonus > 1) {
+      this.mana -= this.maxMana * 0.15
+      if (this.mana < 0) this.mana = 0
+    }
+
+    // Enchantment on-hit effects
+    if (dmgDealt > 0 && enchant) {
+      this.applyEnchantmentOnHit(enchant, dmgDealt, combat, enemies)
+    }
+
+    // Lifesteal (skill + void enchantment)
+    const voidLifesteal = enchant === 'void' ? 0.15 : 0
+    const totalLifesteal = mods.lifeStealPct + voidLifesteal
+    if (dmgDealt > 0 && totalLifesteal > 0) {
+      const heal = Math.round(dmgDealt * totalLifesteal)
+      if (heal > 0) {
+        this.hp = Math.min(this.maxHp, this.hp + heal)
+        combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 20, heal, 0x44ff44)
+      }
+    }
+  }
+
+  private applyEnchantmentOnHit(enchant: EnchantmentType, dmgDealt: number, combat: CombatSystem, enemies: Enemy[]) {
+    switch (enchant) {
+      case 'ember':
+        // Burn nearby hit enemies (handled via combat system)
+        combat.applyBurn(this.sprite.x, this.sprite.y, 4, 3000)
+        break
+      case 'frost':
+        // Slow nearby hit enemies
+        combat.applySlow(this.sprite.x, this.sprite.y, 0.4, 2000)
+        break
+      case 'storm':
+        // 20% chance chain lightning to a nearby enemy
+        if (Math.random() < 0.2) {
+          combat.chainLightning(this.sprite.x, this.sprite.y, Math.round(dmgDealt * 0.5), enemies)
+        }
+        break
+      case 'life':
+        // Heal 3 HP per hit
+        this.hp = Math.min(this.maxHp, this.hp + 3)
+        combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 20, 3, 0x33ff66)
         break
     }
   }
@@ -434,7 +610,7 @@ export class Player {
     const py = this.sprite.y - ph / 2
 
     for (const e of enemies) {
-      if (!e.alive) continue
+      if (!e.alive || e.intangible) continue
       const eb = e.getBounds()
 
       if (px < eb.x + eb.w && px + pw > eb.x &&
@@ -485,6 +661,85 @@ export class Player {
     }
   }
 
+  // ─── Accessory modifiers ────────────────────────────────────
+
+  getAccessoryEffects(): AccessoryEffect[] {
+    const effects: AccessoryEffect[] = []
+    for (const id of this.inventory.getEquippedAccessoryIds()) {
+      const eff = ACCESSORY_EFFECTS[id]
+      if (eff) effects.push(eff)
+    }
+    return effects
+  }
+
+  hasAccessoryEffect(key: keyof AccessoryEffect): boolean {
+    return this.getAccessoryEffects().some(e => e[key])
+  }
+
+  getAccessoryMoveSpeedMult(): number {
+    let mult = 1
+    for (const e of this.getAccessoryEffects()) {
+      if (e.moveSpeedMult) mult *= e.moveSpeedMult
+    }
+    return mult
+  }
+
+  getAccessoryMineSpeedMult(): number {
+    let mult = 1
+    for (const e of this.getAccessoryEffects()) {
+      if (e.mineSpeedMult) mult *= e.mineSpeedMult
+    }
+    return mult
+  }
+
+  getAccessoryMiningRangeBonus(): number {
+    let bonus = 0
+    for (const e of this.getAccessoryEffects()) {
+      if (e.miningRangeBonus) bonus += e.miningRangeBonus
+    }
+    return bonus
+  }
+
+  getAccessoryMaxHpBonus(): number {
+    let bonus = 0
+    for (const e of this.getAccessoryEffects()) {
+      if (e.maxHpBonus) bonus += e.maxHpBonus
+    }
+    return bonus
+  }
+
+  getAccessoryMaxManaBonus(): number {
+    let bonus = 0
+    for (const e of this.getAccessoryEffects()) {
+      if (e.maxManaBonus) bonus += e.maxManaBonus
+    }
+    return bonus
+  }
+
+  getAccessoryJetpackFuelMult(): number {
+    let mult = 1
+    for (const e of this.getAccessoryEffects()) {
+      if (e.jetpackFuelMult) mult *= e.jetpackFuelMult
+    }
+    return mult
+  }
+
+  getAccessoryDoubleDropChance(): number {
+    let chance = 0
+    for (const e of this.getAccessoryEffects()) {
+      if (e.doubleDropChance) chance += e.doubleDropChance
+    }
+    return chance
+  }
+
+  getAccessoryMagnetRadius(): number {
+    let radius = 0
+    for (const e of this.getAccessoryEffects()) {
+      if (e.magnetRadius) radius = Math.max(radius, e.magnetRadius)
+    }
+    return radius
+  }
+
   // ─── Movement ───────────────────────────────────────────────
 
   private handleMovement(dt: number, chunks: ChunkManager) {
@@ -500,8 +755,24 @@ export class Player {
                  Phaser.Input.Keyboard.JustDown(this.keyW) ||
                  Phaser.Input.Keyboard.JustDown(this.cursors.up!)
 
+    // Detect if player overlaps a climbable tile
+    const onVine = chunks.isClimbable(ptx, pty) ||
+      chunks.isClimbable(ptx, Math.floor((this.sprite.y + COL_H / 2 - 1) / TILE_SIZE))
+    const holdUp = this.keySpace.isDown || this.keyW.isDown || this.cursors.up!.isDown
+    const holdDown = this.keyS.isDown || this.cursors.down!.isDown
+
+    // Enter climbing when on vine and pressing up or down (or already climbing)
+    if (onVine && (holdUp || holdDown)) {
+      this.isClimbing = true
+    }
+    // Leave climbing when jumping off, or when no longer on vine
+    if (!onVine) {
+      this.isClimbing = false
+    }
+
     const mods = this.skills.getModifiers()
-    let speed = MOVE_SPEED * mods.moveSpeedMult
+    const armorEnchMoves = this.getArmorEnchantmentBonuses()
+    let speed = MOVE_SPEED * mods.moveSpeedMult * armorEnchMoves.moveSpeedMult * this.getAccessoryMoveSpeedMult()
 
     // Slow horizontal movement in water
     if (this.isInWater) {
@@ -518,10 +789,28 @@ export class Player {
       this.vx = 0
     }
 
-    if (this.isInWater) {
+    if (this.isClimbing) {
+      // ── Vine climbing: move up/down, no gravity ──
+      const climbSpeed = MOVE_SPEED * 0.6
+      if (holdUp) {
+        this.vy = -climbSpeed
+      } else if (holdDown) {
+        this.vy = climbSpeed
+      } else {
+        this.vy = 0
+      }
+      // Jump off vine
+      if (jump && !holdUp) {
+        this.isClimbing = false
+        this.vy = JUMP_VELOCITY
+        this.isGrounded = false
+        this.hasUsedDoubleJump = false
+        AudioManager.get()?.play(SoundId.JUMP)
+      }
+      this.maxFallVy = 0
+      this.isGrounded = false
+    } else if (this.isInWater) {
       // ── Water movement: hold up to swim up, hold down to sink, float otherwise ──
-      const holdUp = this.keySpace.isDown || this.keyW.isDown || this.cursors.up!.isDown
-      const holdDown = this.keyS.isDown || this.cursors.down!.isDown
 
       if (holdUp) {
         this.vy = WATER_SWIM_UP * (this.hasRebreather ? 1.4 : 1)
@@ -554,8 +843,9 @@ export class Player {
       const holdJump = this.keySpace.isDown || this.keyW.isDown || this.cursors.up!.isDown
       if (this.hasJetpack && holdJump && !this.isGrounded && this.jetpackFuel > 0) {
         this.vy -= 1200 * dt
-        if (this.vy < -300) this.vy = -300
-        this.jetpackFuel -= 30 * mods.jetpackFuelMult * dt
+        const accFlightMult = this.getAccessoryEffects().reduce((m, e) => m * (e.flightSpeedMult ?? 1), 1)
+        if (this.vy < -300 * accFlightMult) this.vy = -300 * accFlightMult
+        this.jetpackFuel -= 30 * mods.jetpackFuelMult * this.getAccessoryJetpackFuelMult() * dt
         if (this.jetpackFuel < 0) this.jetpackFuel = 0
         AudioManager.get()?.play(SoundId.JETPACK_THRUST)
 
@@ -656,7 +946,8 @@ export class Player {
 
     // Build a hash to skip redraw when nothing changed
     const hIds = `${armor.helmet?.id ?? ''}:${armor.chestplate?.id ?? ''}:${armor.leggings?.id ?? ''}:${armor.boots?.id ?? ''}:${selectedId}:${this.facingRight ? 'R' : 'L'}`
-    if (hIds === this.lastEquipHash) {
+    // Skip cache during attack animation so sword swing updates every frame
+    if (hIds === this.lastEquipHash && this.actionAnim !== 'attacking') {
       // Just update position
       this.equipOverlay.setPosition(this.sprite.x, this.sprite.y)
       if (this.heldItemSprite) {
@@ -728,18 +1019,50 @@ export class Player {
         if (!this.heldItemSprite) {
           this.heldItemSprite = this.scene.add.image(0, 0, texKey)
           this.heldItemSprite.setDepth(12)
-          this.heldItemSprite.setScale(0.75)
         } else {
           this.heldItemSprite.setTexture(texKey)
         }
         this.heldItemSprite.setVisible(true)
         const dir = this.facingRight ? 1 : -1
-        this.heldItemSprite.setPosition(this.sprite.x + dir * 8, this.sprite.y + 4)
-        this.heldItemSprite.setFlipX(!this.facingRight)
+
+        const isSwinging = this.actionAnim === 'attacking' && selDef.weaponStyle === 'melee'
+        if (isSwinging) {
+          // Swing the sword outward — animate from raised to swept down
+          // t goes from 1 (windup) to 0 (end of slash)
+          const t = this.actionAnimTimer / 300
+          // Swing arc: from -60° (raised) to +60° (swept down), relative to facing direction
+          const swingAngle = (-60 + 120 * (1 - t)) * (Math.PI / 180)
+          const baseAngle = this.facingRight ? 0 : Math.PI
+          const worldAngle = baseAngle + swingAngle * dir
+
+          // Position sword tip further out during swing (reach ~3 blocks)
+          const reachDist = 20 + 24 * (1 - t) // 20px at start, 44px at full extension
+          const offsetX = Math.cos(worldAngle) * reachDist
+          const offsetY = Math.sin(worldAngle) * reachDist
+          this.heldItemSprite.setPosition(this.sprite.x + offsetX, this.sprite.y + offsetY)
+
+          // Rotate the sprite to match the swing angle
+          // Swords point diagonally — add 45° base rotation
+          const spriteRot = this.facingRight
+            ? swingAngle + Math.PI / 4
+            : Math.PI - swingAngle - Math.PI / 4
+          this.heldItemSprite.setRotation(spriteRot)
+          this.heldItemSprite.setScale(1.1)
+          this.heldItemSprite.setFlipX(false) // rotation handles direction
+        } else {
+          // Idle held position
+          this.heldItemSprite.setPosition(this.sprite.x + dir * 8, this.sprite.y + 4)
+          this.heldItemSprite.setFlipX(!this.facingRight)
+          this.heldItemSprite.setRotation(0)
+          this.heldItemSprite.setScale(0.75)
+        }
         this.heldItemSprite.setAlpha(this.sprite.alpha)
       }
     } else {
-      if (this.heldItemSprite) this.heldItemSprite.setVisible(false)
+      if (this.heldItemSprite) {
+        this.heldItemSprite.setVisible(false)
+        this.heldItemSprite.setRotation(0)
+      }
     }
   }
 
@@ -813,6 +1136,7 @@ export class Player {
   }
 
   private applyFallDamage() {
+    if (this.hasAccessoryEffect('noFallDamage')) return
     const mods = this.skills.getModifiers()
     const damage = Math.floor((this.maxFallVy - FALL_DMG_THRESHOLD) * FALL_DMG_FACTOR * mods.fallDamageMult)
     if (damage > 0) this.takeDamage(damage, 0, 0)
@@ -833,7 +1157,7 @@ export class Player {
     const pty = Math.floor(this.sprite.y / TILE_SIZE)
     const dist = Math.max(Math.abs(tx - ptx), Math.abs(ty - pty))
 
-    return { tx, ty, inRange: dist <= MINING_RANGE + mods.miningRangeBonus }
+    return { tx, ty, inRange: dist <= MINING_RANGE + mods.miningRangeBonus + this.getAccessoryMiningRangeBonus() }
   }
 
   private handleMining(dt: number, chunks: ChunkManager) {
@@ -863,7 +1187,7 @@ export class Player {
           this.miningTX = tx
           this.miningTY = ty
           this.miningProgress = 0
-          this.miningRequired = (props.hardness * BASE_MINE_TIME) / (toolSpeed * skillMineSpeed)
+          this.miningRequired = (props.hardness * BASE_MINE_TIME) / (toolSpeed * skillMineSpeed * this.getAccessoryMineSpeedMult())
         }
 
         // Play mining animation while actively mining
@@ -873,17 +1197,50 @@ export class Player {
         }
 
         if (this.miningProgress >= this.miningRequired) {
-          const stations = chunks.getPlacedStations()
-          const station = stations.find(s => s.tx === tx && s.ty === ty)
-          const doubleDrop = Math.random() < this.skills.getModifiers().doubleDropChance
-          if (station) {
-            chunks.removeStation(tx, ty)
-            chunks.setTile(tx, ty, TileType.AIR)
-            this.inventory.addItem(station.itemId)
-          } else {
-            chunks.setTile(tx, ty, TileType.AIR)
-            this.inventory.addItem(tileType, doubleDrop ? 2 : 1)
+          const miningMods = this.skills.getModifiers()
+          const doubleDrop = Math.random() < miningMods.doubleDropChance + this.getAccessoryDoubleDropChance()
+
+          // Determine tiles to break: center tile, plus 3x3 if aoeMining
+          const tilesToBreak: { bx: number; by: number }[] = [{ bx: tx, by: ty }]
+          if (miningMods.aoeMining) {
+            for (let ox = -1; ox <= 1; ox++) {
+              for (let oy = -1; oy <= 1; oy++) {
+                if (ox === 0 && oy === 0) continue
+                tilesToBreak.push({ bx: tx + ox, by: ty + oy })
+              }
+            }
           }
+
+          for (const { bx, by } of tilesToBreak) {
+            const bt = chunks.getTile(bx, by)
+            if (bt === TileType.AIR) continue
+            const bp = TILE_PROPERTIES[bt]
+            if (!bp?.mineable) continue
+            const bStation = chunks.getPlacedStations().find(s => s.tx === bx && s.ty === by)
+            if (bStation) {
+              chunks.removeStation(bx, by)
+              chunks.setTile(bx, by, TileType.AIR)
+              this.inventory.addItem(bStation.itemId)
+            } else {
+              chunks.setTile(bx, by, TileType.AIR)
+              // Crystal tiles drop shards + arcane dust instead of the block
+              const crystalShardMap: Partial<Record<TileType, number>> = {
+                [TileType.CRYSTAL_EMBER]: 230,
+                [TileType.CRYSTAL_FROST]: 231,
+                [TileType.CRYSTAL_STORM]: 232,
+                [TileType.CRYSTAL_VOID]:  233,
+                [TileType.CRYSTAL_LIFE]:  234,
+              }
+              const shardId = crystalShardMap[bt]
+              if (shardId) {
+                this.inventory.addItem(shardId, doubleDrop ? 2 : 1)
+                if (Math.random() < 0.5) this.inventory.addItem(235, 1)
+              } else {
+                this.inventory.addItem(bt, doubleDrop ? 2 : 1)
+              }
+            }
+          }
+
           AudioManager.get()?.play(SoundId.MINE_BREAK)
           this.miningTX = -1
           this.miningTY = -1
@@ -919,15 +1276,21 @@ export class Player {
 
     if (chunks.getTile(tx, ty) !== TileType.AIR) return
 
+    const item = this.inventory.getSelectedItem()
+    if (!item) return
+
+    // Vine ropes can attach to other vines (above) or solid blocks
+    const isVinePlacement = item.id === TileType.VINE
     const adjacent =
       chunks.isSolid(tx - 1, ty) || chunks.isSolid(tx + 1, ty) ||
       chunks.isSolid(tx, ty - 1) || chunks.isSolid(tx, ty + 1)
-    if (!adjacent) return
+    const vineAdjacent = isVinePlacement && (
+      chunks.isClimbable(tx, ty - 1) || // vine above
+      chunks.isClimbable(tx, ty + 1)    // vine below
+    )
+    if (!adjacent && !vineAdjacent) return
 
     if (this.overlapsPlayer(tx, ty)) return
-
-    const item = this.inventory.getSelectedItem()
-    if (!item) return
 
     const itemDef = ITEMS[item.id]
 
@@ -997,6 +1360,23 @@ export class Player {
       this.overlay.fillStyle(0x000000, pct * 0.5)
       this.overlay.fillRect(px, py, TILE_SIZE, TILE_SIZE)
     }
+  }
+
+  /** Get cumulative bonuses from all equipped armor enchantments */
+  private getArmorEnchantmentBonuses() {
+    const bonuses = { defenseBonus: 0, maxHpBonus: 0, maxManaBonus: 0, hpRegen: 0, moveSpeedMult: 1, manaShieldPct: 0 }
+    for (const slotName of ['helmet', 'chestplate', 'leggings', 'boots'] as const) {
+      const armorItem = this.inventory.armorSlots[slotName]
+      if (!armorItem?.enchantment) continue
+      switch (armorItem.enchantment) {
+        case 'ember':  bonuses.defenseBonus += 3; break
+        case 'frost':  bonuses.maxManaBonus += 20; bonuses.defenseBonus += 4; break
+        case 'storm':  bonuses.moveSpeedMult *= 1.15; break
+        case 'void':   bonuses.manaShieldPct += 0.05; break
+        case 'life':   bonuses.hpRegen += 2; bonuses.maxHpBonus += 15; break
+      }
+    }
+    return bonuses
   }
 
   getPosition() {

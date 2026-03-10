@@ -19,6 +19,27 @@ export enum TileType {
   STATION_TECH_BENCH = 17,
   STATION_FUSION = 18,
   STATION_WORKBENCH_MK2 = 19,
+  SNOW = 20,
+  ICE = 21,
+  CLAY = 22,
+  OBSIDIAN = 23,
+  CRYSTAL = 24,
+  MOSS = 25,
+  MUSHROOM_BLOCK = 26,
+  SANDSTONE = 27,
+  CACTUS = 28,
+  JUNGLE_GRASS = 29,
+  FROZEN_STONE = 30,
+  CRYSTAL_EMBER = 31,
+  CRYSTAL_FROST = 32,
+  CRYSTAL_STORM = 33,
+  CRYSTAL_VOID = 34,
+  CRYSTAL_LIFE = 35,
+  STATION_ARCANE_ANVIL = 36,
+  VINE = 37,
+  CLOUD_BLOCK = 38,
+  CLOUD_BRICK = 39,
+  CLOUD_PILLAR = 40,
 }
 
 export interface TileProperties {
@@ -31,6 +52,7 @@ export interface TileProperties {
   liquid?: boolean
   transparent?: boolean
   damaging?: boolean
+  climbable?: boolean
 }
 
 export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
@@ -54,6 +76,27 @@ export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
   [TileType.STATION_TECH_BENCH]:    { name: 'Tech Bench',      color: 0x4488aa, hardness: 5, solid: true, mineable: true, tier: 3 },
   [TileType.STATION_FUSION]:        { name: 'Fusion Station',  color: 0x8844cc, hardness: 6, solid: true, mineable: true, tier: 4 },
   [TileType.STATION_WORKBENCH_MK2]: { name: 'Workbench Mk2',   color: 0xa0824a, hardness: 3, solid: true, mineable: true, tier: 1 },
+  [TileType.SNOW]:           { name: 'Snow',           color: 0xeeeeff, hardness: 0.5, solid: true,  mineable: true,  tier: 0 },
+  [TileType.ICE]:            { name: 'Ice',            color: 0x88ccee, hardness: 2,   solid: true,  mineable: true,  tier: 0, transparent: true },
+  [TileType.CLAY]:           { name: 'Clay',           color: 0xb07050, hardness: 1.5, solid: true,  mineable: true,  tier: 0 },
+  [TileType.OBSIDIAN]:       { name: 'Obsidian',       color: 0x1a1a2e, hardness: 7,   solid: true,  mineable: true,  tier: 3 },
+  [TileType.CRYSTAL]:        { name: 'Crystal',        color: 0xaa55ff, hardness: 4,   solid: true,  mineable: true,  tier: 2, transparent: true },
+  [TileType.MOSS]:           { name: 'Moss',           color: 0x3d7a3d, hardness: 0.5, solid: true,  mineable: true,  tier: 0 },
+  [TileType.MUSHROOM_BLOCK]: { name: 'Mushroom Block', color: 0xcc6644, hardness: 1,   solid: true,  mineable: true,  tier: 0 },
+  [TileType.SANDSTONE]:      { name: 'Sandstone',      color: 0xd4b483, hardness: 2,   solid: true,  mineable: true,  tier: 0 },
+  [TileType.CACTUS]:         { name: 'Cactus',         color: 0x2d8a2d, hardness: 1,   solid: true,  mineable: true,  tier: 0, damaging: true },
+  [TileType.JUNGLE_GRASS]:   { name: 'Jungle Grass',   color: 0x2a6e1e, hardness: 1,   solid: true,  mineable: true,  tier: 0 },
+  [TileType.FROZEN_STONE]:   { name: 'Frozen Stone',   color: 0x7799aa, hardness: 3,   solid: true,  mineable: true,  tier: 1 },
+  [TileType.CRYSTAL_EMBER]:  { name: 'Ember Crystal',  color: 0xff6633, hardness: 4,   solid: true,  mineable: true,  tier: 2, transparent: true },
+  [TileType.CRYSTAL_FROST]:  { name: 'Frost Crystal',  color: 0x66ccff, hardness: 4,   solid: true,  mineable: true,  tier: 2, transparent: true },
+  [TileType.CRYSTAL_STORM]:  { name: 'Storm Crystal',  color: 0xffee44, hardness: 4,   solid: true,  mineable: true,  tier: 2, transparent: true },
+  [TileType.CRYSTAL_VOID]:   { name: 'Void Crystal',   color: 0x9933ff, hardness: 5,   solid: true,  mineable: true,  tier: 3, transparent: true },
+  [TileType.CRYSTAL_LIFE]:   { name: 'Life Crystal',   color: 0x33ff66, hardness: 3,   solid: true,  mineable: true,  tier: 1, transparent: true },
+  [TileType.STATION_ARCANE_ANVIL]: { name: 'Arcane Anvil', color: 0x7744cc, hardness: 5, solid: true, mineable: true, tier: 2 },
+  [TileType.VINE]:               { name: 'Vine Rope', color: 0x33aa22, hardness: 0.3, solid: false, mineable: true, tier: 0, transparent: true, climbable: true },
+  [TileType.CLOUD_BLOCK]:        { name: 'Cloud Block', color: 0xddddff, hardness: 1, solid: true, mineable: true, tier: 0 },
+  [TileType.CLOUD_BRICK]:        { name: 'Cloud Brick', color: 0x8899bb, hardness: 2, solid: true, mineable: true, tier: 0 },
+  [TileType.CLOUD_PILLAR]:       { name: 'Cloud Pillar', color: 0xddaa44, hardness: 0, solid: true, mineable: false, tier: 0 },
 }
 
 /** Map station item IDs to their tile types */
@@ -64,8 +107,9 @@ export const STATION_TILE_TYPE: Record<number, TileType> = {
   113: TileType.STATION_TECH_BENCH,
   114: TileType.STATION_FUSION,
   115: TileType.STATION_WORKBENCH_MK2,
+  236: TileType.STATION_ARCANE_ANVIL,
 }
 
 export const TILE_SIZE = 16
-export const WORLD_WIDTH = 4000
-export const WORLD_HEIGHT = 1200
+export const WORLD_WIDTH = 6000
+export const WORLD_HEIGHT = 1600

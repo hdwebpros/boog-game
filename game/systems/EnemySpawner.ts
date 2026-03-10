@@ -3,7 +3,7 @@ import { Enemy } from '../entities/Enemy'
 import type { EnemyDef } from '../data/enemies'
 import { ENEMY_DEFS } from '../data/enemies'
 import { ChunkManager } from '../world/ChunkManager'
-import { TILE_SIZE, WORLD_WIDTH, TileType } from '../world/TileRegistry'
+import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT, TileType } from '../world/TileRegistry'
 
 const MAX_ENEMIES_DAY = 15
 const MAX_ENEMIES_NIGHT = 22
@@ -11,16 +11,22 @@ const SPAWN_INTERVAL_DAY = 2000 // ms
 const SPAWN_INTERVAL_NIGHT = 1200 // ms — faster spawns at night
 const SPAWN_RANGE_MIN = 400 // min px from player
 const SPAWN_RANGE_MAX = 700 // max px from player
-const OCEAN_WIDTH = 350
+const OCEAN_WIDTH = 500
 
 export class EnemySpawner {
   private scene: Phaser.Scene
   private timer = 0
   private enemyTypes: EnemyDef[]
+  private surfaceBiomes: Uint8Array | null = null
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
-    this.enemyTypes = Object.values(ENEMY_DEFS)
+    this.enemyTypes = Object.values(ENEMY_DEFS).filter(def => !def.noNaturalSpawn)
+  }
+
+  /** Set the surface biome map from world data for biome-specific spawning */
+  setSurfaceBiomes(biomes: Uint8Array) {
+    this.surfaceBiomes = biomes
   }
 
   update(
@@ -67,10 +73,13 @@ export class EnemySpawner {
     const spawnTY = Math.floor(spawnY / TILE_SIZE)
 
     // Must be in world bounds
-    if (spawnTX < 0 || spawnTX >= WORLD_WIDTH || spawnTY < 0 || spawnTY >= 1200) return
+    if (spawnTX < 0 || spawnTX >= WORLD_WIDTH || spawnTY < 0 || spawnTY >= WORLD_HEIGHT) return
 
     // Determine biome info
     const isOcean = spawnTX < OCEAN_WIDTH || spawnTX >= WORLD_WIDTH - OCEAN_WIDTH
+    const surfBiome = this.surfaceBiomes && spawnTX >= 0 && spawnTX < this.surfaceBiomes.length
+      ? this.surfaceBiomes[spawnTX]!
+      : -1
 
     // Find valid enemy types for this position
     const valid = this.enemyTypes.filter(def => {
@@ -78,6 +87,8 @@ export class EnemySpawner {
       if (def.oceanOnly && !isOcean) return false
       if (!def.oceanOnly && isOcean) return false
       if (def.nightOnly && !isNight) return false
+      // Surface biome restriction
+      if (def.surfaceBiome != null && surfBiome !== def.surfaceBiome) return false
       return true
     })
 
@@ -86,7 +97,7 @@ export class EnemySpawner {
     const def = valid[Math.floor(Math.random() * valid.length)]!
 
     // Check spawn tile is passable for the enemy
-    const isFlying = def.ai === 'swoop' || def.ai === 'ranged'
+    const isFlying = def.ai === 'swoop' || def.ai === 'ranged' || def.ai === 'phase'
     const isAquatic = def.ai === 'lure'
 
     if (isAquatic) {

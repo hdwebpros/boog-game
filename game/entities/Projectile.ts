@@ -38,7 +38,7 @@ export class Projectile {
         config.color
       )
     }
-    this.sprite.setDepth(12)
+    this.sprite.setDepth(55) // above darkness overlay (depth 50) so always visible
     this.vx = config.vx
     this.vy = config.vy
     this.damage = config.damage

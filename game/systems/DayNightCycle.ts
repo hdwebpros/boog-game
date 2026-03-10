@@ -64,17 +64,44 @@ export class DayNightCycle {
     return 'Night'
   }
 
-  /** Sky tint color for the overlay */
+  /** Sky tint color for the overlay — smoothly interpolated */
   get tintColor(): number {
-    if (this.isNight) return 0x0a0a2a // deep blue night
-    if (this.isTwilight) {
-      if (this.time < 0.3) {
-        // Dawn — warm orange tint
-        return 0x2a1a0a
-      }
-      // Dusk — purple/orange tint
-      return 0x1a0a2a
+    const NIGHT = { r: 0x0a, g: 0x0a, b: 0x2a }
+    const DAWN  = { r: 0x2a, g: 0x1a, b: 0x0a }
+    const DUSK  = { r: 0x1a, g: 0x0a, b: 0x2a }
+    const BLACK = { r: 0, g: 0, b: 0 }
+
+    if (this.time >= DAWN_END && this.time < DUSK_START) {
+      // Full day — overlay alpha is 0 so color doesn't matter
+      return 0x000000
     }
-    return 0x000000
+
+    if (this.time >= DAWN_START && this.time < DAWN_END) {
+      // Dawn: night blue → warm orange → black
+      const t = (this.time - DAWN_START) / (DAWN_END - DAWN_START)
+      if (t < 0.5) return DayNightCycle.lerpColor(NIGHT, DAWN, t * 2)
+      return DayNightCycle.lerpColor(DAWN, BLACK, (t - 0.5) * 2)
+    }
+
+    if (this.time >= DUSK_START && this.time < DUSK_END) {
+      // Dusk: black → purple → night blue
+      const t = (this.time - DUSK_START) / (DUSK_END - DUSK_START)
+      if (t < 0.5) return DayNightCycle.lerpColor(BLACK, DUSK, t * 2)
+      return DayNightCycle.lerpColor(DUSK, NIGHT, (t - 0.5) * 2)
+    }
+
+    // Full night
+    return 0x0a0a2a
+  }
+
+  private static lerpColor(
+    a: { r: number; g: number; b: number },
+    b: { r: number; g: number; b: number },
+    t: number
+  ): number {
+    const r = Math.round(a.r + (b.r - a.r) * t)
+    const g = Math.round(a.g + (b.g - a.g) * t)
+    const bl = Math.round(a.b + (b.b - a.b) * t)
+    return (r << 16) | (g << 8) | bl
   }
 }

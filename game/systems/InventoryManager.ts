@@ -1,9 +1,10 @@
 import { getItemDef, ItemCategory } from '../data/items'
-import type { ArmorSlot } from '../data/items'
+import type { ArmorSlot, EnchantmentType } from '../data/items'
 
 export interface ItemStack {
   id: number
   count: number
+  enchantment?: EnchantmentType
 }
 
 export interface ArmorSlots {
@@ -13,9 +14,14 @@ export interface ArmorSlots {
   boots: ItemStack | null
 }
 
-const MAX_STACK = 99
+const DEFAULT_MAX_STACK = 99
 const HOTBAR_SIZE = 10
 const MAIN_INV_SIZE = 30
+
+function maxStackFor(id: number): number {
+  const def = getItemDef(id)
+  return def?.stackSize ?? DEFAULT_MAX_STACK
+}
 
 export const ARMOR_SLOT_ORDER: ArmorSlot[] = ['helmet', 'chestplate', 'leggings', 'boots']
 
@@ -23,16 +29,18 @@ export class InventoryManager {
   hotbar: (ItemStack | null)[] = new Array(HOTBAR_SIZE).fill(null)
   mainInventory: (ItemStack | null)[] = new Array(MAIN_INV_SIZE).fill(null)
   armorSlots: ArmorSlots = { helmet: null, chestplate: null, leggings: null, boots: null }
+  accessorySlots: (ItemStack | null)[] = [null, null, null]
   selectedSlot = 0
   heldItem: ItemStack | null = null
 
   /** Add item — tries hotbar first, then main inventory. Returns true if added. */
   addItem(id: number, count = 1): boolean {
+    const cap = maxStackFor(id)
     // Try stacking with existing matching slots in hotbar
     for (let i = 0; i < HOTBAR_SIZE; i++) {
       const slot = this.hotbar[i]
-      if (slot && slot.id === id && slot.count < MAX_STACK) {
-        const canAdd = Math.min(count, MAX_STACK - slot.count)
+      if (slot && slot.id === id && slot.count < cap) {
+        const canAdd = Math.min(count, cap - slot.count)
         slot.count += canAdd
         count -= canAdd
         if (count === 0) return true
@@ -42,8 +50,8 @@ export class InventoryManager {
     // Try stacking in main inventory
     for (let i = 0; i < MAIN_INV_SIZE; i++) {
       const slot = this.mainInventory[i]
-      if (slot && slot.id === id && slot.count < MAX_STACK) {
-        const canAdd = Math.min(count, MAX_STACK - slot.count)
+      if (slot && slot.id === id && slot.count < cap) {
+        const canAdd = Math.min(count, cap - slot.count)
         slot.count += canAdd
         count -= canAdd
         if (count === 0) return true
@@ -54,14 +62,14 @@ export class InventoryManager {
     while (count > 0) {
       const hotbarEmpty = this.hotbar.indexOf(null)
       if (hotbarEmpty !== -1) {
-        const toAdd = Math.min(count, MAX_STACK)
+        const toAdd = Math.min(count, cap)
         this.hotbar[hotbarEmpty] = { id, count: toAdd }
         count -= toAdd
         continue
       }
       const mainEmpty = this.mainInventory.indexOf(null)
       if (mainEmpty !== -1) {
-        const toAdd = Math.min(count, MAX_STACK)
+        const toAdd = Math.min(count, cap)
         this.mainInventory[mainEmpty] = { id, count: toAdd }
         count -= toAdd
         continue
@@ -96,6 +104,33 @@ export class InventoryManager {
     return total
   }
 
+  /** Remove a specific count of an item from inventory (hotbar first, then main). Returns true if fully removed. */
+  removeItem(id: number, count: number): boolean {
+    if (this.getCount(id) < count) return false
+    let remaining = count
+    // Remove from hotbar first
+    for (let i = 0; i < this.hotbar.length && remaining > 0; i++) {
+      const slot = this.hotbar[i]
+      if (slot && slot.id === id) {
+        const take = Math.min(remaining, slot.count)
+        slot.count -= take
+        remaining -= take
+        if (slot.count <= 0) this.hotbar[i] = null
+      }
+    }
+    // Then main inventory
+    for (let i = 0; i < this.mainInventory.length && remaining > 0; i++) {
+      const slot = this.mainInventory[i]
+      if (slot && slot.id === id) {
+        const take = Math.min(remaining, slot.count)
+        slot.count -= take
+        remaining -= take
+        if (slot.count <= 0) this.mainInventory[i] = null
+      }
+    }
+    return remaining === 0
+  }
+
   /** Return held item to inventory when closing */
   returnHeldItem(): void {
     if (this.heldItem) {
@@ -119,7 +154,8 @@ export class InventoryManager {
         slots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
         this.heldItem = null
       } else if (slot.id === this.heldItem.id) {
-        const canAdd = Math.min(this.heldItem.count, MAX_STACK - slot.count)
+        const cap = maxStackFor(slot.id)
+        const canAdd = Math.min(this.heldItem.count, cap - slot.count)
         slot.count += canAdd
         this.heldItem.count -= canAdd
         if (this.heldItem.count <= 0) this.heldItem = null
@@ -161,6 +197,34 @@ export class InventoryManager {
     }
   }
 
+  /** Click an accessory slot: equip/swap */
+  clickAccessorySlot(idx: number): void {
+    const current = this.accessorySlots[idx] ?? null
+
+    if (!this.heldItem) {
+      if (current) {
+        this.heldItem = { id: current.id, count: current.count }
+        this.accessorySlots[idx] = null
+      }
+    } else {
+      const def = getItemDef(this.heldItem.id)
+      if (def?.category === ItemCategory.ACCESSORY) {
+        const temp = current ? { id: current.id, count: current.count } : null
+        this.accessorySlots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
+        this.heldItem = temp
+      }
+    }
+  }
+
+  /** Get all equipped accessory item IDs */
+  getEquippedAccessoryIds(): number[] {
+    const ids: number[] = []
+    for (const slot of this.accessorySlots) {
+      if (slot) ids.push(slot.id)
+    }
+    return ids
+  }
+
   /** Get total defense from all equipped armor */
   getTotalDefense(): number {
     let total = 0
@@ -191,7 +255,7 @@ export class InventoryManager {
         slots[idx] = { id: this.heldItem.id, count: 1 }
         this.heldItem.count--
         if (this.heldItem.count <= 0) this.heldItem = null
-      } else if (slot.id === this.heldItem.id && slot.count < MAX_STACK) {
+      } else if (slot.id === this.heldItem.id && slot.count < maxStackFor(slot.id)) {
         slot.count++
         this.heldItem.count--
         if (this.heldItem.count <= 0) this.heldItem = null

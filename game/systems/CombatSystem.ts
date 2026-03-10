@@ -8,13 +8,26 @@ import type { ItemDef } from '../data/items'
 import { AudioManager } from './AudioManager'
 import { SoundId } from '../data/sounds'
 
-const MELEE_RANGE = 48 // px
-const MELEE_ARC = Math.PI * 0.6 // swing arc width
+const MELEE_RANGE = 72 // px (~4.5 tiles, Minecraft-style reach)
+const MELEE_ARC = Math.PI * 0.7 // swing arc width (126°)
 
 interface DamageNumber {
   text: Phaser.GameObjects.Text
   vy: number
   lifetime: number
+}
+
+interface BurnEffect {
+  enemy: Enemy
+  dps: number
+  remaining: number
+  tickTimer: number
+}
+
+interface SlowEffect {
+  enemy: Enemy
+  factor: number
+  remaining: number
 }
 
 export class CombatSystem {
@@ -23,6 +36,9 @@ export class CombatSystem {
   summons: Summon[] = []
   private damageNumbers: DamageNumber[] = []
   private meleeGfx: Phaser.GameObjects.Graphics
+  private burns: BurnEffect[] = []
+  private slows: SlowEffect[] = []
+  private lastHitEnemies: Enemy[] = [] // enemies hit by last melee/projectile
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -57,7 +73,7 @@ export class CombatSystem {
       if (!p.fromPlayer || !p.alive) continue
       const pb = p.getBounds()
       for (const e of enemies) {
-        if (!e.alive) continue
+        if (!e.alive || e.intangible) continue
         const eb = e.getBounds()
         if (this.aabbOverlap(pb, eb)) {
           const kbx = (e.sprite.x - playerX) > 0 ? 150 : -150
@@ -97,7 +113,7 @@ export class CombatSystem {
       if (!s.alive || !s.canAttack()) continue
       const sb = s.getBounds()
       for (const e of enemies) {
-        if (!e.alive) continue
+        if (!e.alive || e.intangible) continue
         const eb = e.getBounds()
         if (this.aabbOverlap(sb, eb)) {
           const kbx = (e.sprite.x - s.sprite.x) > 0 ? 100 : -100
@@ -108,6 +124,34 @@ export class CombatSystem {
         }
       }
     }
+
+    // Update burn effects (Ember enchantment)
+    for (const burn of this.burns) {
+      if (!burn.enemy.alive) { burn.remaining = 0; continue }
+      burn.remaining -= dt * 1000
+      burn.tickTimer -= dt * 1000
+      if (burn.tickTimer <= 0) {
+        burn.tickTimer = 500
+        burn.enemy.takeDamage(burn.dps, 0, 0)
+        this.spawnDamageNumber(burn.enemy.sprite.x, burn.enemy.sprite.y - burn.enemy.def.height / 2, burn.dps, 0xff6633)
+      }
+      if (burn.enemy.sprite.active) burn.enemy.sprite.setTint(0xff6633)
+      if (burn.remaining <= 0 && burn.enemy.sprite.active) burn.enemy.sprite.clearTint()
+    }
+    this.burns = this.burns.filter(b => b.remaining > 0)
+
+    // Update slow effects (Frost enchantment)
+    for (const slow of this.slows) {
+      if (!slow.enemy.alive) { slow.remaining = 0; continue }
+      slow.remaining -= dt * 1000
+      slow.enemy.speedMult = 1 - slow.factor
+      if (slow.enemy.sprite.active) slow.enemy.sprite.setTint(0x6688ff)
+      if (slow.remaining <= 0) {
+        slow.enemy.speedMult = 1
+        if (slow.enemy.sprite.active) slow.enemy.sprite.clearTint()
+      }
+    }
+    this.slows = this.slows.filter(s => s.remaining > 0)
 
     // Update damage numbers
     for (const dn of this.damageNumbers) {
@@ -124,7 +168,76 @@ export class CombatSystem {
     return playerHit
   }
 
-  /** Melee attack: check enemies in arc in front of player */
+  /** Apply burn effect to enemies near a point (Ember enchantment) */
+  applyBurn(x: number, y: number, dps: number, duration: number) {
+    for (const e of this.lastHitEnemies) {
+      if (!e.alive) continue
+      const existing = this.burns.find(b => b.enemy === e)
+      if (existing) {
+        existing.remaining = duration
+      } else {
+        this.burns.push({ enemy: e, dps, remaining: duration, tickTimer: 500 })
+      }
+    }
+  }
+
+  /** Apply slow to enemies near a point (Frost enchantment) */
+  applySlow(x: number, y: number, factor: number, duration: number) {
+    for (const e of this.lastHitEnemies) {
+      if (!e.alive) continue
+      const existing = this.slows.find(s => s.enemy === e)
+      if (existing) {
+        existing.remaining = duration
+      } else {
+        this.slows.push({ enemy: e, factor, remaining: duration })
+      }
+    }
+  }
+
+  /** Check if an enemy is currently slowed */
+  isSlowed(enemy: Enemy): number {
+    const slow = this.slows.find(s => s.enemy === enemy && s.remaining > 0)
+    return slow ? slow.factor : 0
+  }
+
+  /** Chain lightning to a nearby enemy (Storm enchantment) */
+  chainLightning(x: number, y: number, damage: number, enemies: Enemy[]) {
+    let closest: Enemy | null = null
+    let closestDist = 150 // max chain range in pixels
+    for (const e of enemies) {
+      if (!e.alive || e.intangible) continue
+      const dx = e.sprite.x - x
+      const dy = e.sprite.y - y
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist < closestDist && dist > 20) {
+        closestDist = dist
+        closest = e
+      }
+    }
+    if (closest) {
+      closest.takeDamage(damage, 0, -30)
+      this.spawnDamageNumber(closest.sprite.x, closest.sprite.y - closest.def.height / 2, damage, 0xffee44)
+      // Visual: lightning line
+      const gfx = this.scene.add.graphics().setDepth(14)
+      gfx.lineStyle(2, 0xffee44, 0.8)
+      gfx.beginPath()
+      gfx.moveTo(x, y)
+      // Jagged line
+      const dx = closest.sprite.x - x
+      const dy = closest.sprite.y - y
+      const steps = 4
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps
+        const jx = x + dx * t + (Math.random() - 0.5) * 20
+        const jy = y + dy * t + (Math.random() - 0.5) * 20
+        gfx.lineTo(jx, jy)
+      }
+      gfx.strokePath()
+      this.scene.time.delayedCall(150, () => gfx.destroy())
+    }
+  }
+
+  /** Melee attack: check enemies in arc in front of player. Returns total damage dealt. */
   meleeAttack(
     weapon: ItemDef,
     playerX: number,
@@ -132,18 +245,27 @@ export class CombatSystem {
     facingRight: boolean,
     enemies: Enemy[],
     damageMult = 1
-  ): boolean {
+  ): number {
     const angle = facingRight ? 0 : Math.PI
-    let hit = false
+    let totalDamage = 0
+    this.lastHitEnemies = []
 
-    // Draw swing arc visual
-    this.meleeGfx.lineStyle(2, weapon.color, 0.7)
+    // Draw swing arc visual — filled wedge with outline
+    const startAngle = angle - MELEE_ARC / 2
+    const endAngle = angle + MELEE_ARC / 2
+    this.meleeGfx.fillStyle(weapon.color, 0.15)
     this.meleeGfx.beginPath()
-    this.meleeGfx.arc(playerX, playerY, MELEE_RANGE, angle - MELEE_ARC / 2, angle + MELEE_ARC / 2)
+    this.meleeGfx.moveTo(playerX, playerY)
+    this.meleeGfx.arc(playerX, playerY, MELEE_RANGE, startAngle, endAngle)
+    this.meleeGfx.closePath()
+    this.meleeGfx.fillPath()
+    this.meleeGfx.lineStyle(3, weapon.color, 0.6)
+    this.meleeGfx.beginPath()
+    this.meleeGfx.arc(playerX, playerY, MELEE_RANGE, startAngle, endAngle)
     this.meleeGfx.strokePath()
 
     // Fade out after a short time
-    this.scene.time.delayedCall(100, () => {
+    this.scene.time.delayedCall(120, () => {
       this.meleeGfx.clear()
     })
 
@@ -151,7 +273,7 @@ export class CombatSystem {
     const finalDmg = Math.round(baseDmg * damageMult)
 
     for (const e of enemies) {
-      if (!e.alive) continue
+      if (!e.alive || e.intangible) continue
       const dx = e.sprite.x - playerX
       const dy = e.sprite.y - playerY
       const dist = Math.sqrt(dx * dx + dy * dy)
@@ -169,12 +291,13 @@ export class CombatSystem {
         e.takeDamage(finalDmg, kbx, -100)
         const dmgColor = damageMult >= 2 ? 0xff4444 : 0xffff00 // red for crits
         this.spawnDamageNumber(e.sprite.x, e.sprite.y - e.def.height / 2, finalDmg, dmgColor)
-        hit = true
+        totalDamage += finalDmg
+        this.lastHitEnemies.push(e)
       }
     }
 
-    AudioManager.get()?.play(hit ? SoundId.ENEMY_HIT : SoundId.MELEE_SWING)
-    return hit
+    AudioManager.get()?.play(totalDamage > 0 ? SoundId.ENEMY_HIT : SoundId.MELEE_SWING)
+    return totalDamage
   }
 
   /** Fire a projectile toward cursor */

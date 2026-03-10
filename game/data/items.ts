@@ -9,6 +9,26 @@ export enum ItemCategory {
   ARMOR = 'armor',
   CONSUMABLE = 'consumable',
   SPECIAL = 'special',
+  CURRENCY = 'currency',
+  ACCESSORY = 'accessory',
+}
+
+export type EnchantmentType = 'ember' | 'frost' | 'storm' | 'void' | 'life'
+
+export const ENCHANTMENT_COLORS: Record<EnchantmentType, number> = {
+  ember: 0xff6633,
+  frost: 0x66ccff,
+  storm: 0xffee44,
+  void: 0x9933ff,
+  life: 0x33ff66,
+}
+
+export const ENCHANTMENT_NAMES: Record<EnchantmentType, string> = {
+  ember: 'Inferno',
+  frost: 'Glacial',
+  storm: 'Tempest',
+  void: 'Abyssal',
+  life: 'Verdant',
 }
 
 export type WeaponStyle = 'melee' | 'ranged' | 'magic' | 'summon'
@@ -50,6 +70,26 @@ export const ITEMS: Record<number, ItemDef> = {
   [TileType.SAND]:         { id: TileType.SAND,         name: 'Sand',         category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xe6d5a8, tileType: TileType.SAND },
   [TileType.CORAL]:        { id: TileType.CORAL,        name: 'Coral',        category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xff6b9d, tileType: TileType.CORAL },
   [TileType.CARBON_FIBER]: { id: TileType.CARBON_FIBER, name: 'Carbon Fiber', category: ItemCategory.BLOCK, stackSize: 99, tier: 4, color: 0x2a2a4e, tileType: TileType.CARBON_FIBER },
+  [TileType.SNOW]:           { id: TileType.SNOW,           name: 'Snow',           category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xeeeeff, tileType: TileType.SNOW },
+  [TileType.ICE]:            { id: TileType.ICE,            name: 'Ice',            category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0x88ccee, tileType: TileType.ICE },
+  [TileType.CLAY]:           { id: TileType.CLAY,           name: 'Clay',           category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xb07050, tileType: TileType.CLAY },
+  [TileType.OBSIDIAN]:       { id: TileType.OBSIDIAN,       name: 'Obsidian',       category: ItemCategory.BLOCK, stackSize: 99, tier: 3, color: 0x1a1a2e, tileType: TileType.OBSIDIAN },
+  [TileType.CRYSTAL]:        { id: TileType.CRYSTAL,        name: 'Crystal',        category: ItemCategory.BLOCK, stackSize: 99, tier: 2, color: 0xaa55ff, tileType: TileType.CRYSTAL },
+  [TileType.MOSS]:           { id: TileType.MOSS,           name: 'Moss',           category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0x3d7a3d, tileType: TileType.MOSS },
+  [TileType.MUSHROOM_BLOCK]: { id: TileType.MUSHROOM_BLOCK, name: 'Mushroom Block', category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xcc6644, tileType: TileType.MUSHROOM_BLOCK },
+  [TileType.SANDSTONE]:      { id: TileType.SANDSTONE,      name: 'Sandstone',      category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xd4b483, tileType: TileType.SANDSTONE },
+  [TileType.CACTUS]:         { id: TileType.CACTUS,         name: 'Cactus',         category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0x2d8a2d, tileType: TileType.CACTUS },
+  [TileType.JUNGLE_GRASS]:   { id: TileType.JUNGLE_GRASS,   name: 'Jungle Grass',   category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0x2a6e1e, tileType: TileType.JUNGLE_GRASS },
+  [TileType.FROZEN_STONE]:   { id: TileType.FROZEN_STONE,   name: 'Frozen Stone',   category: ItemCategory.BLOCK, stackSize: 99, tier: 1, color: 0x7799aa, tileType: TileType.FROZEN_STONE },
+  [TileType.CRYSTAL_EMBER]:  { id: TileType.CRYSTAL_EMBER,  name: 'Ember Crystal',  category: ItemCategory.BLOCK, stackSize: 99, tier: 2, color: 0xff6633, tileType: TileType.CRYSTAL_EMBER },
+  [TileType.CRYSTAL_FROST]:  { id: TileType.CRYSTAL_FROST,  name: 'Frost Crystal',  category: ItemCategory.BLOCK, stackSize: 99, tier: 2, color: 0x66ccff, tileType: TileType.CRYSTAL_FROST },
+  [TileType.CRYSTAL_STORM]:  { id: TileType.CRYSTAL_STORM,  name: 'Storm Crystal',  category: ItemCategory.BLOCK, stackSize: 99, tier: 2, color: 0xffee44, tileType: TileType.CRYSTAL_STORM },
+  [TileType.CRYSTAL_VOID]:   { id: TileType.CRYSTAL_VOID,   name: 'Void Crystal',   category: ItemCategory.BLOCK, stackSize: 99, tier: 3, color: 0x9933ff, tileType: TileType.CRYSTAL_VOID },
+  [TileType.CRYSTAL_LIFE]:   { id: TileType.CRYSTAL_LIFE,   name: 'Life Crystal',   category: ItemCategory.BLOCK, stackSize: 99, tier: 1, color: 0x33ff66, tileType: TileType.CRYSTAL_LIFE },
+  [TileType.VINE]:           { id: TileType.VINE,           name: 'Vine Rope',      category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0x33aa22, tileType: TileType.VINE },
+  [TileType.CLOUD_BLOCK]:    { id: TileType.CLOUD_BLOCK,    name: 'Cloud Block',    category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xddddff, tileType: TileType.CLOUD_BLOCK },
+  [TileType.CLOUD_BRICK]:    { id: TileType.CLOUD_BRICK,    name: 'Cloud Brick',    category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0x8899bb, tileType: TileType.CLOUD_BRICK },
+  [TileType.CLOUD_PILLAR]:   { id: TileType.CLOUD_PILLAR,   name: 'Cloud Pillar',   category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xddaa44, tileType: TileType.CLOUD_PILLAR },
 
   // ── Materials ───────────────────────────────────────────
   100: { id: 100, name: 'Iron Bar',      category: ItemCategory.MATERIAL, stackSize: 99, tier: 1, color: 0xc9a96e },
@@ -116,6 +156,7 @@ export const ITEMS: Record<number, ItemDef> = {
   190: { id: 190, name: 'Healing Herb',  category: ItemCategory.CONSUMABLE, stackSize: 30, tier: 0, color: 0x33cc33, healAmount: 25 },
   191: { id: 191, name: 'Cooked Meat',   category: ItemCategory.CONSUMABLE, stackSize: 20, tier: 0, color: 0xcc6633, healAmount: 50 },
   192: { id: 192, name: 'Rebreather',    category: ItemCategory.SPECIAL,    stackSize: 1,  tier: 2, color: 0x00cccc },
+  193: { id: 193, name: 'Forcefield Potion', category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 2, color: 0x44ddff },
 
   // ── Armor: Wood (Tier 0) ──────────────────────────────
   200: { id: 200, name: 'Wood Helmet',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'helmet' },
@@ -146,6 +187,33 @@ export const ITEMS: Record<number, ItemDef> = {
   217: { id: 217, name: 'Titanium Chestplate', category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 10, armorSlot: 'chestplate' },
   218: { id: 218, name: 'Titanium Leggings',  category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 7, armorSlot: 'leggings' },
   219: { id: 219, name: 'Titanium Boots',     category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 4, armorSlot: 'boots' },
+
+  // ── Starshards & Enchanting ──────────────────────────
+  230: { id: 230, name: 'Ember Shard',   category: ItemCategory.MATERIAL, stackSize: 99, tier: 2, color: 0xff6633 },
+  231: { id: 231, name: 'Frost Shard',   category: ItemCategory.MATERIAL, stackSize: 99, tier: 2, color: 0x66ccff },
+  232: { id: 232, name: 'Storm Shard',   category: ItemCategory.MATERIAL, stackSize: 99, tier: 2, color: 0xffee44 },
+  233: { id: 233, name: 'Void Shard',    category: ItemCategory.MATERIAL, stackSize: 99, tier: 3, color: 0x9933ff },
+  234: { id: 234, name: 'Life Shard',    category: ItemCategory.MATERIAL, stackSize: 99, tier: 1, color: 0x33ff66 },
+  235: { id: 235, name: 'Arcane Dust',   category: ItemCategory.MATERIAL, stackSize: 99, tier: 1, color: 0xcc99ff },
+  236: { id: 236, name: 'Arcane Anvil',  category: ItemCategory.STATION,  stackSize: 1,  tier: 2, color: 0x7744cc },
+
+  // ── Chant Orbs ─────────────────────────────────────────
+  237: { id: 237, name: 'Inferno Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 2, color: 0xff6633 },
+  238: { id: 238, name: 'Glacial Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 2, color: 0x66ccff },
+  239: { id: 239, name: 'Tempest Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 2, color: 0xffee44 },
+  240: { id: 240, name: 'Abyssal Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 3, color: 0x9933ff },
+  241: { id: 241, name: 'Verdant Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 1, color: 0x33ff66 },
+
+  // ── Currency ──────────────────────────────────────────
+  250: { id: 250, name: 'Silver Coin', category: ItemCategory.CURRENCY, stackSize: 999, tier: 0, color: 0xccccdd },
+
+  // ── Accessories ───────────────────────────────────────
+  300: { id: 300, name: 'Cloud Boots',      category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0xddddff },
+  301: { id: 301, name: 'Star Compass',     category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0xffdd44 },
+  302: { id: 302, name: 'Gravity Belt',     category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0x8866cc },
+  303: { id: 303, name: "Miner's Lantern",  category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0xffaa33 },
+  304: { id: 304, name: 'Lucky Charm',      category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0x44ff88 },
+  305: { id: 305, name: 'Celestial Cape',   category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0x6688ff },
 }
 
 export function getItemDef(id: number): ItemDef | undefined {

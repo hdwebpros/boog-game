@@ -1,5 +1,5 @@
-import { SKILLS, SKILL_MAP, xpForLevel } from '../data/skills'
-import type { SkillDef } from '../data/skills'
+import { SKILLS, SKILL_MAP, SUPER_TREES, SUPER_TREE_MAP, xpForLevel } from '../data/skills'
+import type { SkillBranch, SkillDef } from '../data/skills'
 
 export interface SkillModifiers {
   meleeDamageMult: number
@@ -22,6 +22,12 @@ export interface SkillModifiers {
   doubleJump: boolean
   jetpackFuelMult: number
   lowHpDamageMult: number
+  // Super skill modifiers
+  lifeStealPct: number
+  undying: boolean
+  arcaneStrikes: boolean
+  manaOverload: boolean
+  aoeMining: boolean
 }
 
 export class SkillTreeManager {
@@ -49,12 +55,27 @@ export class SkillTreeManager {
     return xpForLevel(this.level + 1)
   }
 
+  /** Check if all skills in a branch (non-super) are unlocked */
+  isBranchComplete(branch: SkillBranch): boolean {
+    const branchSkills = SKILLS.filter(s => s.branch === branch && !s.superTree)
+    return branchSkills.every(s => this.unlockedSkills.has(s.id))
+  }
+
+  /** Check if a super tree's requirements are met (both branches fully complete) */
+  isSuperTreeUnlocked(superTreeId: string): boolean {
+    const st = SUPER_TREE_MAP[superTreeId]
+    if (!st) return false
+    return st.branches.every(b => this.isBranchComplete(b))
+  }
+
   /** Check if a skill can be unlocked */
   canUnlock(skillId: string): boolean {
     const skill = SKILL_MAP[skillId]
     if (!skill) return false
     if (this.unlockedSkills.has(skillId)) return false
     if (this.skillPoints < skill.cost) return false
+    // Super tree skill: requires both branches complete
+    if (skill.superTree && !this.isSuperTreeUnlocked(skill.superTree)) return false
     if (skill.requires && !this.unlockedSkills.has(skill.requires)) return false
     return true
   }
@@ -99,6 +120,11 @@ export class SkillTreeManager {
       doubleJump: false,
       jetpackFuelMult: 1,
       lowHpDamageMult: 1,
+      lifeStealPct: 0,
+      undying: false,
+      arcaneStrikes: false,
+      manaOverload: false,
+      aoeMining: false,
     }
 
     for (const skillId of this.unlockedSkills) {
@@ -121,10 +147,16 @@ export class SkillTreeManager {
       if (s.manaRegenMult) mods.manaRegenMult *= s.manaRegenMult
       if (s.manaShieldPct) mods.manaShieldPct += s.manaShieldPct
       if (s.moveSpeedMult) mods.moveSpeedMult *= s.moveSpeedMult
-      if (s.fallDamageMult) mods.fallDamageMult *= s.fallDamageMult
+      if (s.fallDamageMult !== undefined) mods.fallDamageMult *= s.fallDamageMult
       if (s.doubleJump) mods.doubleJump = true
       if (s.jetpackFuelMult) mods.jetpackFuelMult *= s.jetpackFuelMult
       if (s.lowHpDamageMult) mods.lowHpDamageMult *= s.lowHpDamageMult
+      // Super modifiers
+      if (s.lifeStealPct) mods.lifeStealPct += s.lifeStealPct
+      if (s.undying) mods.undying = true
+      if (s.arcaneStrikes) mods.arcaneStrikes = true
+      if (s.manaOverload) mods.manaOverload = true
+      if (s.aoeMining) mods.aoeMining = true
     }
 
     this.cachedModifiers = mods

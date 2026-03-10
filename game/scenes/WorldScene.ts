@@ -3,11 +3,11 @@ import { ChunkManager } from '../world/ChunkManager'
 import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
 import { Boss } from '../entities/Boss'
-import type { WorldData } from '../world/WorldGenerator'
+import type { WorldData, AltarPlacement, RunestonePlacement } from '../world/WorldGenerator'
 import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 import { CombatSystem } from '../systems/CombatSystem'
 import { EnemySpawner } from '../systems/EnemySpawner'
-import { BOSS_DEFS, BossType } from '../data/bosses'
+import { BOSS_DEFS, ALTAR_DEFS, BossType } from '../data/bosses'
 import { EnemyType, ENEMY_DEFS } from '../data/enemies'
 import { getItemDef, ItemCategory } from '../data/items'
 import { DroppedItem } from '../entities/DroppedItem'
@@ -16,9 +16,15 @@ import type { SaveData } from '../systems/SaveManager'
 import { AudioManager, MusicTrack } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 import { DayNightCycle } from '../systems/DayNightCycle'
+import { NPC } from '../entities/NPC'
 
 // Y pixel threshold for underground music (UNDERGROUND_START=130 tiles * 16px)
 const UNDERGROUND_Y = 130 * 16
+
+// Altar interaction range (in tiles)
+const ALTAR_INTERACT_RANGE = 3
+// Runestone interaction range (in tiles)
+const RUNESTONE_INTERACT_RANGE = 2.5
 
 export class WorldScene extends Phaser.Scene {
   private chunkManager!: ChunkManager
@@ -30,13 +36,24 @@ export class WorldScene extends Phaser.Scene {
   private activeBoss: Boss | null = null
   private droppedItems: DroppedItem[] = []
   private keyF!: Phaser.Input.Keyboard.Key
+  private keyESC!: Phaser.Input.Keyboard.Key
   private autoSaveTimer = 0
   private boundBeforeUnload: (() => void) | null = null
   private saveSlotId: string | null = null
   private saveSlotName: string | null = null
   private dayNight = new DayNightCycle()
   private darknessOverlay!: Phaser.GameObjects.Rectangle
+  private skyGfx!: Phaser.GameObjects.Graphics
   private wasNight = false
+  private endingTriggered = false
+  private npc: NPC | null = null
+  private npcShopPosition: { tx: number; ty: number } | null = null
+
+  // Boss summoning system
+  private discoveredAltars: Set<BossType> = new Set()
+  private usedRunestones: Set<string> = new Set() // "tx,ty" keys
+  private altarPromptText: Phaser.GameObjects.Text | null = null
+  private runestonePromptText: Phaser.GameObjects.Text | null = null
 
   constructor() {
     super({ key: 'WorldScene' })
@@ -68,6 +85,9 @@ export class WorldScene extends Phaser.Scene {
 
     // Enemy spawner
     this.enemySpawner = new EnemySpawner(this)
+    if (this.worldData.surfaceBiomes) {
+      this.enemySpawner.setSurfaceBiomes(this.worldData.surfaceBiomes)
+    }
 
     // Spawn player
     const spawnPx = this.worldData.spawnX * TILE_SIZE + TILE_SIZE / 2
@@ -109,7 +129,33 @@ export class WorldScene extends Phaser.Scene {
       if (saveData.dayNightTime != null) {
         this.dayNight.time = saveData.dayNightTime
       }
+      // Restore discovered altars and used runestones
+      if (saveData.discoveredAltars) {
+        for (const bt of saveData.discoveredAltars) this.discoveredAltars.add(bt as BossType)
+      }
+      if (saveData.usedRunestones) {
+        for (const key of saveData.usedRunestones) this.usedRunestones.add(key)
+      }
+      // Pass explored map to UIScene via registry
+      if (saveData.exploredMap) {
+        this.registry.set('exploredMap', saveData.exploredMap)
+      }
+      // Restore accessory slots
+      if (saveData.accessorySlots) {
+        this.player.inventory.accessorySlots = saveData.accessorySlots
+      }
+      // Restore NPC shop position
+      if (saveData.npcShopPosition) {
+        this.npcShopPosition = saveData.npcShopPosition
+      }
       this.registry.remove('saveData')
+    }
+
+    // Spawn NPC at cloud city shop position
+    const npcPos = this.npcShopPosition ?? this.worldData.npcShopPosition
+    if (npcPos) {
+      this.npcShopPosition = npcPos
+      this.npc = new NPC(this, npcPos.tx, npcPos.ty)
     }
 
     // Camera follows player — 2x zoom so tiles feel substantial
@@ -123,17 +169,29 @@ export class WorldScene extends Phaser.Scene {
       fontFamily: 'monospace',
     }).setScrollFactor(0).setDepth(100)
 
-    this.add.text(8, 24, 'WASD:Move LMB:Mine/Attack RMB:Place C:Craft E:Inv K:Skills F:Summon', {
+    this.add.text(8, 24, 'WASD:Move LMB:Mine/Attack RMB:Place C:Craft E:Inv K:Skills F:Interact', {
       fontSize: '11px',
       color: '#444444',
       fontFamily: 'monospace',
     }).setScrollFactor(0).setDepth(100)
 
-    // Boss summon key (registered once, not per-frame)
+    // Boss summon key & ESC (registered once, checked per-frame via JustDown)
     this.keyF = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F)
+    this.keyESC = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
 
     // Disable right-click context menu so RMB works for placement
     this.input.mouse!.disableContextMenu()
+
+    // Interaction prompt texts (shown near altars/runestones)
+    this.altarPromptText = this.add.text(0, 0, '', {
+      fontSize: '11px', color: '#ffdd44', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 3, align: 'center',
+    }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
+
+    this.runestonePromptText = this.add.text(0, 0, '', {
+      fontSize: '11px', color: '#88ccff', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 3, align: 'center',
+    }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
 
     // M toggles music/sound mute
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M).on('down', () => {
@@ -147,24 +205,11 @@ export class WorldScene extends Phaser.Scene {
       this.tweens.add({ targets: label, alpha: 0, duration: 1000, delay: 500, onComplete: () => label.destroy() })
     })
 
-    // ESC: close crafting/inventory/skill tree first, otherwise open pause menu
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on('down', () => {
-      if (this.player.craftingOpen) {
-        this.player.craftingOpen = false
-        return
-      }
-      if (this.player.inventoryOpen) {
-        this.player.inventoryOpen = false
-        this.player.inventory.returnHeldItem()
-        return
-      }
-      if (this.player.skillTreeOpen) {
-        this.player.skillTreeOpen = false
-        return
-      }
-      this.scene.pause('WorldScene')
-      this.scene.pause('UIScene')
-      this.scene.launch('MenuScene', { pause: true })
+    // ESC is checked per-frame in update() via JustDown for reliability
+
+    // Restart music when resuming from ending cutscene
+    this.events.on('resume', () => {
+      this.updateMusic()
     })
 
     // Start biome-appropriate music
@@ -191,6 +236,25 @@ export class WorldScene extends Phaser.Scene {
 
   override update(_time: number, delta: number) {
     const dt = delta / 1000
+
+    // ESC: close crafting/inventory/skill tree/shop first, otherwise open pause menu
+    if (Phaser.Input.Keyboard.JustDown(this.keyESC)) {
+      if (this.player.craftingOpen) {
+        this.player.craftingOpen = false
+      } else if (this.player.inventoryOpen) {
+        this.player.inventoryOpen = false
+        this.player.inventory.returnHeldItem()
+      } else if (this.player.skillTreeOpen) {
+        this.player.skillTreeOpen = false
+      } else if (this.player.shopOpen) {
+        this.player.shopOpen = false
+      } else {
+        this.scene.pause('WorldScene')
+        this.scene.pause('UIScene')
+        this.scene.launch('MenuScene', { pause: true })
+        this.scene.bringToTop('MenuScene')
+      }
+    }
 
     // Advance day/night cycle
     this.dayNight.update(dt)
@@ -220,6 +284,9 @@ export class WorldScene extends Phaser.Scene {
     }
     this.wasNight = nowNight
 
+    // Update sky background gradient for day/night
+    this.updateSkyBackground()
+
     // Apply darkness overlay (only affects surface — fade out when deep underground)
     const playerTY = Math.floor(this.player.sprite.y / TILE_SIZE)
     const undergroundFade = Math.min(1, Math.max(0, (playerTY - 100) / 60)) // fade out 100-160 tiles deep
@@ -234,8 +301,10 @@ export class WorldScene extends Phaser.Scene {
 
     this.player.update(dt, this.chunkManager, this.combat, allTargets)
 
-    // Check boss summon item usage
-    this.checkBossSummon()
+    // Check altar/runestone/NPC interactions
+    this.checkAltarInteraction()
+    this.checkRunestoneInteraction()
+    this.checkNPCInteraction()
 
     // Spawn enemies (not during boss fight)
     if (!this.activeBoss || !this.activeBoss.alive) {
@@ -245,7 +314,7 @@ export class WorldScene extends Phaser.Scene {
     // Update enemies
     for (const enemy of this.enemies) {
       if (!enemy.alive) continue
-      const result = enemy.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y)
+      const result = enemy.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y, this.dayNight.isNight, effectiveDarkness)
 
       if (result.shootAtPlayer) {
         this.combat.fireEnemyProjectile(
@@ -334,10 +403,26 @@ export class WorldScene extends Phaser.Scene {
         if (healPct > 0) {
           this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * healPct)
         }
+        // Split on death quirk: spawn child enemies
+        if (enemy.def.splitsInto) {
+          const splitDef = ENEMY_DEFS[enemy.def.splitsInto]
+          const count = enemy.def.splitCount ?? 2
+          for (let s = 0; s < count; s++) {
+            const sx = enemy.sprite.x + (Math.random() - 0.5) * 40
+            const sy = enemy.sprite.y - 8
+            const child = new Enemy(this, sx, sy, splitDef)
+            this.enemies.push(child)
+          }
+        }
         AudioManager.get()?.play(SoundId.ENEMY_DIE)
         if (enemy.sprite.active) enemy.sprite.destroy()
         this.enemies.splice(i, 1)
       }
+    }
+
+    // Update NPC
+    if (this.npc) {
+      this.npc.update(this.player.sprite.x, this.player.sprite.y)
     }
 
     // Update dropped items & pickup
@@ -382,11 +467,13 @@ export class WorldScene extends Phaser.Scene {
   private checkJetpack() {
     if (this.player.hasJetpack) {
       // Check if player has reached the sky (top of world)
-      if (this.player.sprite.y < 32) {
-        // Trigger ending!
+      if (this.player.sprite.y < 32 && !this.endingTriggered) {
+        // Trigger ending cutscene — pause world so player can resume after
+        this.endingTriggered = true
         AudioManager.get()?.stopMusic()
+        this.scene.pause('WorldScene')
         this.scene.stop('UIScene')
-        this.scene.start('EndingScene')
+        this.scene.launch('EndingScene')
         return
       }
       return
@@ -428,42 +515,116 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  // ── Boss Summoning ────────────────────────────────────────
+  // ── NPC Shop Interaction ──────────────────────────────────
 
-  private checkBossSummon() {
-    if (this.activeBoss && this.activeBoss.alive) return
-    if (this.player.dead) return
-
-    const item = this.player.inventory.getSelectedItem()
-    if (!item) return
-    const def = getItemDef(item.id)
-    if (!def || def.category !== ItemCategory.SPECIAL) return
-
-    // F key to summon boss
-    if (!Phaser.Input.Keyboard.JustDown(this.keyF)) return
-
-    let bossDef = null
-    for (const bd of Object.values(BOSS_DEFS)) {
-      if (bd.summonItemId === item.id) {
-        bossDef = bd
-        break
+  private checkNPCInteraction() {
+    if (!this.npc || this.player.dead) return
+    const near = this.npc.isPlayerNear(this.player.sprite.x, this.player.sprite.y)
+    if (near && Phaser.Input.Keyboard.JustDown(this.keyF) && !this.activeBoss?.alive) {
+      // Don't open if altar prompt is also visible
+      if (this.getNearbyAltar()) return
+      this.player.shopOpen = !this.player.shopOpen
+      if (this.player.shopOpen) {
+        this.player.craftingOpen = false
+        this.player.inventoryOpen = false
+        this.player.skillTreeOpen = false
       }
     }
-    if (!bossDef) return
+    // Close shop if player walks away
+    if (this.player.shopOpen && !near) {
+      this.player.shopOpen = false
+    }
+  }
 
-    // Consume summon item
-    this.player.inventory.consumeSelected()
+  // ── Boss Summoning (Altar System) ──────────────────────────
 
-    // Spawn boss near player
-    const bx = this.player.sprite.x + (Math.random() > 0.5 ? 150 : -150)
-    const by = this.player.sprite.y - 50
+  private getNearbyAltar(): AltarPlacement | null {
+    const ptx = Math.floor(this.player.sprite.x / TILE_SIZE)
+    const pty = Math.floor(this.player.sprite.y / TILE_SIZE)
+    for (const altar of this.chunkManager.getAltars()) {
+      const dx = Math.abs(altar.tx - ptx)
+      const dy = Math.abs(altar.ty - pty)
+      if (dx <= ALTAR_INTERACT_RANGE && dy <= ALTAR_INTERACT_RANGE) {
+        return altar
+      }
+    }
+    return null
+  }
+
+  private getNearbyRunestone(): RunestonePlacement | null {
+    const ptx = Math.floor(this.player.sprite.x / TILE_SIZE)
+    const pty = Math.floor(this.player.sprite.y / TILE_SIZE)
+    for (const rs of this.chunkManager.getRunestones()) {
+      const dx = Math.abs(rs.tx - ptx)
+      const dy = Math.abs(rs.ty - pty)
+      if (dx <= RUNESTONE_INTERACT_RANGE && dy <= RUNESTONE_INTERACT_RANGE) {
+        return rs
+      }
+    }
+    return null
+  }
+
+  private checkAltarInteraction() {
+    if (this.player.dead) return
+
+    const altar = this.getNearbyAltar()
+
+    // Update prompt visibility
+    if (altar && (!this.activeBoss || !this.activeBoss.alive)) {
+      const altarDef = ALTAR_DEFS[altar.bossType]
+      const bossDef = BOSS_DEFS[altar.bossType]
+      if (altarDef && bossDef && this.altarPromptText) {
+        // Build ingredient status text
+        const inv = this.player.inventory
+        const lines: string[] = [`-- ${bossDef.name} Altar --`]
+        let canSummon = true
+        for (const ing of altarDef.ingredients) {
+          const have = inv.getCount(ing.itemId)
+          const itemDef = getItemDef(ing.itemId)
+          const name = itemDef?.name ?? `Item ${ing.itemId}`
+          const ok = have >= ing.count
+          if (!ok) canSummon = false
+          lines.push(`${ok ? '+' : '-'} ${name}: ${have}/${ing.count}`)
+        }
+        lines.push(canSummon ? '[F] Offer ingredients' : 'Gather ingredients')
+
+        const px = altar.tx * TILE_SIZE + TILE_SIZE / 2
+        const py = altar.ty * TILE_SIZE - TILE_SIZE * 3
+        this.altarPromptText.setText(lines.join('\n'))
+        this.altarPromptText.setPosition(px, py)
+        this.altarPromptText.setVisible(true)
+
+        // Handle F key press to summon
+        if (canSummon && Phaser.Input.Keyboard.JustDown(this.keyF)) {
+          this.summonBossAtAltar(altar, altarDef, bossDef)
+          return
+        }
+      }
+    } else if (this.altarPromptText) {
+      this.altarPromptText.setVisible(false)
+    }
+  }
+
+  private summonBossAtAltar(altar: AltarPlacement, altarDef: (typeof ALTAR_DEFS)[BossType], bossDef: (typeof BOSS_DEFS)[BossType]) {
+    // Consume ingredients
+    const inv = this.player.inventory
+    for (const ing of altarDef.ingredients) {
+      inv.removeItem(ing.itemId, ing.count)
+    }
+
+    // Spawn boss at altar location
+    const bx = altar.tx * TILE_SIZE + TILE_SIZE / 2
+    const by = altar.ty * TILE_SIZE - TILE_SIZE
     this.activeBoss = new Boss(this, bx, by, bossDef)
     AudioManager.get()?.play(SoundId.BOSS_APPEAR)
+
+    // Hide prompt
+    if (this.altarPromptText) this.altarPromptText.setVisible(false)
 
     // Boss announcement
     const text = this.add.text(
       this.cameras.main.centerX, this.cameras.main.centerY - 100,
-      `${bossDef.name} has appeared!`,
+      `${bossDef.name} has awakened!`,
       {
         fontSize: '24px', color: '#ff4444', fontFamily: 'monospace',
         stroke: '#000000', strokeThickness: 4,
@@ -471,6 +632,58 @@ export class WorldScene extends Phaser.Scene {
     ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
 
     this.time.delayedCall(3000, () => text.destroy())
+  }
+
+  private checkRunestoneInteraction() {
+    if (this.player.dead) return
+
+    const rs = this.getNearbyRunestone()
+    const key = rs ? `${rs.tx},${rs.ty}` : null
+
+    if (rs && key && !this.usedRunestones.has(key)) {
+      const bossDef = BOSS_DEFS[rs.bossType]
+      if (bossDef && this.runestonePromptText) {
+        const px = rs.tx * TILE_SIZE + TILE_SIZE / 2
+        const py = rs.ty * TILE_SIZE - TILE_SIZE * 2
+        this.runestonePromptText.setText(`[F] Read runestone`)
+        this.runestonePromptText.setPosition(px, py)
+        this.runestonePromptText.setVisible(true)
+
+        if (Phaser.Input.Keyboard.JustDown(this.keyF)) {
+          // Discover the altar for this boss
+          this.discoveredAltars.add(rs.bossType)
+          this.usedRunestones.add(key)
+
+          // Show discovery message
+          const text = this.add.text(
+            this.cameras.main.centerX, this.cameras.main.centerY - 80,
+            `${bossDef.name}'s altar location revealed!\nFollow the arrow to find it.`,
+            {
+              fontSize: '16px', color: '#88ccff', fontFamily: 'monospace',
+              align: 'center', stroke: '#000000', strokeThickness: 4,
+            }
+          ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
+
+          this.tweens.add({ targets: text, alpha: 0, duration: 1500, delay: 3000, onComplete: () => text.destroy() })
+          AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+
+          this.runestonePromptText.setVisible(false)
+          return
+        }
+      }
+    } else if (rs && key && this.usedRunestones.has(key)) {
+      // Already read
+      if (this.runestonePromptText) {
+        const bossDef = BOSS_DEFS[rs.bossType]
+        const px = rs.tx * TILE_SIZE + TILE_SIZE / 2
+        const py = rs.ty * TILE_SIZE - TILE_SIZE * 2
+        this.runestonePromptText.setText(`${bossDef?.name ?? 'Boss'} altar: discovered`)
+        this.runestonePromptText.setPosition(px, py)
+        this.runestonePromptText.setVisible(true)
+      }
+    } else if (this.runestonePromptText) {
+      this.runestonePromptText.setVisible(false)
+    }
   }
 
   private onBossDefeated() {
@@ -518,17 +731,44 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private createSkyBackground() {
-    const gfx = this.add.graphics()
-    gfx.setScrollFactor(0)
-    gfx.setDepth(-10)
+    this.skyGfx = this.add.graphics()
+    this.skyGfx.setScrollFactor(0)
+    this.skyGfx.setDepth(-10)
+    this.updateSkyBackground()
+  }
+
+  /** Repaints the sky gradient based on dayNight.time */
+  private updateSkyBackground() {
+    const gfx = this.skyGfx
+    gfx.clear()
 
     const { width, height } = this.scale
     const steps = 20
+    const t = this.dayNight.time
+
+    // Blend factor: 0 = night sky, 1 = day sky
+    let dayFactor = 0
+    if (t >= 0.30 && t < 0.70) {
+      dayFactor = 1
+    } else if (t >= 0.20 && t < 0.30) {
+      dayFactor = (t - 0.20) / 0.10
+    } else if (t >= 0.70 && t < 0.80) {
+      dayFactor = 1 - (t - 0.70) / 0.10
+    }
+
+    // Night gradient: top 0x050515 → bottom 0x1a1a3e
+    // Day gradient:   top 0x3388cc → bottom 0x88bbee
     for (let i = 0; i < steps; i++) {
-      const t = i / steps
-      const r = Math.floor(Phaser.Math.Linear(0x05, 0x1a, t))
-      const g = Math.floor(Phaser.Math.Linear(0x05, 0x1a, t))
-      const b = Math.floor(Phaser.Math.Linear(0x15, 0x3e, t))
+      const s = i / steps
+      const nr = Phaser.Math.Linear(0x05, 0x1a, s)
+      const ng = Phaser.Math.Linear(0x05, 0x1a, s)
+      const nb = Phaser.Math.Linear(0x15, 0x3e, s)
+      const dr = Phaser.Math.Linear(0x33, 0x88, s)
+      const dg = Phaser.Math.Linear(0x88, 0xbb, s)
+      const db = Phaser.Math.Linear(0xcc, 0xee, s)
+      const r = Math.floor(Phaser.Math.Linear(nr, dr, dayFactor))
+      const g = Math.floor(Phaser.Math.Linear(ng, dg, dayFactor))
+      const b = Math.floor(Phaser.Math.Linear(nb, db, dayFactor))
       const color = (r << 16) | (g << 8) | b
       gfx.fillStyle(color)
       gfx.fillRect(0, (i / steps) * height, width, height / steps + 1)
@@ -555,8 +795,15 @@ export class WorldScene extends Phaser.Scene {
         continue
       }
 
-      // Check pickup
-      if (drop.canPickup() && drop.isNear(px, py)) {
+      // Check pickup (with magnet radius from accessories)
+      const magnetR = this.player.getAccessoryMagnetRadius()
+      let isNear = drop.isNear(px, py)
+      if (!isNear && magnetR > 0 && drop.canPickup()) {
+        const dx = drop.x - px
+        const dy = drop.y - py
+        isNear = dx * dx + dy * dy < magnetR * magnetR
+      }
+      if (drop.canPickup() && isNear) {
         if (this.player.inventory.addItem(drop.itemId, drop.count)) {
           AudioManager.get()?.play(SoundId.PICKUP)
           drop.destroy()
@@ -599,6 +846,10 @@ export class WorldScene extends Phaser.Scene {
     this.saveSlotId = slotId
     this.saveSlotName = slotName
 
+    // Get explored map from UIScene
+    const uiScene = this.scene.get('UIScene') as any
+    const exploredMap = uiScene?.getExploredMap?.() as number[] | null ?? undefined
+
     return SaveManager.save(
       slotId,
       slotName,
@@ -613,7 +864,12 @@ export class WorldScene extends Phaser.Scene {
       this.player.hasRebreather,
       this.player.inventory.armorSlots,
       this.player.skills.toSaveData(),
-      this.dayNight.time
+      this.dayNight.time,
+      exploredMap,
+      Array.from(this.discoveredAltars),
+      Array.from(this.usedRunestones),
+      this.player.inventory.accessorySlots,
+      this.npcShopPosition ?? undefined
     )
   }
 
@@ -643,5 +899,37 @@ export class WorldScene extends Phaser.Scene {
 
   getDayNight(): DayNightCycle {
     return this.dayNight
+  }
+
+  getDiscoveredAltars(): Set<BossType> {
+    return this.discoveredAltars
+  }
+
+  /** Get altar placement for a discovered boss type (for UI arrow) */
+  getDiscoveredAltarPosition(bossType: BossType): { px: number; py: number } | null {
+    if (!this.discoveredAltars.has(bossType)) return null
+    for (const altar of this.chunkManager.getAltars()) {
+      if (altar.bossType === bossType) {
+        return { px: altar.tx * TILE_SIZE + TILE_SIZE / 2, py: altar.ty * TILE_SIZE }
+      }
+    }
+    return null
+  }
+
+  /** Show a temporary notification message */
+  showNotification(message: string, color = 0xffffff) {
+    const text = this.add.text(
+      this.cameras.main.centerX, this.cameras.main.centerY - 80,
+      message,
+      {
+        fontSize: '16px',
+        color: `#${color.toString(16).padStart(6, '0')}`,
+        fontFamily: 'monospace',
+        align: 'center',
+        stroke: '#000000',
+        strokeThickness: 4,
+      }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
+    this.tweens.add({ targets: text, alpha: 0, duration: 1500, delay: 2000, onComplete: () => text.destroy() })
   }
 }

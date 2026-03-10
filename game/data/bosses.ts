@@ -23,6 +23,20 @@ export interface BossPhase {
   attackInterval: number // ms between attacks
 }
 
+export interface SummonIngredient {
+  itemId: number
+  count: number
+}
+
+export interface AltarDef {
+  bossType: BossType
+  biomeYMin: number      // min Y tile coord for placement
+  biomeYMax: number      // max Y tile coord for placement
+  color: number          // altar visual color
+  ingredients: SummonIngredient[]
+  runestonesPerWorld: number // how many runestones to scatter
+}
+
 export interface BossDef {
   type: BossType
   name: string
@@ -35,7 +49,7 @@ export interface BossDef {
   ai: BossAI
   phases: BossPhase[]
   dropItemId: number // jetpack component
-  summonItemId: number // item used to summon
+  summonItemId: number // item used to summon (legacy, kept for recipe output)
   xp: number
 }
 
@@ -152,5 +166,89 @@ export const BOSS_DEFS: Record<BossType, BossDef> = {
     dropItemId: 185, // Navigation Module
     summonItemId: 175, // Signal Beacon
     xp: 600,
+  },
+}
+
+import { TileType, WORLD_HEIGHT } from '../world/TileRegistry'
+
+// Layer boundaries (must match WorldGenerator)
+const SURFACE = 100
+const UNDERGROUND = 180
+const DEEP = 640
+const CORE = 1320
+
+// Altar definitions — one altar per boss, placed during world gen
+export const ALTAR_DEFS: Record<BossType, AltarDef> = {
+  [BossType.VINE_GUARDIAN]: {
+    bossType: BossType.VINE_GUARDIAN,
+    biomeYMin: SURFACE - 20,
+    biomeYMax: SURFACE + 30,
+    color: 0x33aa33,
+    ingredients: [
+      { itemId: TileType.WOOD, count: 10 },
+      { itemId: TileType.LEAVES, count: 20 },
+      { itemId: 105, count: 5 }, // Plant Fiber
+    ],
+    runestonesPerWorld: 3,
+  },
+  [BossType.DEEP_SEA_LEVIATHAN]: {
+    bossType: BossType.DEEP_SEA_LEVIATHAN,
+    biomeYMin: SURFACE - 10,
+    biomeYMax: UNDERGROUND,
+    color: 0x1155aa,
+    ingredients: [
+      { itemId: TileType.CORAL, count: 15 },
+      { itemId: TileType.SAND, count: 20 },
+      { itemId: 105, count: 8 }, // Plant Fiber
+    ],
+    runestonesPerWorld: 3,
+  },
+  [BossType.CRYSTAL_GOLEM]: {
+    bossType: BossType.CRYSTAL_GOLEM,
+    biomeYMin: UNDERGROUND,
+    biomeYMax: DEEP,
+    color: 0x66ddff,
+    ingredients: [
+      { itemId: 100, count: 6 }, // Iron Bar
+      { itemId: TileType.DIAMOND_ORE, count: 4 },
+      { itemId: 104, count: 3 }, // Glass
+    ],
+    runestonesPerWorld: 2,
+  },
+  [BossType.MAGMA_WYRM]: {
+    bossType: BossType.MAGMA_WYRM,
+    biomeYMin: DEEP,
+    biomeYMax: CORE,
+    color: 0xff4400,
+    ingredients: [
+      { itemId: 101, count: 5 }, // Diamond
+      { itemId: 102, count: 3 }, // Titanium Bar
+      { itemId: 100, count: 4 }, // Iron Bar
+    ],
+    runestonesPerWorld: 2,
+  },
+  [BossType.CORE_SENTINEL]: {
+    bossType: BossType.CORE_SENTINEL,
+    biomeYMin: CORE,
+    biomeYMax: WORLD_HEIGHT,
+    color: 0xaa22ff,
+    ingredients: [
+      { itemId: 103, count: 5 }, // Carbon Plate
+      { itemId: 102, count: 4 }, // Titanium Bar
+      { itemId: 101, count: 3 }, // Diamond
+    ],
+    runestonesPerWorld: 2,
+  },
+  [BossType.MOTHERSHIP]: {
+    bossType: BossType.MOTHERSHIP,
+    biomeYMin: SURFACE - 20,
+    biomeYMax: SURFACE + 10,
+    color: 0xff44ff,
+    ingredients: [
+      { itemId: 103, count: 10 }, // Carbon Plate
+      { itemId: 102, count: 5 },  // Titanium Bar
+      { itemId: 101, count: 5 },  // Diamond
+    ],
+    runestonesPerWorld: 2,
   },
 }

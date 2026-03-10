@@ -2,6 +2,8 @@ import type { WorldData } from '../world/WorldGenerator'
 import type { ItemStack, ArmorSlots } from './InventoryManager'
 import type { PlacedStation } from '../world/ChunkManager'
 
+type NpcPosition = { tx: number; ty: number }
+
 const INDEX_KEY = 'starfall_save_index'
 const SLOT_PREFIX = 'starfall_save_'
 
@@ -36,6 +38,11 @@ export interface SaveData {
   armorSlots?: ArmorSlots
   skills?: SkillSaveData
   dayNightTime?: number
+  exploredMap?: number[]
+  discoveredAltars?: string[]
+  usedRunestones?: string[]
+  accessorySlots?: (ItemStack | null)[]
+  npcShopPosition?: NpcPosition
   timestamp: number
 }
 
@@ -54,7 +61,12 @@ export class SaveManager {
     hasRebreather?: boolean,
     armorSlots?: ArmorSlots,
     skills?: SkillSaveData,
-    dayNightTime?: number
+    dayNightTime?: number,
+    exploredMap?: number[],
+    discoveredAltars?: string[],
+    usedRunestones?: string[],
+    accessorySlots?: (ItemStack | null)[],
+    npcShopPosition?: NpcPosition
   ): boolean {
     try {
       const timestamp = Date.now()
@@ -76,6 +88,11 @@ export class SaveManager {
         armorSlots,
         skills,
         dayNightTime,
+        exploredMap,
+        discoveredAltars,
+        usedRunestones,
+        accessorySlots,
+        npcShopPosition,
         timestamp,
       }
       localStorage.setItem(SLOT_PREFIX + slotId, JSON.stringify(data))
@@ -91,8 +108,8 @@ export class SaveManager {
       }
       localStorage.setItem(INDEX_KEY, JSON.stringify(index))
       return true
-    } catch {
-      console.error('Failed to save game')
+    } catch (e) {
+      console.error('Failed to save game:', e)
       return false
     }
   }

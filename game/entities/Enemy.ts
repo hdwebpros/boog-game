@@ -15,6 +15,8 @@ export class Enemy {
   vx = 0
   vy = 0
   facingRight = true
+  intangible = false // when true, immune to damage and can't deal contact damage
+  speedMult = 1 // modified by frost enchantment slow
 
   private scene: Phaser.Scene
   private iFrames = 0
@@ -28,6 +30,13 @@ export class Enemy {
   private emergeTimer = 0
   private shootCooldown = 0
   private flashTimer = 0
+
+  // Quirk state
+  private phaseTimer = 0
+  private phaseTangible = true
+  private activated = false     // for AMBUSH
+  private remainingLifetime = 0 // for timed enemies
+  private retaliateQueued = false
 
   constructor(scene: Phaser.Scene, x: number, y: number, def: EnemyDef) {
     this.scene = scene
@@ -43,12 +52,35 @@ export class Enemy {
     this.sprite.setDepth(9)
     this.patrolDir = Math.random() > 0.5 ? 1 : -1
     this.facingRight = this.patrolDir > 0
+
+    // Timed lifetime
+    if (def.lifetime) {
+      this.remainingLifetime = def.lifetime
+    }
+
+    // Ambush enemies start semi-transparent
+    if (def.ai === EnemyAI.AMBUSH) {
+      this.sprite.setAlpha(0.6)
+    }
   }
 
-  update(dt: number, chunks: ChunkManager, playerX: number, playerY: number): { shootAtPlayer: boolean } {
+  update(dt: number, chunks: ChunkManager, playerX: number, playerY: number, isNight = false, darkness = 0): { shootAtPlayer: boolean } {
     if (!this.alive) return { shootAtPlayer: false }
 
     let result = { shootAtPlayer: false }
+
+    // Lifetime countdown
+    if (this.def.lifetime) {
+      this.remainingLifetime -= dt * 1000
+      if (this.remainingLifetime <= 0) {
+        this.destroy()
+        return result
+      }
+      // Fade out in last second
+      if (this.remainingLifetime < 1000) {
+        this.sprite.setAlpha(this.remainingLifetime / 1000)
+      }
+    }
 
     this.iFrames -= dt * 1000
     const wasFlashing = this.flashTimer > 0
@@ -56,6 +88,17 @@ export class Enemy {
     if (wasFlashing && this.flashTimer <= 0) {
       if ('clearTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).clearTint()
       else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = this.def.color
+    }
+
+    // Apply night darkness tint (makes enemies harder to spot at night)
+    // Skip if currently flashing white from damage
+    if (this.flashTimer <= 0 && darkness > 0) {
+      const dim = Math.max(0, 1 - darkness * 1.4) // darken more aggressively than the overlay
+      const c = Math.round(dim * 255)
+      const tint = (c << 16) | (c << 8) | c
+      if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(tint)
+    } else if (this.flashTimer <= 0 && darkness === 0) {
+      if ('clearTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).clearTint()
     }
 
     // Despawn check
@@ -75,12 +118,18 @@ export class Enemy {
     const dy = playerY - this.sprite.y
     const distToPlayer = Math.sqrt(dx * dx + dy * dy)
 
+    // Retaliate quirk: fire back after being hit
+    if (this.retaliateQueued) {
+      this.retaliateQueued = false
+      result = { shootAtPlayer: true }
+    }
+
     switch (this.def.ai) {
       case EnemyAI.PATROL:
         result = this.aiPatrol(dt, chunks, distToPlayer, dx)
         break
       case EnemyAI.SWOOP:
-        result = this.aiSwoop(dt, chunks, playerX, playerY, distToPlayer)
+        result = this.aiSwoop(dt, chunks, playerX, playerY, distToPlayer, isNight)
         break
       case EnemyAI.CHARGE:
         result = this.aiCharge(dt, chunks, distToPlayer, dx)
@@ -94,13 +143,19 @@ export class Enemy {
       case EnemyAI.RANGED:
         result = this.aiRanged(dt, chunks, playerX, playerY, distToPlayer)
         break
+      case EnemyAI.PHASE:
+        result = this.aiPhase(dt, chunks, playerX, playerY, distToPlayer)
+        break
+      case EnemyAI.AMBUSH:
+        result = this.aiAmbush(dt, chunks, playerX, playerY, distToPlayer, dx)
+        break
     }
 
     return result
   }
 
   takeDamage(amount: number, knockbackX: number, knockbackY: number) {
-    if (this.iFrames > 0) return
+    if (this.iFrames > 0 || this.intangible) return
     this.hp -= amount
     this.iFrames = 200
 
@@ -113,6 +168,17 @@ export class Enemy {
     if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(0xffffff)
     else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = 0xffffff
     this.flashTimer = 100
+
+    // Retaliate quirk
+    if (this.def.retaliateOnHit) {
+      this.retaliateQueued = true
+    }
+
+    // Ambush: getting hit also activates
+    if (this.def.ai === EnemyAI.AMBUSH && !this.activated) {
+      this.activated = true
+      this.sprite.setAlpha(1)
+    }
 
     if (this.hp <= 0) {
       this.alive = false
@@ -155,7 +221,7 @@ export class Enemy {
       this.patrolDir = dxToPlayer > 0 ? 1 : -1
     }
 
-    this.vx = this.patrolDir * this.def.speed
+    this.vx = this.patrolDir * this.def.speed * this.speedMult
     this.facingRight = this.patrolDir > 0
 
     // Change direction on wall or edge
@@ -176,17 +242,34 @@ export class Enemy {
     return { shootAtPlayer: false }
   }
 
-  private aiSwoop(dt: number, chunks: ChunkManager, playerX: number, playerY: number, distToPlayer: number) {
+  private aiSwoop(dt: number, chunks: ChunkManager, playerX: number, playerY: number, distToPlayer: number, isNight = false) {
     // Flying enemy - no gravity
     this.aiTimer -= dt * 1000
 
-    if (distToPlayer < 250) {
-      // Dive at player
+    // Passive during day quirk: flee from player instead of attacking
+    const passive = this.def.passiveDuringDay && !isNight
+
+    if (passive) {
+      // Drift slowly, flee if player is nearby
+      if (distToPlayer < 200) {
+        const dx = playerX - this.sprite.x
+        const dy = playerY - this.sprite.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        this.vx = -(dx / dist) * this.def.speed * 0.4
+        this.vy = -(dy / dist) * this.def.speed * 0.3
+      } else if (this.aiTimer <= 0) {
+        this.aiTimer = 2000 + Math.random() * 2000
+        this.vx = (Math.random() - 0.5) * this.def.speed * 0.3
+        this.vy = (Math.random() - 0.5) * this.def.speed * 0.2
+      }
+    } else if (distToPlayer < 250) {
+      // Dive at player (extra aggressive at night for passiveDuringDay enemies)
       const dx = playerX - this.sprite.x
       const dy = playerY - this.sprite.y
       const dist = Math.sqrt(dx * dx + dy * dy)
-      this.vx = (dx / dist) * this.def.speed * 1.5
-      this.vy = (dy / dist) * this.def.speed * 1.5
+      const mult = this.def.passiveDuringDay ? 1.8 : 1.5
+      this.vx = (dx / dist) * this.def.speed * mult
+      this.vy = (dy / dist) * this.def.speed * mult
     } else {
       // Wander
       if (this.aiTimer <= 0) {
@@ -405,6 +488,127 @@ export class Enemy {
     }
 
     return { shootAtPlayer }
+  }
+
+  private aiPhase(dt: number, chunks: ChunkManager, playerX: number, playerY: number, distToPlayer: number) {
+    // Flying enemy that cycles between tangible and intangible
+    this.phaseTimer -= dt * 1000
+
+    if (this.phaseTimer <= 0) {
+      this.phaseTangible = !this.phaseTangible
+      this.intangible = !this.phaseTangible
+      this.phaseTimer = this.phaseTangible ? 3000 : 2000
+      this.sprite.setAlpha(this.phaseTangible ? 1 : 0.25)
+    }
+
+    // When tangible: dive at player like SWOOP
+    // When intangible: drift toward player slowly (can pass through walls)
+    if (this.phaseTangible) {
+      if (distToPlayer < 250) {
+        const dx = playerX - this.sprite.x
+        const dy = playerY - this.sprite.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        this.vx = (dx / dist) * this.def.speed * 1.5
+        this.vy = (dy / dist) * this.def.speed * 1.5
+      } else {
+        this.aiTimer -= dt * 1000
+        if (this.aiTimer <= 0) {
+          this.aiTimer = 1000 + Math.random() * 1500
+          this.vx = (Math.random() - 0.5) * this.def.speed
+          this.vy = (Math.random() - 0.5) * this.def.speed * 0.5
+        }
+      }
+    } else {
+      // Intangible: glide toward player slowly
+      const dx = playerX - this.sprite.x
+      const dy = playerY - this.sprite.y
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist > 1) {
+        this.vx = (dx / dist) * this.def.speed * 0.4
+        this.vy = (dy / dist) * this.def.speed * 0.4
+      }
+    }
+
+    this.facingRight = this.vx > 0
+    const prevX = this.sprite.x
+    const prevY = this.sprite.y
+    this.sprite.x += this.vx * dt
+    this.sprite.y += this.vy * dt
+
+    // Only check solid tile collision when tangible
+    if (this.phaseTangible) {
+      const hw = this.def.width / 2
+      const hh = this.def.height / 2
+      const tl = Math.floor((this.sprite.x - hw) / TILE_SIZE)
+      const tr = Math.floor((this.sprite.x + hw - 0.001) / TILE_SIZE)
+      const tt = Math.floor((this.sprite.y - hh) / TILE_SIZE)
+      const tb = Math.floor((this.sprite.y + hh - 0.001) / TILE_SIZE)
+      let hitSolid = false
+      for (let ty = tt; ty <= tb && !hitSolid; ty++) {
+        for (let tx = tl; tx <= tr; tx++) {
+          if (chunks.isSolid(tx, ty)) {
+            hitSolid = true
+            break
+          }
+        }
+      }
+      if (hitSolid) {
+        this.sprite.x = prevX
+        this.sprite.y = prevY
+        this.vx *= -1
+        this.vy *= -1
+      }
+    }
+
+    return { shootAtPlayer: false }
+  }
+
+  private aiAmbush(dt: number, chunks: ChunkManager, playerX: number, playerY: number, distToPlayer: number, dxToPlayer: number) {
+    if (!this.activated) {
+      // Sit perfectly still, waiting for prey
+      this.vx = 0
+      this.vy = 0
+
+      // Activate when player is close
+      if (distToPlayer < 64) {
+        this.activated = true
+        this.sprite.setAlpha(1)
+        // Leap at the player
+        this.vx = dxToPlayer > 0 ? this.def.speed * 3 : -this.def.speed * 3
+        this.vy = -200
+      } else {
+        // Apply gravity to stay grounded
+        this.vy += GRAVITY * dt
+        if (this.vy > 500) this.vy = 500
+        this.resolveMovement(dt, chunks)
+        return { shootAtPlayer: false }
+      }
+    }
+
+    // Once activated, behave like aggressive patrol
+    this.vy += GRAVITY * dt
+    if (this.vy > 500) this.vy = 500
+
+    // Always chase player
+    this.patrolDir = dxToPlayer > 0 ? 1 : -1
+    this.vx = this.patrolDir * this.def.speed * 1.5
+    this.facingRight = this.patrolDir > 0
+
+    // Wall/edge detection
+    this.patrolTimer -= dt * 1000
+    if (this.patrolTimer <= 0) {
+      const frontTX = Math.floor((this.sprite.x + this.patrolDir * (this.def.width / 2 + 2)) / TILE_SIZE)
+      const feetTY = Math.floor((this.sprite.y + this.def.height / 2) / TILE_SIZE)
+      const wallAhead = chunks.isSolid(frontTX, feetTY) || chunks.isSolid(frontTX, feetTY - 1)
+
+      if (wallAhead && this.isGrounded) {
+        // Jump over wall
+        this.vy = -250
+      }
+    }
+
+    this.resolveMovement(dt, chunks)
+    return { shootAtPlayer: false }
   }
 
   // ── Physics ───────────────────────────────────────────────

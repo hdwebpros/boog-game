@@ -32,11 +32,20 @@ export class MenuScene extends Phaser.Scene {
     AudioManager.init().playMusic(MusicTrack.TITLE)
     this.cameras.main.setBackgroundColor(0x0a0a1a)
 
-    // Stars
+    // Stars (twinkling)
     for (let i = 0; i < 80; i++) {
       const x = Math.random() * width
       const y = Math.random() * height
-      this.add.rectangle(x, y, 2, 2, 0xffffff, Math.random() * 0.5 + 0.2)
+      const size = Math.random() < 0.1 ? 3 : Math.random() < 0.3 ? 2 : 1
+      const alpha = Math.random() * 0.5 + 0.2
+      const star = this.add.rectangle(x, y, size, size, 0xffffff, alpha)
+      this.tweens.add({
+        targets: star,
+        alpha: { from: alpha, to: alpha * 0.2 },
+        duration: 800 + Math.random() * 2000,
+        yoyo: true,
+        repeat: -1,
+      })
     }
 
     // Title
@@ -89,11 +98,20 @@ export class MenuScene extends Phaser.Scene {
     this.children.removeAll(true)
     this.cameras.main.setBackgroundColor(0x0a0a1a)
 
-    // Stars
+    // Stars (twinkling)
     for (let i = 0; i < 40; i++) {
       const x = Math.random() * width
       const y = Math.random() * height
-      this.add.rectangle(x, y, 2, 2, 0xffffff, Math.random() * 0.3 + 0.1)
+      const size = Math.random() < 0.1 ? 3 : Math.random() < 0.3 ? 2 : 1
+      const alpha = Math.random() * 0.3 + 0.1
+      const star = this.add.rectangle(x, y, size, size, 0xffffff, alpha)
+      this.tweens.add({
+        targets: star,
+        alpha: { from: alpha, to: alpha * 0.2 },
+        duration: 800 + Math.random() * 2000,
+        yoyo: true,
+        repeat: -1,
+      })
     }
 
     this.add.text(width / 2, 40, 'LOAD GAME', {
@@ -241,7 +259,7 @@ export class MenuScene extends Phaser.Scene {
     this.addMuteToggle(width)
 
     // ESC to resume
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on('down', () => {
+    this.input.keyboard!.on('keydown-ESC', () => {
       this.resumeGame()
     })
   }

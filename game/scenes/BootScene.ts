@@ -3,6 +3,7 @@ import { WorldGenerator } from '../world/WorldGenerator'
 import { SaveManager } from '../systems/SaveManager'
 import { generateAllSprites } from '../assets/SpriteGenerator'
 import { AudioManager } from '../systems/AudioManager'
+import { WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 
 export class BootScene extends Phaser.Scene {
   private barFill!: Phaser.GameObjects.Rectangle
@@ -54,11 +55,20 @@ export class BootScene extends Phaser.Scene {
     // Background
     this.cameras.main.setBackgroundColor(0x0a0a1a)
 
-    // Stars
+    // Stars (twinkling)
     for (let i = 0; i < 40; i++) {
       const x = Math.random() * width
       const y = Math.random() * height
-      this.add.rectangle(x, y, 2, 2, 0xffffff, Math.random() * 0.4 + 0.1)
+      const size = Math.random() < 0.1 ? 3 : Math.random() < 0.3 ? 2 : 1
+      const alpha = Math.random() * 0.4 + 0.1
+      const star = this.add.rectangle(x, y, size, size, 0xffffff, alpha)
+      this.tweens.add({
+        targets: star,
+        alpha: { from: alpha, to: alpha * 0.2 },
+        duration: 800 + Math.random() * 2000,
+        yoyo: true,
+        repeat: -1,
+      })
     }
 
     // Title
@@ -134,8 +144,8 @@ export class BootScene extends Phaser.Scene {
           fn: () => {
             const worldData = {
               tiles: new Uint8Array(saveData.tiles),
-              width: 4000,
-              height: 1200,
+              width: WORLD_WIDTH,
+              height: WORLD_HEIGHT,
               seed: saveData.seed,
               spawnX: Math.floor(saveData.playerX / 16),
               spawnY: Math.floor(saveData.playerY / 16),

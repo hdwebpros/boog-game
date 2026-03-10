@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
-import type { WorldData } from './WorldGenerator'
+import type { WorldData, AltarPlacement, RunestonePlacement } from './WorldGenerator'
 import { TileType, TILE_PROPERTIES, TILE_SIZE } from './TileRegistry'
+import { ALTAR_DEFS, BOSS_DEFS } from '../data/bosses'
+import type { BossType } from '../data/bosses'
 
 const CHUNK_SIZE = 32 // tiles per chunk edge
 const CHUNK_PX = CHUNK_SIZE * TILE_SIZE // 512 pixels
@@ -28,6 +30,10 @@ export class ChunkManager {
   private stamp: Phaser.GameObjects.Image | null = null
   private eraser: Phaser.GameObjects.Image | null = null
 
+  // Altar & runestone sprites (drawn as game objects, not baked into chunks)
+  private altarSprites: Phaser.GameObjects.Graphics[] = []
+  private runestoneSprites: Phaser.GameObjects.Graphics[] = []
+
   constructor(scene: Phaser.Scene, worldData: WorldData) {
     this.scene = scene
     this.worldData = worldData
@@ -50,6 +56,85 @@ export class ChunkManager {
     eraserGfx.destroy()
     this.eraser = scene.make.image({ key: '_eraser', x: 0, y: 0, add: false })
     this.eraser.setOrigin(0, 0)
+
+    // Create altar sprites
+    this.createAltarSprites()
+    this.createRunestoneSprites()
+  }
+
+  private createAltarSprites() {
+    for (const altar of this.worldData.altars ?? []) {
+      const altarDef = ALTAR_DEFS[altar.bossType]
+      if (!altarDef) continue
+
+      // ty is the ground tile; graphics origin at top-left of ground tile
+      // y=0 is the ground surface, negative y goes upward into air
+      const px = altar.tx * TILE_SIZE
+      const py = altar.ty * TILE_SIZE
+
+      const gfx = this.scene.add.graphics()
+      gfx.setPosition(px, py)
+      gfx.setDepth(5)
+
+      // Stone base platform flush with ground surface (3 tiles wide)
+      gfx.fillStyle(0x555566)
+      gfx.fillRect(-TILE_SIZE, -4, TILE_SIZE * 3, 4)
+
+      // Central pedestal rising from ground
+      gfx.fillStyle(0x444455)
+      gfx.fillRect(0, -TILE_SIZE * 2, TILE_SIZE, TILE_SIZE * 2)
+
+      // Colored top gem/flame
+      gfx.fillStyle(altarDef.color, 0.9)
+      gfx.fillRect(2, -TILE_SIZE * 2 - 4, TILE_SIZE - 4, 6)
+
+      // Side pillars
+      gfx.fillStyle(0x666677)
+      gfx.fillRect(-TILE_SIZE + 2, -TILE_SIZE - 4, 6, TILE_SIZE)
+      gfx.fillRect(TILE_SIZE + 8, -TILE_SIZE - 4, 6, TILE_SIZE)
+
+      // Glowing rune marks on pillars
+      gfx.fillStyle(altarDef.color, 0.5)
+      gfx.fillRect(-TILE_SIZE + 3, -TILE_SIZE + 4, 4, 4)
+      gfx.fillRect(TILE_SIZE + 9, -TILE_SIZE + 4, 4, 4)
+
+      this.altarSprites.push(gfx)
+    }
+  }
+
+  private createRunestoneSprites() {
+    for (const rs of this.worldData.runestones ?? []) {
+      const altarDef = ALTAR_DEFS[rs.bossType]
+      if (!altarDef) continue
+
+      // ty is the ground tile; graphics origin at top-left of ground tile
+      // y=0 is the ground surface, negative y goes upward into air
+      const px = rs.tx * TILE_SIZE
+      const py = rs.ty * TILE_SIZE
+
+      const gfx = this.scene.add.graphics()
+      gfx.setPosition(px, py)
+      gfx.setDepth(5)
+
+      // Stone tablet sitting on ground surface, rising upward
+      gfx.fillStyle(0x556655)
+      gfx.fillRect(2, -TILE_SIZE, TILE_SIZE - 4, TILE_SIZE)
+
+      // Pointed top
+      gfx.fillStyle(0x556655)
+      gfx.fillTriangle(
+        TILE_SIZE / 2, -TILE_SIZE - 6,
+        2, -TILE_SIZE,
+        TILE_SIZE - 2, -TILE_SIZE
+      )
+
+      // Glowing rune symbol
+      gfx.fillStyle(altarDef.color, 0.7)
+      gfx.fillRect(5, -TILE_SIZE + 5, TILE_SIZE - 10, 2)
+      gfx.fillRect(TILE_SIZE / 2 - 1, -TILE_SIZE + 3, 2, 8)
+
+      this.runestoneSprites.push(gfx)
+    }
   }
 
   update() {
@@ -144,6 +229,12 @@ export class ChunkManager {
   isSolid(tx: number, ty: number): boolean {
     const type = this.getTile(tx, ty)
     return TILE_PROPERTIES[type]?.solid ?? false
+  }
+
+  /** Check if a tile position is climbable (vine rope) */
+  isClimbable(tx: number, ty: number): boolean {
+    const type = this.getTile(tx, ty)
+    return TILE_PROPERTIES[type]?.climbable ?? false
   }
 
   /** World pixel coords → tile coords */
@@ -251,6 +342,16 @@ export class ChunkManager {
     return this.placedStations
   }
 
+  /** Get altars from world data */
+  getAltars(): AltarPlacement[] {
+    return this.worldData.altars ?? []
+  }
+
+  /** Get runestones from world data */
+  getRunestones(): RunestonePlacement[] {
+    return this.worldData.runestones ?? []
+  }
+
   destroy() {
     for (const [, chunk] of this.activeChunks) {
       chunk.rt.destroy()
@@ -264,5 +365,9 @@ export class ChunkManager {
       this.eraser.destroy()
       this.eraser = null
     }
+    for (const s of this.altarSprites) s.destroy()
+    this.altarSprites = []
+    for (const s of this.runestoneSprites) s.destroy()
+    this.runestoneSprites = []
   }
 }

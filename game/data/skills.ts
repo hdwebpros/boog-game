@@ -11,9 +11,10 @@ export interface SkillDef {
   name: string
   description: string
   branch: SkillBranch
-  tier: number          // 1-3, determines row in tree
+  tier: number          // 1-3 normal, 4 = super tier
   cost: number          // skill points to unlock
   requires?: string     // prerequisite skill id
+  superTree?: string    // if set, belongs to a super tree (requires both branches maxed)
   // Stat modifiers (multipliers are 1.0 = no change)
   meleeDamageMult?: number
   rangedDamageMult?: number
@@ -35,7 +36,53 @@ export interface SkillDef {
   doubleJump?: boolean
   jetpackFuelMult?: number  // <1 = less fuel used
   lowHpDamageMult?: number  // bonus damage when below 30% HP
+  // Super skill modifiers
+  lifeStealPct?: number     // heal % of damage dealt
+  undying?: boolean          // survive lethal hit (cooldown)
+  arcaneStrikes?: boolean    // melee releases magic shockwave
+  manaOverload?: boolean     // mana >75%: +100% dmg, drains mana per hit
+  aoeMining?: boolean        // mine 3x3 area
 }
+
+// ── Super Tree Definitions ───────────────────────────
+export interface SuperTreeDef {
+  id: string
+  name: string
+  branches: [SkillBranch, SkillBranch]
+  color: number
+  colorStr: string
+  icon: string
+}
+
+export const SUPER_TREES: SuperTreeDef[] = [
+  {
+    id: 'warlord',
+    name: 'Warlord',
+    branches: [SkillBranch.COMBAT, SkillBranch.SURVIVAL],
+    color: 0xff8844,
+    colorStr: '#ff8844',
+    icon: '!',
+  },
+  {
+    id: 'spellblade',
+    name: 'Spellblade',
+    branches: [SkillBranch.COMBAT, SkillBranch.MAGIC],
+    color: 0xcc44ff,
+    colorStr: '#cc44ff',
+    icon: '%',
+  },
+  {
+    id: 'trailblazer',
+    name: 'Trailblazer',
+    branches: [SkillBranch.MINING, SkillBranch.MOBILITY],
+    color: 0xffcc22,
+    colorStr: '#ffcc22',
+    icon: '#',
+  },
+]
+
+export const SUPER_TREE_MAP: Record<string, SuperTreeDef> = {}
+for (const st of SUPER_TREES) SUPER_TREE_MAP[st.id] = st
 
 // XP needed to reach a given level: 50 * level^2
 export function xpForLevel(level: number): number {
@@ -251,6 +298,76 @@ export const SKILLS: SkillDef[] = [
     cost: 2,
     requires: 'feather_fall',
     jetpackFuelMult: 0.6,
+  },
+
+  // ── Super: Warlord (Combat + Survival) ─────────────
+  {
+    id: 'blood_oath',
+    name: 'Blood Oath',
+    description: 'Lifesteal: heal 15% of all damage dealt',
+    branch: SkillBranch.COMBAT,
+    superTree: 'warlord',
+    tier: 4,
+    cost: 3,
+    lifeStealPct: 0.15,
+  },
+  {
+    id: 'undying_rage',
+    name: 'Undying Rage',
+    description: 'Survive lethal hit with 1 HP + 3s invulnerability (60s cd)',
+    branch: SkillBranch.SURVIVAL,
+    superTree: 'warlord',
+    tier: 4,
+    cost: 4,
+    requires: 'blood_oath',
+    undying: true,
+  },
+
+  // ── Super: Spellblade (Combat + Magic) ─────────────
+  {
+    id: 'arcane_strikes',
+    name: 'Arcane Strikes',
+    description: 'Melee hits release a magic shockwave for 50% bonus dmg',
+    branch: SkillBranch.MAGIC,
+    superTree: 'spellblade',
+    tier: 4,
+    cost: 3,
+    arcaneStrikes: true,
+  },
+  {
+    id: 'mana_overload',
+    name: 'Mana Overload',
+    description: 'Mana >75%: attacks deal +100% damage, drain 15% max mana',
+    branch: SkillBranch.COMBAT,
+    superTree: 'spellblade',
+    tier: 4,
+    cost: 4,
+    requires: 'arcane_strikes',
+    manaOverload: true,
+  },
+
+  // ── Super: Trailblazer (Mining + Mobility) ─────────
+  {
+    id: 'tunnel_bore',
+    name: 'Tunnel Bore',
+    description: 'Mine in a 3x3 area instead of single blocks',
+    branch: SkillBranch.MINING,
+    superTree: 'trailblazer',
+    tier: 4,
+    cost: 3,
+    aoeMining: true,
+  },
+  {
+    id: 'flash_step',
+    name: 'Flash Step',
+    description: '+50% move speed, immune to fall damage',
+    branch: SkillBranch.MOBILITY,
+    superTree: 'trailblazer',
+    tier: 4,
+    cost: 4,
+    requires: 'tunnel_bore',
+    moveSpeedMult: 1.5,
+    fallDamageMult: 0,
   },
 ]
 

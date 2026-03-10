@@ -5,12 +5,16 @@ import type { ItemStack } from '../systems/InventoryManager'
 import type { ArmorSlot } from '../data/items'
 import { CraftingManager } from '../systems/CraftingManager'
 import type { Recipe } from '../data/recipes'
-import { ITEMS, getItemDef, ItemCategory } from '../data/items'
+import { ITEMS, getItemDef, ItemCategory, ENCHANTMENT_NAMES, ENCHANTMENT_COLORS } from '../data/items'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
-import { SKILLS, SKILL_MAP, BRANCH_INFO, BRANCH_ORDER, xpForLevel } from '../data/skills'
+import { SKILLS, SKILL_MAP, BRANCH_INFO, BRANCH_ORDER, SUPER_TREES, SUPER_TREE_MAP, xpForLevel } from '../data/skills'
 import type { SkillDef } from '../data/skills'
 import type { SkillTreeManager } from '../systems/SkillTreeManager'
+import { MiniMap } from '../systems/MiniMap'
+import type { WorldData } from '../world/WorldGenerator'
+import { SHOP_INVENTORY, SELL_PRICES } from '../data/shop'
+import { ACCESSORY_EFFECTS } from '../data/accessories'
 
 const SLOT_SIZE = 40
 const SLOT_GAP = 4
@@ -36,11 +40,22 @@ const INV_TOTAL_SLOTS = INV_COLS * INV_MAIN_ROWS + HOTBAR_SLOTS // 40
 
 // Skill tree panel
 const SKILL_W = 520
-const SKILL_H = 360
+const SKILL_H = 440
 const SKILL_NODE_SIZE = 36
 const SKILL_NODE_GAP_X = 56
 const SKILL_NODE_GAP_Y = 70
 const SKILL_BRANCH_PAD = 10
+const SUPER_ROW_Y_OFFSET = 235 // px below startY for super tier row
+
+// Jetpack parts tracker (IDs 180-185, dropped by bosses)
+const JETPACK_PARTS = [
+  { id: 180, name: 'Fuel Cell',   color: 0xddaa33 },
+  { id: 181, name: 'Thruster',    color: 0xbbbbbb },
+  { id: 182, name: 'Valve',       color: 0x5599cc },
+  { id: 183, name: 'Capacitor',   color: 0xcc66ff },
+  { id: 184, name: 'Ignition',    color: 0xff6600 },
+  { id: 185, name: 'Nav Module',  color: 0x00ffaa },
+]
 
 export class UIScene extends Phaser.Scene {
   private hotbarGfx!: Phaser.GameObjects.Graphics
@@ -54,6 +69,7 @@ export class UIScene extends Phaser.Scene {
   private statsGfx!: Phaser.GameObjects.Graphics
   private hpText!: Phaser.GameObjects.Text
   private manaText!: Phaser.GameObjects.Text
+  private armorText!: Phaser.GameObjects.Text
   private deathText!: Phaser.GameObjects.Text
 
   // Crafting
@@ -88,8 +104,15 @@ export class UIScene extends Phaser.Scene {
   private heldImage: Phaser.GameObjects.Image | null = null
   private heldText!: Phaser.GameObjects.Text
 
-  // Day/night indicator
-  private dayNightText!: Phaser.GameObjects.Text
+  // Day/night indicator (sun & moon icons)
+  private sunIcon!: Phaser.GameObjects.Graphics
+  private moonIcon!: Phaser.GameObjects.Image
+
+  // Jetpack parts tracker
+  private partsLabel!: Phaser.GameObjects.Text
+
+  // Mini-map
+  private miniMap!: MiniMap
 
   // Skill tree
   private skillGfx!: Phaser.GameObjects.Graphics
@@ -102,6 +125,17 @@ export class UIScene extends Phaser.Scene {
   private skillNodeSkills: SkillDef[] = [] // parallel array with zones
   private skillVisible = false
   private skillXpText!: Phaser.GameObjects.Text
+
+  // Shop panel
+  private shopGfx!: Phaser.GameObjects.Graphics
+  private shopTexts: Phaser.GameObjects.Text[] = []
+  private shopTitle!: Phaser.GameObjects.Text
+  private shopVisible = false
+  private shopTab: 'buy' | 'sell' = 'buy'
+  private shopScroll = 0
+  private shopClickCooldown = 0  // prevent rapid clicks
+  private prevPointerDown = false // for justDown detection
+  private pointerJustDown = false
 
   constructor() {
     super({ key: 'UIScene' })
@@ -165,18 +199,35 @@ export class UIScene extends Phaser.Scene {
 
     // ── HP/Mana bars ─────────────────────────────────────
     this.statsGfx = this.add.graphics().setDepth(200)
-    this.hpText = this.add.text(12, 48, '', {
-      fontSize: '10px', color: '#ffffff', fontFamily: 'monospace',
+    this.hpText = this.add.text(144, 46, '', {
+      fontSize: '9px', color: '#ff8888', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 2,
     }).setDepth(201)
-    this.manaText = this.add.text(12, 64, '', {
-      fontSize: '10px', color: '#ffffff', fontFamily: 'monospace',
+    this.manaText = this.add.text(144, 60, '', {
+      fontSize: '9px', color: '#8899ff', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 2,
+    }).setDepth(201)
+    this.armorText = this.add.text(144, 74, '', {
+      fontSize: '9px', color: '#ffdd66', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 2,
     }).setDepth(201)
 
-    // Day/Night indicator (top-right)
-    this.dayNightText = this.add.text(width - 10, 10, '', {
-      fontSize: '11px', color: '#ffdd88', fontFamily: 'monospace',
+    // Day/Night indicator — sun & moon icons (top-right)
+    const iconX = width - 18
+    const iconY = 14
+
+    // Sun: yellow circle with rays
+    this.sunIcon = this.add.graphics().setDepth(201)
+    this.sunIcon.setPosition(iconX, iconY)
+    this.drawSun(this.sunIcon)
+
+    // Moon: white crescent (pre-rendered to texture for proper transparency)
+    this.createMoonTexture()
+    this.moonIcon = this.add.image(iconX, iconY, 'moon_icon').setDepth(201)
+
+    // Jetpack parts tracker label (below day/night)
+    this.partsLabel = this.add.text(width - 10, 28, '', {
+      fontSize: '9px', color: '#aaaaaa', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 2,
     }).setOrigin(1, 0).setDepth(201)
 
@@ -224,6 +275,28 @@ export class UIScene extends Phaser.Scene {
 
     // ── Skill tree panel ──────────────────────────────
     this.createSkillTreePanel()
+
+    // ── Mini-map ──────────────────────────────────────
+    const worldData = this.registry.get('worldData') as WorldData
+    if (worldData) {
+      const mapX = width - 160 - 6
+      const mapY = 28
+      this.miniMap = new MiniMap(this, mapX, mapY, worldData)
+
+      // Restore explored data from save
+      const exploredMap = this.registry.get('exploredMap') as number[] | undefined
+      if (exploredMap) {
+        this.miniMap.loadExplored(exploredMap)
+        this.registry.remove('exploredMap')
+      }
+    }
+
+    // Clean up minimap texture on scene shutdown
+    this.events.on('shutdown', () => {
+      if (this.miniMap) {
+        this.miniMap.destroy()
+      }
+    })
   }
 
   private createInventoryPanel() {
@@ -324,6 +397,13 @@ export class UIScene extends Phaser.Scene {
       fontSize: '10px', color: '#ffffff', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 2,
     }).setOrigin(1, 1).setDepth(421).setVisible(false)
+
+    // Shop panel
+    this.shopGfx = this.add.graphics().setDepth(330)
+    this.shopTitle = this.add.text(0, 0, '', {
+      fontSize: '14px', color: '#ffdd44', fontFamily: 'monospace', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5, 0).setDepth(332).setVisible(false)
   }
 
   override update() {
@@ -334,14 +414,30 @@ export class UIScene extends Phaser.Scene {
     const chunks = worldScene.getChunkManager()
 
     const inv: InventoryManager = player.inventory
+
+    // Track just-clicked state for shop/accessory panels
+    const pointer = this.input.activePointer
+    this.pointerJustDown = pointer.isDown && !this.prevPointerDown
+    this.prevPointerDown = pointer.isDown
+    this.shopClickCooldown = Math.max(0, this.shopClickCooldown - 1)
+
     this.updateSlots(inv)
     this.updateSelector(inv.selectedSlot)
     this.updateTooltip(inv)
     this.updateStatsBars(player)
+    this.updateJetpackTracker(player)
     this.updateDayNight(worldScene)
     this.updateCrafting(player, inv, chunks)
     this.updateInventoryPanel(player, inv)
     this.updateSkillTree(player)
+    this.updateShopPanel(player, inv)
+    if (this.miniMap) {
+      this.miniMap.update(player.sprite.x, player.sprite.y)
+    }
+  }
+
+  getExploredMap(): number[] | null {
+    return this.miniMap?.getExplored() ?? null
   }
 
   // ── Hotbar ──────────────────────────────────────────────
@@ -366,6 +462,9 @@ export class UIScene extends Phaser.Scene {
     const { width, height } = this.scale
     const hotbarX = (width - HOTBAR_WIDTH) / 2
     const hotbarY = height - SLOT_SIZE - 12
+
+    // Redraw hotbar background each frame (needed for enchantment glow pulse)
+    this.drawHotbarBackground(hotbarX, hotbarY)
 
     for (let i = 0; i < HOTBAR_SLOTS; i++) {
       const item = inv.hotbar[i] ?? null
@@ -397,6 +496,13 @@ export class UIScene extends Phaser.Scene {
           }
         }
         txt.setText(item.count > 1 ? `${item.count}` : '')
+        // Enchantment glow border
+        if (item.enchantment) {
+          const enchColor = ENCHANTMENT_COLORS[item.enchantment] ?? 0xffffff
+          const pulse = 0.5 + 0.3 * Math.sin(Date.now() * 0.004)
+          this.hotbarGfx.lineStyle(2, enchColor, pulse)
+          this.hotbarGfx.strokeRect(hotbarX + i * (SLOT_SIZE + SLOT_GAP) + 1, hotbarY + 1, SLOT_SIZE - 2, SLOT_SIZE - 2)
+        }
       } else {
         icon.fillAlpha = 0
         txt.setText('')
@@ -424,52 +530,151 @@ export class UIScene extends Phaser.Scene {
     if (item) {
       const def = getItemDef(item.id)
       const tileProps = TILE_PROPERTIES[item.id as TileType]
-      this.tooltipText.setText(def?.name ?? tileProps?.name ?? `Item ${item.id}`)
+      let name = def?.name ?? tileProps?.name ?? `Item ${item.id}`
+      if (item.enchantment) {
+        const enchName = ENCHANTMENT_NAMES[item.enchantment] ?? item.enchantment
+        name = `${enchName} ${name}`
+        const color = ENCHANTMENT_COLORS[item.enchantment]
+        if (color) this.tooltipText.setColor(`#${color.toString(16).padStart(6, '0')}`)
+        else this.tooltipText.setColor('#ffffff')
+      } else {
+        this.tooltipText.setColor('#ffffff')
+      }
+      this.tooltipText.setText(name)
       this.tooltipText.setAlpha(1)
     } else {
       this.tooltipText.setAlpha(0)
     }
   }
 
-  // ── HP/Mana bars ───────────────────────────────────────
+  // ── Icon shape helpers ─────────────────────────────────
+
+  private starPoints(cx: number, cy: number, r: number): { x: number; y: number }[] {
+    const pts: { x: number; y: number }[] = []
+    for (let i = 0; i < 5; i++) {
+      const outerAngle = -Math.PI / 2 + (2 * Math.PI / 5) * i
+      pts.push({ x: cx + Math.cos(outerAngle) * r, y: cy + Math.sin(outerAngle) * r })
+      const innerAngle = outerAngle + Math.PI / 5
+      pts.push({ x: cx + Math.cos(innerAngle) * r * 0.38, y: cy + Math.sin(innerAngle) * r * 0.38 })
+    }
+    return pts
+  }
+
+  private diamondPoints(cx: number, cy: number, w: number, h: number): { x: number; y: number }[] {
+    return [
+      { x: cx, y: cy - h / 2 },
+      { x: cx + w / 2, y: cy },
+      { x: cx, y: cy + h / 2 },
+      { x: cx - w / 2, y: cy },
+    ]
+  }
+
+  private shieldPoints(cx: number, cy: number, w: number, h: number): { x: number; y: number }[] {
+    return [
+      { x: cx - w / 2, y: cy - h * 0.4 },
+      { x: cx + w / 2, y: cy - h * 0.4 },
+      { x: cx + w / 2, y: cy + h * 0.1 },
+      { x: cx, y: cy + h * 0.6 },
+      { x: cx - w / 2, y: cy + h * 0.1 },
+    ]
+  }
+
+  // ── HP/Mana/Armor icons ──────────────────────────────────
 
   private updateStatsBars(player: any) {
     this.statsGfx.clear()
 
-    const barW = 120
-    const barH = 10
     const x = 10
+    const iconR = 5
+    const iconSpacing = 13
+    const iconCount = 10
+    const textX = x + iconCount * iconSpacing + 4
     const hpY = 46
-    const manaY = 62
+    const manaY = 60
 
-    // HP bar background
-    this.statsGfx.fillStyle(0x330000, 0.8)
-    this.statsGfx.fillRect(x, hpY, barW, barH)
-    // HP fill
-    const hpPct = Math.max(0, player.hp / player.maxHp)
-    this.statsGfx.fillStyle(0xff2222, 0.9)
-    this.statsGfx.fillRect(x, hpY, barW * hpPct, barH)
-    // HP border
-    this.statsGfx.lineStyle(1, 0x882222)
-    this.statsGfx.strokeRect(x, hpY, barW, barH)
+    // ── HP Stars ──
+    const hpFilled = (player.hp / player.maxHp) * iconCount
+    const lowHp = player.hp / player.maxHp < 0.25
+    const pulse = lowHp ? 0.5 + 0.5 * Math.sin(this.time.now * 0.008) : 1
+
+    for (let i = 0; i < iconCount; i++) {
+      const cx = x + i * iconSpacing + iconR
+      const cy = hpY + iconR
+      const pts = this.starPoints(cx, cy, iconR)
+      const fill = Math.max(0, Math.min(1, hpFilled - i))
+
+      // Empty star background
+      this.statsGfx.fillStyle(0x441111, 0.7)
+      this.statsGfx.fillPoints(pts, true, true)
+
+      if (fill > 0) {
+        const alpha = (fill >= 1 ? 1 : fill * 0.5 + 0.4) * pulse
+        this.statsGfx.fillStyle(0xff3333, alpha)
+        this.statsGfx.fillPoints(pts, true, true)
+      }
+
+      this.statsGfx.lineStyle(1, lowHp ? 0xff4444 : 0xff6666, 0.3 * pulse)
+      this.statsGfx.strokePoints(pts, true, true)
+    }
+
     const totalDef = player.inventory.getTotalDefense()
-    const defStr = totalDef > 0 ? ` [${totalDef}DEF]` : ''
-    this.hpText.setText(`HP ${Math.ceil(player.hp)}/${player.maxHp}${defStr}`)
+    this.hpText.setPosition(textX, hpY)
+    this.hpText.setText(`${Math.ceil(player.hp)}/${player.maxHp}`)
 
-    // Mana bar background
-    this.statsGfx.fillStyle(0x000033, 0.8)
-    this.statsGfx.fillRect(x, manaY, barW, barH)
-    // Mana fill
-    const manaPct = Math.max(0, player.mana / player.maxMana)
-    this.statsGfx.fillStyle(0x2244ff, 0.9)
-    this.statsGfx.fillRect(x, manaY, barW * manaPct, barH)
-    // Mana border
-    this.statsGfx.lineStyle(1, 0x222288)
-    this.statsGfx.strokeRect(x, manaY, barW, barH)
-    this.manaText.setText(`MP ${Math.ceil(player.mana)}/${player.maxMana}`)
+    // ── Mana Diamonds ──
+    const manaFilled = (player.mana / player.maxMana) * iconCount
+
+    for (let i = 0; i < iconCount; i++) {
+      const cx = x + i * iconSpacing + iconR
+      const cy = manaY + iconR
+      const pts = this.diamondPoints(cx, cy, iconR * 1.6, iconR * 2)
+      const fill = Math.max(0, Math.min(1, manaFilled - i))
+
+      this.statsGfx.fillStyle(0x111133, 0.7)
+      this.statsGfx.fillPoints(pts, true, true)
+
+      if (fill > 0) {
+        const alpha = fill >= 1 ? 1 : fill * 0.5 + 0.4
+        this.statsGfx.fillStyle(0x4466ff, alpha)
+        this.statsGfx.fillPoints(pts, true, true)
+      }
+
+      this.statsGfx.lineStyle(1, 0x6688ff, 0.3)
+      this.statsGfx.strokePoints(pts, true, true)
+    }
+
+    this.manaText.setPosition(textX, manaY)
+    this.manaText.setText(`${Math.ceil(player.mana)}/${player.maxMana}`)
+
+    // ── Armor Shields ──
+    let nextBarY = 74
+
+    if (totalDef > 0) {
+      const armorY = nextBarY
+      const shieldCount = Math.min(10, Math.ceil(totalDef / 2))
+
+      for (let i = 0; i < shieldCount; i++) {
+        const cx = x + i * iconSpacing + iconR
+        const cy = armorY + iconR
+        const pts = this.shieldPoints(cx, cy, iconR * 1.5, iconR * 1.6)
+
+        this.statsGfx.fillStyle(0xffcc22, 0.9)
+        this.statsGfx.fillPoints(pts, true, true)
+        this.statsGfx.lineStyle(1, 0xddaa00, 0.5)
+        this.statsGfx.strokePoints(pts, true, true)
+      }
+
+      this.armorText.setPosition(x + shieldCount * iconSpacing + iconR + 4, armorY)
+      this.armorText.setText(`${totalDef} DEF`)
+      this.armorText.setVisible(true)
+      nextBarY += 14
+    } else {
+      this.armorText.setVisible(false)
+    }
 
     // Jetpack fuel bar (only if player has jetpack)
-    let nextBarY = 78
+    const barW = 120
+    const barH = 10
     if (player.hasJetpack) {
       const fuelY = nextBarY
       this.statsGfx.fillStyle(0x333300, 0.8)
@@ -511,7 +716,6 @@ export class UIScene extends Phaser.Scene {
 
     // Level + SP display to the right of XP bar
     const spStr = skills.skillPoints > 0 ? ` [${skills.skillPoints}SP]` : ''
-    this.hpText.y = hpY  // ensure position stays correct
     if (!this.skillXpText) {
       // will be created in createSkillTreePanel
     } else {
@@ -614,6 +818,86 @@ export class UIScene extends Phaser.Scene {
         }
       }
     }
+
+    // Discovered altar arrows (show when no active boss)
+    if (!boss || !boss.alive) {
+      this.drawAltarArrows(worldScene)
+    }
+  }
+
+  private drawAltarArrows(worldScene: any) {
+    const discovered = worldScene?.getDiscoveredAltars?.() as Set<string> | undefined
+    if (!discovered || discovered.size === 0) return
+
+    const cam = worldScene.cameras?.main as Phaser.Cameras.Scene2D.Camera | undefined
+    if (!cam) return
+
+    const { width, height } = this.scale
+
+    for (const bossType of discovered) {
+      const pos = worldScene.getDiscoveredAltarPosition?.(bossType) as { px: number; py: number } | null
+      if (!pos) continue
+
+      // Check if altar is off-screen
+      const vl = cam.worldView.x
+      const vt = cam.worldView.y
+      const vr = vl + cam.worldView.width
+      const vb = vt + cam.worldView.height
+      const margin = 32
+      const onScreen = pos.px >= vl + margin && pos.px <= vr - margin && pos.py >= vt + margin && pos.py <= vb - margin
+      if (onScreen) continue
+
+      // Calculate direction to altar
+      const cx = cam.worldView.centerX
+      const cy = cam.worldView.centerY
+      const dx = pos.px - cx
+      const dy = pos.py - cy
+      const angle = Math.atan2(dy, dx)
+
+      // Place arrow at edge of screen
+      const pad = 30
+      const hw = width / 2 - pad
+      const hh = height / 2 - pad
+
+      const absCos = Math.abs(Math.cos(angle))
+      const absSin = Math.abs(Math.sin(angle))
+      let ax: number, ay: number
+      if (absCos * hh > absSin * hw) {
+        ax = width / 2 + Math.sign(Math.cos(angle)) * hw
+        ay = height / 2 + Math.tan(angle) * Math.sign(Math.cos(angle)) * hw
+      } else {
+        ax = width / 2 + (1 / Math.tan(angle)) * Math.sign(Math.sin(angle)) * hh
+        ay = height / 2 + Math.sign(Math.sin(angle)) * hh
+      }
+      ay = Phaser.Math.Clamp(ay, pad, height - pad)
+      ax = Phaser.Math.Clamp(ax, pad, width - pad)
+
+      // Draw altar arrow (golden/yellow colored, slightly smaller than boss arrow)
+      const arrowSize = 8
+      this.statsGfx.fillStyle(0xffdd44, 0.8)
+      this.statsGfx.fillTriangle(
+        ax + Math.cos(angle) * arrowSize,
+        ay + Math.sin(angle) * arrowSize,
+        ax + Math.cos(angle + 2.4) * arrowSize,
+        ay + Math.sin(angle + 2.4) * arrowSize,
+        ax + Math.cos(angle - 2.4) * arrowSize,
+        ay + Math.sin(angle - 2.4) * arrowSize,
+      )
+      this.statsGfx.lineStyle(1, 0xffee88, 0.6)
+      this.statsGfx.strokeTriangle(
+        ax + Math.cos(angle) * arrowSize,
+        ay + Math.sin(angle) * arrowSize,
+        ax + Math.cos(angle + 2.4) * arrowSize,
+        ay + Math.sin(angle + 2.4) * arrowSize,
+        ax + Math.cos(angle - 2.4) * arrowSize,
+        ay + Math.sin(angle - 2.4) * arrowSize,
+      )
+
+      // Slow pulse behind altar arrow
+      const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.003)
+      this.statsGfx.fillStyle(0xffdd44, 0.2 * pulse)
+      this.statsGfx.fillCircle(ax, ay, arrowSize + 3)
+    }
   }
 
   // ── Day/Night indicator ────────────────────────────────
@@ -621,15 +905,147 @@ export class UIScene extends Phaser.Scene {
   private updateDayNight(worldScene: any) {
     const dn = worldScene?.getDayNight?.()
     if (!dn) return
-    const label = dn.label as string
-    const colors: Record<string, string> = {
-      Night: '#6666cc',
-      Dawn: '#ffaa44',
-      Day: '#ffdd88',
-      Dusk: '#cc7744',
+
+    const t = dn.time as number
+    // Sun visible during day: fade in at dawn (0.20-0.30), fade out at dusk (0.70-0.80)
+    let sunAlpha = 0
+    if (t >= 0.30 && t < 0.70) {
+      sunAlpha = 1
+    } else if (t >= 0.20 && t < 0.30) {
+      sunAlpha = (t - 0.20) / 0.10
+    } else if (t >= 0.70 && t < 0.80) {
+      sunAlpha = 1 - (t - 0.70) / 0.10
     }
-    this.dayNightText.setText(label)
-    this.dayNightText.setColor(colors[label] ?? '#ffffff')
+    this.sunIcon.setAlpha(sunAlpha)
+
+    // Moon visible at night: inverse of sun
+    let moonAlpha = 0
+    if (t < 0.20 || t >= 0.80) {
+      moonAlpha = 1
+    } else if (t >= 0.20 && t < 0.30) {
+      moonAlpha = 1 - (t - 0.20) / 0.10
+    } else if (t >= 0.70 && t < 0.80) {
+      moonAlpha = (t - 0.70) / 0.10
+    }
+    this.moonIcon.setAlpha(moonAlpha)
+  }
+
+  private drawSun(g: Phaser.GameObjects.Graphics) {
+    // Glow
+    g.fillStyle(0xffdd44, 0.3)
+    g.fillCircle(0, 0, 10)
+    // Core
+    g.fillStyle(0xffdd44, 1)
+    g.fillCircle(0, 0, 5)
+    // Rays
+    g.lineStyle(1.5, 0xffdd44, 0.8)
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2
+      const cos = Math.cos(angle)
+      const sin = Math.sin(angle)
+      g.beginPath()
+      g.moveTo(cos * 7, sin * 7)
+      g.lineTo(cos * 10, sin * 10)
+      g.strokePath()
+    }
+  }
+
+  private createMoonTexture() {
+    const size = 24
+    const cx = size / 2
+    const cy = size / 2
+    const rt = this.make.renderTexture({ x: 0, y: 0, width: size, height: size }, false)
+    // Glow
+    const glow = this.make.graphics({}, false)
+    glow.fillStyle(0xaabbdd, 0.25)
+    glow.fillCircle(cx, cy, 9)
+    rt.draw(glow)
+    glow.destroy()
+    // Full moon circle
+    const circle = this.make.graphics({}, false)
+    circle.fillStyle(0xddddff, 1)
+    circle.fillCircle(cx, cy, 5)
+    rt.draw(circle)
+    circle.destroy()
+    // Erase portion to create crescent
+    const cutout = this.make.graphics({}, false)
+    cutout.fillStyle(0xffffff, 1)
+    cutout.fillCircle(cx + 3, cy - 2, 4)
+    rt.erase(cutout)
+    cutout.destroy()
+    // Save as reusable texture
+    rt.saveTexture('moon_icon')
+    rt.destroy()
+  }
+
+  // ── Jetpack Parts Tracker ──────────────────────────────
+
+  private updateJetpackTracker(player: any) {
+    const inv: InventoryManager = player.inventory
+    const { width } = this.scale
+
+    // Count collected parts
+    let collected = 0
+    const has: boolean[] = []
+    for (const part of JETPACK_PARTS) {
+      const owned = inv.getCount(part.id) > 0
+      has.push(owned)
+      if (owned) collected++
+    }
+
+    // Also complete if player already assembled jetpack
+    const complete = player.hasJetpack || collected === 6
+
+    // Draw part icons on statsGfx (already cleared each frame)
+    const partSize = 8
+    const partGap = 4
+    const totalW = JETPACK_PARTS.length * (partSize + partGap) - partGap
+    const rightX = width - 10
+    const startX = rightX - totalW
+    const partY = 28
+
+    for (let i = 0; i < JETPACK_PARTS.length; i++) {
+      const px = startX + i * (partSize + partGap)
+      const py = partY
+      const owned = has[i]!
+
+      if (owned || complete) {
+        // Filled part - glow effect
+        const color = complete ? 0xffdd00 : JETPACK_PARTS[i]!.color
+        const pulse = complete ? 0.8 + 0.2 * Math.sin(this.time.now * 0.004 + i * 0.5) : 1
+
+        // Glow behind
+        this.statsGfx.fillStyle(color, 0.2 * pulse)
+        this.statsGfx.fillCircle(px + partSize / 2, py + partSize / 2, partSize * 0.8)
+
+        // Filled square with rounded feel
+        this.statsGfx.fillStyle(color, 0.9 * pulse)
+        this.statsGfx.fillRect(px + 1, py + 1, partSize - 2, partSize - 2)
+
+        this.statsGfx.lineStyle(1, 0xffffff, 0.5)
+        this.statsGfx.strokeRect(px, py, partSize, partSize)
+      } else {
+        // Empty slot - dim outline
+        this.statsGfx.fillStyle(0x222222, 0.5)
+        this.statsGfx.fillRect(px + 1, py + 1, partSize - 2, partSize - 2)
+
+        this.statsGfx.lineStyle(1, 0x555555, 0.4)
+        this.statsGfx.strokeRect(px, py, partSize, partSize)
+      }
+    }
+
+    // Label text
+    if (complete) {
+      this.partsLabel.setText('JETPACK READY')
+      this.partsLabel.setColor('#ffdd00')
+      this.partsLabel.setPosition(startX - 6, partY - 1)
+      this.partsLabel.setOrigin(1, 0)
+    } else {
+      this.partsLabel.setText(`${collected}/6`)
+      this.partsLabel.setColor('#aaaaaa')
+      this.partsLabel.setPosition(startX - 6, partY - 1)
+      this.partsLabel.setOrigin(1, 0)
+    }
   }
 
   // ── Crafting ────────────────────────────────────────────
@@ -862,6 +1278,12 @@ export class UIScene extends Phaser.Scene {
         }
         txt.setText(item.count > 1 ? `${item.count}` : '')
         txt.setVisible(true)
+        if (item.enchantment) {
+          const enchColor = ENCHANTMENT_COLORS[item.enchantment] ?? 0xffffff
+          const pulse = 0.5 + 0.3 * Math.sin(Date.now() * 0.004)
+          this.invGfx.lineStyle(2, enchColor, pulse)
+          this.invGfx.strokeRect(sx + 1, sy + 1, SLOT_SIZE - 2, SLOT_SIZE - 2)
+        }
       } else {
         icon.fillAlpha = 0
         icon.setVisible(false)
@@ -879,6 +1301,15 @@ export class UIScene extends Phaser.Scene {
       const def = getItemDef(hoveredItem.id)
       const tileProps = TILE_PROPERTIES[hoveredItem.id as TileType]
       let name = def?.name ?? tileProps?.name ?? `Item ${hoveredItem.id}`
+      if (hoveredItem.enchantment) {
+        const enchName = ENCHANTMENT_NAMES[hoveredItem.enchantment] ?? hoveredItem.enchantment
+        name = `${enchName} ${name}`
+        const eColor = ENCHANTMENT_COLORS[hoveredItem.enchantment]
+        if (eColor) this.invTooltipText.setColor(`#${eColor.toString(16).padStart(6, '0')}`)
+        else this.invTooltipText.setColor('#ffffff')
+      } else {
+        this.invTooltipText.setColor('#ffffff')
+      }
       if (def?.defense) name += ` (+${def.defense} def)`
       this.invTooltipText.setText(name)
       this.invTooltipText.setPosition(width / 2, invY - 4)
@@ -981,6 +1412,58 @@ export class UIScene extends Phaser.Scene {
       invY + INV_PAD + INV_TITLE_H + 4 * (SLOT_SIZE + SLOT_GAP) + 2
     )
     this.armorDefenseText.setVisible(true)
+
+    // ── Accessory slots (below armor) ──────
+    const accStartY = invY + INV_PAD + INV_TITLE_H + 4 * (SLOT_SIZE + SLOT_GAP) + 20
+    const accLabels = ['A1', 'A2', 'A3']
+    for (let i = 0; i < 3; i++) {
+      const sx = armorPanelX + INV_PAD
+      const sy = accStartY + i * (SLOT_SIZE + SLOT_GAP)
+      const accItem = inv.accessorySlots[i] ?? null
+
+      this.armorGfx.fillStyle(0x1a1a2e, 0.85)
+      this.armorGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+      this.armorGfx.lineStyle(1, 0x6688aa, 0.9)
+      this.armorGfx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+
+      // Hover
+      if (pointer.x >= sx && pointer.x < sx + SLOT_SIZE &&
+          pointer.y >= sy && pointer.y < sy + SLOT_SIZE) {
+        this.armorGfx.fillStyle(0xffffff, 0.1)
+        this.armorGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+
+        if (accItem) {
+          const aDef = getItemDef(accItem.id)
+          const aEff = ACCESSORY_EFFECTS[accItem.id]
+          if (aDef && aEff) {
+            this.invTooltipText.setText(`${aDef.name}: ${aEff.description}`)
+            this.invTooltipText.setVisible(true)
+          }
+        }
+
+        // Click to equip/swap
+        if (this.pointerJustDown) {
+          inv.clickAccessorySlot(i)
+          AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+        }
+      }
+
+      // Draw item
+      if (accItem) {
+        const accDef = getItemDef(accItem.id)
+        if (accDef) {
+          this.armorGfx.fillStyle(accDef.color, 0.9)
+          this.armorGfx.fillRect(sx + 6, sy + 6, SLOT_SIZE - 12, SLOT_SIZE - 12)
+        }
+      }
+    }
+
+    // Extend armor panel height to cover accessory slots
+    const extendedH = armorPanelH + 3 * (SLOT_SIZE + SLOT_GAP) + 10
+    this.armorGfx.fillStyle(0x0a0a1a, 0.95)
+    this.armorGfx.fillRect(armorPanelX, invY + armorPanelH, armorPanelW, extendedH - armorPanelH)
+    this.armorGfx.lineStyle(2, 0x444466)
+    this.armorGfx.strokeRect(armorPanelX, invY, armorPanelW, extendedH)
   }
 
   private updateHeldItem(inv: InventoryManager) {
@@ -1062,10 +1545,11 @@ export class UIScene extends Phaser.Scene {
     }
 
     // Create clickable zones and text labels for each skill node
-    // Layout: 5 columns (branches), up to 3 rows (tiers)
+    // Layout: 5 columns (branches), up to 3 rows (tiers 1-3)
+    const normalSkills = SKILLS.filter(s => !s.superTree)
     for (const branch of BRANCH_ORDER) {
       const branchIdx = BRANCH_ORDER.indexOf(branch)
-      const branchSkills = SKILLS.filter(s => s.branch === branch)
+      const branchSkills = normalSkills.filter(s => s.branch === branch)
 
       for (const skill of branchSkills) {
         const tierSkills = branchSkills.filter(s => s.tier === skill.tier)
@@ -1096,6 +1580,54 @@ export class UIScene extends Phaser.Scene {
         this.skillNodeTexts.push(nodeText)
 
         // Small name label below the node
+        const nameText = this.add.text(cx, ny + SKILL_NODE_SIZE + 2, skill.name, {
+          fontSize: '7px', color: '#888888', fontFamily: 'monospace',
+        }).setOrigin(0.5, 0).setDepth(321).setVisible(false)
+        this.skillNameTexts.push(nameText)
+      }
+    }
+
+    // ── Super Tree Nodes (tier 4) ──────────────────────
+    // Laid out in a row below the normal tiers, grouped by super tree
+    const superY = startY + SUPER_ROW_Y_OFFSET
+    const superSkills = SKILLS.filter(s => !!s.superTree)
+    const groupWidth = 2 * SKILL_NODE_SIZE + 8 // 2 nodes + gap
+    const totalSuperWidth = SUPER_TREES.length * groupWidth + (SUPER_TREES.length - 1) * 30
+    const superStartX = panelX + (SKILL_W - totalSuperWidth) / 2
+
+    for (let gi = 0; gi < SUPER_TREES.length; gi++) {
+      const st = SUPER_TREES[gi]!
+      const groupX = superStartX + gi * (groupWidth + 30)
+
+      // Super tree header label
+      const labelX = groupX + groupWidth / 2
+      const stLabel = this.add.text(labelX, superY - 14, `[${st.icon}] ${st.name}`, {
+        fontSize: '8px', color: st.colorStr, fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(0.5, 0).setDepth(321).setVisible(false)
+      this.skillBranchLabels.push(stLabel)
+
+      // Create nodes for this super tree's skills
+      const stSkills = superSkills.filter(s => s.superTree === st.id)
+      for (let si = 0; si < stSkills.length; si++) {
+        const skill = stSkills[si]!
+        const nx = groupX + si * (SKILL_NODE_SIZE + 8)
+        const ny = superY
+        const cx = nx + SKILL_NODE_SIZE / 2
+        const cy = ny + SKILL_NODE_SIZE / 2
+
+        const zone = this.add.zone(cx, cy, SKILL_NODE_SIZE, SKILL_NODE_SIZE)
+          .setInteractive().setDepth(323)
+        zone.on('pointerdown', () => this.onSkillNodeClick(skill.id))
+        this.skillNodeZones.push(zone)
+        this.skillNodeSkills.push(skill)
+
+        const abbr = skill.name.split(' ').map(w => w[0]).join('').substring(0, 3)
+        const nodeText = this.add.text(cx, cy - 2, abbr, {
+          fontSize: '11px', color: '#ffffff', fontFamily: 'monospace',
+          stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(322).setVisible(false)
+        this.skillNodeTexts.push(nodeText)
+
         const nameText = this.add.text(cx, ny + SKILL_NODE_SIZE + 2, skill.name, {
           fontSize: '7px', color: '#888888', fontFamily: 'monospace',
         }).setOrigin(0.5, 0).setDepth(321).setVisible(false)
@@ -1153,12 +1685,20 @@ export class UIScene extends Phaser.Scene {
 
       const unlocked = skills.hasSkill(skill.id)
       const parentUnlocked = skills.hasSkill(skill.requires)
-      const lineColor = unlocked ? 0x44ff44 : parentUnlocked ? 0x666688 : 0x333344
+      const isSuper = !!skill.superTree
+      const superColor = isSuper ? (SUPER_TREE_MAP[skill.superTree!]?.color ?? 0x666688) : 0
+      const lineColor = unlocked ? (isSuper ? superColor : 0x44ff44) : parentUnlocked ? 0x666688 : 0x333344
       const lineAlpha = unlocked ? 0.8 : 0.4
 
       this.skillGfx.lineStyle(2, lineColor, lineAlpha)
       this.skillGfx.lineBetween(parentZone.x, parentZone.y, childZone.x, childZone.y)
     }
+
+    // Draw divider line between normal and super tiers
+    const startY = panelY + 55
+    const dividerY = startY + SUPER_ROW_Y_OFFSET - 20
+    this.skillGfx.lineStyle(1, 0x444466, 0.5)
+    this.skillGfx.lineBetween(panelX + 20, dividerY, panelX + SKILL_W - 20, dividerY)
 
     // Draw nodes
     for (let i = 0; i < this.skillNodeSkills.length; i++) {
@@ -1168,14 +1708,21 @@ export class UIScene extends Phaser.Scene {
       const ny = zone.y - SKILL_NODE_SIZE / 2
 
       const unlocked = skills.hasSkill(skill.id)
-      const canUnlock = skills.canUnlock(skill.id)
-      const branchInfo = BRANCH_INFO[skill.branch]
+      const canUnlockSkill = skills.canUnlock(skill.id)
+      const isSuper = !!skill.superTree
+      const superTreeDef = isSuper ? SUPER_TREE_MAP[skill.superTree!] : null
+      const nodeColor = superTreeDef ? superTreeDef.color : BRANCH_INFO[skill.branch].color
+      const nodeColorStr = superTreeDef ? superTreeDef.colorStr : BRANCH_INFO[skill.branch].colorStr
+      const superAvailable = superTreeDef ? skills.isSuperTreeUnlocked(skill.superTree!) : true
 
       // Node background
       if (unlocked) {
-        this.skillGfx.fillStyle(branchInfo.color, 0.6)
-      } else if (canUnlock) {
-        this.skillGfx.fillStyle(branchInfo.color, 0.25)
+        this.skillGfx.fillStyle(nodeColor, 0.7)
+      } else if (canUnlockSkill) {
+        this.skillGfx.fillStyle(nodeColor, 0.3)
+      } else if (isSuper && !superAvailable) {
+        // Super tree locked — very dark with a hint of color
+        this.skillGfx.fillStyle(nodeColor, 0.08)
       } else {
         this.skillGfx.fillStyle(0x222233, 0.7)
       }
@@ -1183,9 +1730,9 @@ export class UIScene extends Phaser.Scene {
 
       // Node border
       if (unlocked) {
-        this.skillGfx.lineStyle(2, 0xffffff, 0.9)
-      } else if (canUnlock) {
-        this.skillGfx.lineStyle(2, branchInfo.color, 0.8)
+        this.skillGfx.lineStyle(2, isSuper ? nodeColor : 0xffffff, 0.9)
+      } else if (canUnlockSkill) {
+        this.skillGfx.lineStyle(2, nodeColor, 0.8)
       } else {
         this.skillGfx.lineStyle(1, 0x444455, 0.6)
       }
@@ -1196,8 +1743,8 @@ export class UIScene extends Phaser.Scene {
       const nameText = this.skillNameTexts[i]!
       if (unlocked) {
         nodeText.setColor('#ffffff')
-        nameText.setColor(BRANCH_INFO[skill.branch].colorStr)
-      } else if (canUnlock) {
+        nameText.setColor(nodeColorStr)
+      } else if (canUnlockSkill) {
         nodeText.setColor('#ffff00')
         nameText.setColor('#aaaaaa')
       } else {
@@ -1209,14 +1756,13 @@ export class UIScene extends Phaser.Scene {
       if (!unlocked) {
         const badgeX = nx + SKILL_NODE_SIZE - 2
         const badgeY = ny - 2
-        this.skillGfx.fillStyle(canUnlock ? 0xffff00 : 0x333344, 0.9)
+        this.skillGfx.fillStyle(canUnlockSkill ? 0xffff00 : 0x333344, 0.9)
         this.skillGfx.fillCircle(badgeX, badgeY, 6)
-        // The cost number is shown on hover in the info text
       }
 
       // Checkmark for unlocked
       if (unlocked) {
-        this.skillGfx.fillStyle(0x44ff44, 0.9)
+        this.skillGfx.fillStyle(isSuper ? nodeColor : 0x44ff44, 0.9)
         this.skillGfx.fillCircle(nx + SKILL_NODE_SIZE - 2, ny - 2, 5)
       }
 
@@ -1232,11 +1778,21 @@ export class UIScene extends Phaser.Scene {
     // Info text at bottom
     if (hoveredSkill) {
       const unlocked = skills.hasSkill(hoveredSkill.id)
+      const isSuper = !!hoveredSkill.superTree
       const status = unlocked ? ' [UNLOCKED]' : ` (${hoveredSkill.cost} SP)`
-      const branchName = BRANCH_INFO[hoveredSkill.branch].name
-      this.skillInfoText.setText(
-        `${hoveredSkill.name}${status} - ${hoveredSkill.description}  [${branchName}]`
-      )
+      let label: string
+      if (isSuper) {
+        const stDef = SUPER_TREE_MAP[hoveredSkill.superTree!]!
+        const b1 = BRANCH_INFO[stDef.branches[0]].name
+        const b2 = BRANCH_INFO[stDef.branches[1]].name
+        const available = skills.isSuperTreeUnlocked(hoveredSkill.superTree!)
+        const req = available ? '' : ` [Requires: max ${b1} + ${b2}]`
+        label = `${hoveredSkill.name}${status} - ${hoveredSkill.description}  [${stDef.name}]${req}`
+      } else {
+        const branchName = BRANCH_INFO[hoveredSkill.branch].name
+        label = `${hoveredSkill.name}${status} - ${hoveredSkill.description}  [${branchName}]`
+      }
+      this.skillInfoText.setText(label)
       this.skillInfoText.setColor(unlocked ? '#44ff44' : skills.canUnlock(hoveredSkill.id) ? '#ffff00' : '#666666')
     } else {
       this.skillInfoText.setText('Hover over a node to see details. Click to unlock.')
@@ -1286,5 +1842,220 @@ export class UIScene extends Phaser.Scene {
     }
 
     AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+  }
+
+  // ── Shop Panel ───────────────────────────────────────
+
+  private updateShopPanel(player: any, inv: InventoryManager) {
+    const shouldShow = player.shopOpen === true
+    if (shouldShow !== this.shopVisible) {
+      this.shopVisible = shouldShow
+      if (!shouldShow) this.shopScroll = 0
+    }
+
+    this.shopGfx.clear()
+    this.shopTitle.setVisible(false)
+
+    // Cleanup old texts
+    for (const t of this.shopTexts) t.destroy()
+    this.shopTexts = []
+
+    if (!this.shopVisible) return
+
+    const { width, height } = this.scale
+    const SHOP_W = 360
+    const SHOP_H = 420
+    const shopX = (width - SHOP_W) / 2
+    const shopY = (height - SHOP_H) / 2
+
+    // Background
+    this.shopGfx.fillStyle(0x0a0a1a, 0.95)
+    this.shopGfx.fillRect(shopX, shopY, SHOP_W, SHOP_H)
+    this.shopGfx.lineStyle(2, 0xddaa44)
+    this.shopGfx.strokeRect(shopX, shopY, SHOP_W, SHOP_H)
+
+    // Title
+    this.shopTitle.setText('Sky Merchant')
+    this.shopTitle.setPosition(shopX + SHOP_W / 2, shopY + 6)
+    this.shopTitle.setVisible(true)
+
+    // Coin balance
+    const coins = inv.getCount(250)
+    const coinText = this.add.text(shopX + SHOP_W - 10, shopY + 8, `${coins} coins`, {
+      fontSize: '12px', color: '#ccccdd', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(1, 0).setDepth(332)
+    this.shopTexts.push(coinText)
+
+    // Tab buttons
+    const tabY = shopY + 28
+    const pointer = this.input.activePointer
+
+    for (const tab of ['buy', 'sell'] as const) {
+      const tx = tab === 'buy' ? shopX + SHOP_W / 4 : shopX + (SHOP_W * 3) / 4
+      const isActive = this.shopTab === tab
+      this.shopGfx.fillStyle(isActive ? 0x334466 : 0x1a1a2e, 0.9)
+      this.shopGfx.fillRect(tx - 60, tabY, 120, 22)
+      this.shopGfx.lineStyle(1, isActive ? 0x6688aa : 0x333355)
+      this.shopGfx.strokeRect(tx - 60, tabY, 120, 22)
+
+      const tabLabel = this.add.text(tx, tabY + 11, tab.toUpperCase(), {
+        fontSize: '12px', color: isActive ? '#ffdd44' : '#666666', fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(0.5, 0.5).setDepth(332)
+      this.shopTexts.push(tabLabel)
+
+      // Tab click detection
+      if (this.pointerJustDown && pointer.x >= tx - 60 && pointer.x < tx + 60 &&
+          pointer.y >= tabY && pointer.y < tabY + 22) {
+        this.shopTab = tab
+        this.shopScroll = 0
+      }
+    }
+
+    const listY = tabY + 30
+    const ROW_H = 36
+    const maxRows = Math.floor((SHOP_H - 70) / ROW_H)
+
+    if (this.shopTab === 'buy') {
+      this.renderBuyTab(inv, shopX, listY, SHOP_W, ROW_H, maxRows, pointer, coins)
+    } else {
+      this.renderSellTab(inv, shopX, listY, SHOP_W, ROW_H, maxRows, pointer, coins)
+    }
+  }
+
+  private renderBuyTab(
+    inv: InventoryManager, shopX: number, listY: number,
+    shopW: number, rowH: number, maxRows: number,
+    pointer: Phaser.Input.Pointer, coins: number
+  ) {
+    for (let i = 0; i < Math.min(SHOP_INVENTORY.length, maxRows); i++) {
+      const item = SHOP_INVENTORY[i + this.shopScroll]
+      if (!item) continue
+      const def = getItemDef(item.itemId)
+      if (!def) continue
+      const eff = ACCESSORY_EFFECTS[item.itemId]
+
+      const ry = listY + i * rowH
+      const canAfford = coins >= item.price
+      const alreadyOwned = inv.getCount(item.itemId) > 0
+
+      // Row background
+      if (i % 2 === 0) {
+        this.shopGfx.fillStyle(0x111122, 0.3)
+        this.shopGfx.fillRect(shopX + 4, ry, shopW - 8, rowH)
+      }
+
+      // Hover highlight
+      const hovered = pointer.x >= shopX + 4 && pointer.x < shopX + shopW - 4 &&
+                       pointer.y >= ry && pointer.y < ry + rowH
+      if (hovered) {
+        this.shopGfx.fillStyle(0xffffff, 0.08)
+        this.shopGfx.fillRect(shopX + 4, ry, shopW - 8, rowH)
+      }
+
+      // Color swatch
+      this.shopGfx.fillStyle(def.color, 0.9)
+      this.shopGfx.fillRect(shopX + 10, ry + 4, 24, 24)
+      this.shopGfx.lineStyle(1, 0x555577)
+      this.shopGfx.strokeRect(shopX + 10, ry + 4, 24, 24)
+
+      // Name & description
+      const nameColor = alreadyOwned ? '#666666' : canAfford ? '#ffffff' : '#884444'
+      const nameText = this.add.text(shopX + 40, ry + 4, def.name, {
+        fontSize: '11px', color: nameColor, fontFamily: 'monospace',
+      }).setDepth(332)
+      this.shopTexts.push(nameText)
+
+      const descText = this.add.text(shopX + 40, ry + 18, eff?.description ?? '', {
+        fontSize: '9px', color: '#888888', fontFamily: 'monospace',
+      }).setDepth(332)
+      this.shopTexts.push(descText)
+
+      // Price
+      const priceStr = alreadyOwned ? 'OWNED' : `${item.price}c`
+      const priceColor = alreadyOwned ? '#666666' : canAfford ? '#ccccdd' : '#884444'
+      const priceText = this.add.text(shopX + shopW - 10, ry + 10, priceStr, {
+        fontSize: '11px', color: priceColor, fontFamily: 'monospace',
+      }).setOrigin(1, 0).setDepth(332)
+      this.shopTexts.push(priceText)
+
+      // Buy on click
+      if (hovered && this.pointerJustDown && canAfford && !alreadyOwned) {
+        inv.removeItem(250, item.price)
+        inv.addItem(item.itemId, 1)
+        AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+      }
+    }
+  }
+
+  private renderSellTab(
+    inv: InventoryManager, shopX: number, listY: number,
+    shopW: number, rowH: number, maxRows: number,
+    pointer: Phaser.Input.Pointer, _coins: number
+  ) {
+    // Build list of sellable items in player inventory
+    const sellable: { id: number; count: number; price: number }[] = []
+    const seen = new Set<number>()
+    const allSlots = [...inv.hotbar, ...inv.mainInventory]
+    for (const slot of allSlots) {
+      if (!slot || seen.has(slot.id)) continue
+      const price = SELL_PRICES[slot.id]
+      if (price && price > 0) {
+        seen.add(slot.id)
+        sellable.push({ id: slot.id, count: inv.getCount(slot.id), price })
+      }
+    }
+
+    if (sellable.length === 0) {
+      const emptyText = this.add.text(shopX + shopW / 2, listY + 40, 'No sellable items', {
+        fontSize: '12px', color: '#666666', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0).setDepth(332)
+      this.shopTexts.push(emptyText)
+      return
+    }
+
+    for (let i = 0; i < Math.min(sellable.length, maxRows); i++) {
+      const entry = sellable[i + this.shopScroll]
+      if (!entry) continue
+      const def = getItemDef(entry.id)
+      const name = def?.name ?? `Item ${entry.id}`
+
+      const ry = listY + i * rowH
+
+      if (i % 2 === 0) {
+        this.shopGfx.fillStyle(0x111122, 0.3)
+        this.shopGfx.fillRect(shopX + 4, ry, shopW - 8, rowH)
+      }
+
+      const hovered = pointer.x >= shopX + 4 && pointer.x < shopX + shopW - 4 &&
+                       pointer.y >= ry && pointer.y < ry + rowH
+      if (hovered) {
+        this.shopGfx.fillStyle(0xffffff, 0.08)
+        this.shopGfx.fillRect(shopX + 4, ry, shopW - 8, rowH)
+      }
+
+      // Color swatch
+      const color = def?.color ?? 0xffffff
+      this.shopGfx.fillStyle(color, 0.9)
+      this.shopGfx.fillRect(shopX + 10, ry + 6, 20, 20)
+
+      const nameText = this.add.text(shopX + 36, ry + 6, `${name} x${entry.count}`, {
+        fontSize: '11px', color: '#ffffff', fontFamily: 'monospace',
+      }).setDepth(332)
+      this.shopTexts.push(nameText)
+
+      const priceText = this.add.text(shopX + shopW - 10, ry + 6, `${entry.price}c each`, {
+        fontSize: '10px', color: '#ccccdd', fontFamily: 'monospace',
+      }).setOrigin(1, 0).setDepth(332)
+      this.shopTexts.push(priceText)
+
+      // Sell on click
+      if (hovered && this.pointerJustDown) {
+        if (inv.removeItem(entry.id, 1)) {
+          inv.addItem(250, entry.price)
+          AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+        }
+      }
+    }
   }
 }
