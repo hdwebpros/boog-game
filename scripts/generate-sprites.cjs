@@ -108,6 +108,30 @@ const TILES = [
     name: 'tile_13', label: 'carbon_fiber',
     desc: 'seamless tileable carbon fiber block texture for a 2D side-scrolling platformer. Dark navy blue-black high-tech material filling the entire square with a tight woven crosshatch pattern and subtle sheen. Terraria style.',
   },
+  {
+    name: 'tile_14', label: 'station_workbench',
+    desc: 'seamless tileable wooden workbench block texture for a 2D side-scrolling platformer. Brown wooden crafting table surface filling the entire square with a flat wooden top, visible tools like a hammer and saw on the surface, wooden legs at bottom. Terraria style.',
+  },
+  {
+    name: 'tile_15', label: 'station_furnace',
+    desc: 'seamless tileable furnace block texture for a 2D side-scrolling platformer. Brick-red stone furnace filling the entire square with a dark opening in the center showing orange glowing embers inside, chimney vent at top. Terraria style.',
+  },
+  {
+    name: 'tile_16', label: 'station_anvil',
+    desc: 'seamless tileable anvil block texture for a 2D side-scrolling platformer. Dark gray metallic anvil filling the entire square with a flat striking surface on top, tapered horn on one side, heavy base. Terraria style.',
+  },
+  {
+    name: 'tile_17', label: 'station_tech_bench',
+    desc: 'seamless tileable high-tech workbench block texture for a 2D side-scrolling platformer. Sleek blue-gray metal workstation filling the entire square with small blinking lights, circuit board patterns, and a glowing blue screen. Terraria style.',
+  },
+  {
+    name: 'tile_18', label: 'station_fusion',
+    desc: 'seamless tileable fusion reactor station block texture for a 2D side-scrolling platformer. Purple high-tech reactor filling the entire square with a glowing magenta energy core in the center, metallic casing, energy conduit lines. Terraria style.',
+  },
+  {
+    name: 'tile_19', label: 'station_workbench_mk2',
+    desc: 'seamless tileable upgraded workbench block texture for a 2D side-scrolling platformer. Polished tan-brown wooden workbench filling the entire square with metal reinforcements, organized tools, drawers, and a small vise on top. Terraria style.',
+  },
 ]
 
 // ─── ENEMY DEFINITIONS ──────────────────────────────────────
@@ -136,6 +160,10 @@ const ENEMIES = [
   {
     name: 'enemy_corrupted_drone', w: 32, h: 32,
     desc: 'hostile robot drone enemy for a 2D side-scrolling platformer game. Compact red metallic sphere body with small rotor blades on top, single glowing red camera eye, small gun barrel pointing forward. Hovering, facing right. Pixel art creature sprite.',
+  },
+  {
+    name: 'enemy_vampire', w: 32, h: 32,
+    desc: 'small vampire bat enemy for a 2D side-scrolling platformer game. Dark purple body with outstretched membrane wings, pointy ears, small glowing red eyes, tiny white fangs. Flying pose facing right. Pixel art creature sprite.',
   },
 ]
 
@@ -190,9 +218,19 @@ const PROJECTILES = [
 
 // ─── GENERATION FUNCTIONS ───────────────────────────────────
 
+const SKIP_EXISTING = process.argv.includes('--skip-existing')
+
+function spriteExists(filename) {
+  return SKIP_EXISTING && fs.existsSync(path.join(OUT_DIR, filename))
+}
+
 async function generateTiles() {
-  console.log('\n── Generating Tiles (13) ──')
+  console.log(`\n── Generating Tiles (${TILES.length}) ──`)
   for (const tile of TILES) {
+    if (spriteExists(`${tile.name}.png`)) {
+      console.log(`  ⏭ ${tile.label} (exists, skipping)`)
+      continue
+    }
     console.log(`  Generating ${tile.label}...`)
     const data = await generate('generate-image-pixflux', {
       description: tile.desc,
@@ -209,8 +247,12 @@ async function generateTiles() {
 }
 
 async function generateEnemies() {
-  console.log('\n── Generating Enemies (6) ──')
+  console.log(`\n── Generating Enemies (${ENEMIES.length}) ──`)
   for (const enemy of ENEMIES) {
+    if (spriteExists(`${enemy.name}.png`)) {
+      console.log(`  ⏭ ${enemy.name} (exists, skipping)`)
+      continue
+    }
     console.log(`  Generating ${enemy.name}...`)
     const data = await generate('generate-image-pixflux', {
       description: enemy.desc,
@@ -228,8 +270,12 @@ async function generateEnemies() {
 }
 
 async function generateBosses() {
-  console.log('\n── Generating Bosses (6) ──')
+  console.log(`\n── Generating Bosses (${BOSSES.length}) ──`)
   for (const boss of BOSSES) {
+    if (spriteExists(`${boss.name}.png`)) {
+      console.log(`  ⏭ ${boss.name} (exists, skipping)`)
+      continue
+    }
     console.log(`  Generating ${boss.name}...`)
     const data = await generate('generate-image-pixflux', {
       description: boss.desc,
@@ -247,8 +293,12 @@ async function generateBosses() {
 }
 
 async function generateProjectiles() {
-  console.log('\n── Generating Projectiles (4) ──')
+  console.log(`\n── Generating Projectiles (${PROJECTILES.length}) ──`)
   for (const proj of PROJECTILES) {
+    if (spriteExists(`${proj.name}.png`)) {
+      console.log(`  ⏭ ${proj.name} (exists, skipping)`)
+      continue
+    }
     console.log(`  Generating ${proj.name}...`)
     const data = await generate('generate-image-pixflux', {
       description: proj.desc,

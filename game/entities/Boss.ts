@@ -209,13 +209,12 @@ export class Boss {
   }
 
   private aiLeviathan(dt: number, chunks: ChunkManager, playerX: number, playerY: number, dx: number, dy: number, distToPlayer: number) {
-    // Swimming — no gravity
+    // Swimming — no gravity, but collide with tiles
     const dist = Math.max(1, distToPlayer)
     this.vx = (dx / dist) * this.phase.speed
     this.vy = (dy / dist) * this.phase.speed
 
-    this.sprite.x += this.vx * dt
-    this.sprite.y += this.vy * dt
+    this.resolveMovement(dt, chunks)
     this.clampBoss()
 
     const projectiles: { x: number; y: number; tx: number; ty: number; damage: number }[] = []

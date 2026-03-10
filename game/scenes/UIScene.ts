@@ -88,6 +88,9 @@ export class UIScene extends Phaser.Scene {
   private heldImage: Phaser.GameObjects.Image | null = null
   private heldText!: Phaser.GameObjects.Text
 
+  // Day/night indicator
+  private dayNightText!: Phaser.GameObjects.Text
+
   // Skill tree
   private skillGfx!: Phaser.GameObjects.Graphics
   private skillTitle!: Phaser.GameObjects.Text
@@ -171,6 +174,12 @@ export class UIScene extends Phaser.Scene {
       stroke: '#000000', strokeThickness: 2,
     }).setDepth(201)
 
+    // Day/Night indicator (top-right)
+    this.dayNightText = this.add.text(width - 10, 10, '', {
+      fontSize: '11px', color: '#ffdd88', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(1, 0).setDepth(201)
+
     // Death overlay text
     this.deathText = this.add.text(width / 2, height / 2, 'YOU DIED\nRespawning...', {
       fontSize: '28px', color: '#ff4444', fontFamily: 'monospace',
@@ -203,7 +212,7 @@ export class UIScene extends Phaser.Scene {
     }
 
     // Scroll crafting with wheel
-    this.input.on('wheel', (_p: any, _gx: any, _gy: any, _gz: any, _delta: number, deltaY: number) => {
+    this.input.on('wheel', (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
       if (this.invVisible) return
       if (!this.craftVisible) return
       this.craftScroll += deltaY > 0 ? 1 : -1
@@ -329,6 +338,7 @@ export class UIScene extends Phaser.Scene {
     this.updateSelector(inv.selectedSlot)
     this.updateTooltip(inv)
     this.updateStatsBars(player)
+    this.updateDayNight(worldScene)
     this.updateCrafting(player, inv, chunks)
     this.updateInventoryPanel(player, inv)
     this.updateSkillTree(player)
@@ -459,9 +469,9 @@ export class UIScene extends Phaser.Scene {
     this.manaText.setText(`MP ${Math.ceil(player.mana)}/${player.maxMana}`)
 
     // Jetpack fuel bar (only if player has jetpack)
-    const nextBarY = player.hasJetpack ? 94 : 78
+    let nextBarY = 78
     if (player.hasJetpack) {
-      const fuelY = 78
+      const fuelY = nextBarY
       this.statsGfx.fillStyle(0x333300, 0.8)
       this.statsGfx.fillRect(x, fuelY, barW, barH)
       const fuelPct = Math.max(0, player.jetpackFuel / player.maxJetpackFuel)
@@ -469,6 +479,22 @@ export class UIScene extends Phaser.Scene {
       this.statsGfx.fillRect(x, fuelY, barW * fuelPct, barH)
       this.statsGfx.lineStyle(1, 0x886622)
       this.statsGfx.strokeRect(x, fuelY, barW, barH)
+      nextBarY += 16
+    }
+
+    // Oxygen bar (visible when in water or oxygen not full)
+    const showOxygen = player.isInWater || player.oxygen < player.maxOxygen
+    if (showOxygen) {
+      const o2Y = nextBarY
+      this.statsGfx.fillStyle(0x003333, 0.8)
+      this.statsGfx.fillRect(x, o2Y, barW, barH)
+      const o2Pct = Math.max(0, player.oxygen / player.maxOxygen)
+      const o2Color = o2Pct > 0.3 ? 0x00cccc : 0xcc4444
+      this.statsGfx.fillStyle(o2Color, 0.9)
+      this.statsGfx.fillRect(x, o2Y, barW * o2Pct, barH)
+      this.statsGfx.lineStyle(1, 0x006666)
+      this.statsGfx.strokeRect(x, o2Y, barW, barH)
+      nextBarY += 16
     }
 
     // XP bar
@@ -497,11 +523,11 @@ export class UIScene extends Phaser.Scene {
     // Death overlay
     this.deathText.setVisible(player.dead === true)
 
-    // Boss HP bar (top center)
+    // Boss HP bar (top center) + off-screen indicator
     const worldScene = this.scene.get('WorldScene') as any
     const boss = worldScene?.getActiveBoss?.()
     if (boss && boss.alive) {
-      const { width } = this.scale
+      const { width, height } = this.scale
       const bossBarW = 300
       const bossBarH = 12
       const bossX = (width - bossBarW) / 2
@@ -516,7 +542,94 @@ export class UIScene extends Phaser.Scene {
 
       this.statsGfx.lineStyle(2, 0xff4444)
       this.statsGfx.strokeRect(bossX, bossY, bossBarW, bossBarH)
+
+      // Off-screen boss indicator arrow
+      const cam = worldScene.cameras?.main as Phaser.Cameras.Scene2D.Camera | undefined
+      if (cam) {
+        const bsx = boss.sprite.x as number
+        const bsy = boss.sprite.y as number
+        // Camera world view (what's visible)
+        const vl = cam.worldView.x
+        const vt = cam.worldView.y
+        const vr = vl + cam.worldView.width
+        const vb = vt + cam.worldView.height
+        const margin = 16
+        const offScreen = bsx < vl + margin || bsx > vr - margin || bsy < vt + margin || bsy > vb - margin
+
+        if (offScreen) {
+          // Map boss world position to screen-space direction
+          const cx = cam.worldView.centerX
+          const cy = cam.worldView.centerY
+          const dx = bsx - cx
+          const dy = bsy - cy
+          const angle = Math.atan2(dy, dx)
+
+          // Place arrow at edge of screen with padding
+          const pad = 30
+          const hw = width / 2 - pad
+          const hh = height / 2 - pad
+
+          // Clamp to screen edge
+          const absCos = Math.abs(Math.cos(angle))
+          const absSin = Math.abs(Math.sin(angle))
+          let ax: number, ay: number
+          if (absCos * hh > absSin * hw) {
+            // Hits left/right edge
+            ax = width / 2 + Math.sign(Math.cos(angle)) * hw
+            ay = height / 2 + Math.tan(angle) * Math.sign(Math.cos(angle)) * hw
+          } else {
+            // Hits top/bottom edge
+            ax = width / 2 + (1 / Math.tan(angle)) * Math.sign(Math.sin(angle)) * hh
+            ay = height / 2 + Math.sign(Math.sin(angle)) * hh
+          }
+          ay = Phaser.Math.Clamp(ay, pad, height - pad)
+          ax = Phaser.Math.Clamp(ax, pad, width - pad)
+
+          // Draw arrow triangle pointing toward boss
+          const arrowSize = 10
+          this.statsGfx.fillStyle(0xff2222, 0.9)
+          this.statsGfx.fillTriangle(
+            ax + Math.cos(angle) * arrowSize,
+            ay + Math.sin(angle) * arrowSize,
+            ax + Math.cos(angle + 2.4) * arrowSize,
+            ay + Math.sin(angle + 2.4) * arrowSize,
+            ax + Math.cos(angle - 2.4) * arrowSize,
+            ay + Math.sin(angle - 2.4) * arrowSize,
+          )
+          // Outline
+          this.statsGfx.lineStyle(2, 0xff6666, 0.8)
+          this.statsGfx.strokeTriangle(
+            ax + Math.cos(angle) * arrowSize,
+            ay + Math.sin(angle) * arrowSize,
+            ax + Math.cos(angle + 2.4) * arrowSize,
+            ay + Math.sin(angle + 2.4) * arrowSize,
+            ax + Math.cos(angle - 2.4) * arrowSize,
+            ay + Math.sin(angle - 2.4) * arrowSize,
+          )
+
+          // Pulsing glow circle behind arrow
+          const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.005)
+          this.statsGfx.fillStyle(0xff2222, 0.3 * pulse)
+          this.statsGfx.fillCircle(ax, ay, arrowSize + 4)
+        }
+      }
     }
+  }
+
+  // ── Day/Night indicator ────────────────────────────────
+
+  private updateDayNight(worldScene: any) {
+    const dn = worldScene?.getDayNight?.()
+    if (!dn) return
+    const label = dn.label as string
+    const colors: Record<string, string> = {
+      Night: '#6666cc',
+      Dawn: '#ffaa44',
+      Day: '#ffdd88',
+      Dusk: '#cc7744',
+    }
+    this.dayNightText.setText(label)
+    this.dayNightText.setColor(colors[label] ?? '#ffffff')
   }
 
   // ── Crafting ────────────────────────────────────────────

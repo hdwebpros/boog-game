@@ -18,6 +18,15 @@ const UNDERGROUND_START = 130
 const DEEP_UNDERGROUND_START = 480
 const CORE_START = 1000
 
+// Surface biome types
+const enum SurfaceBiome {
+  PLAINS = 0,
+  FOREST = 1,
+  DESERT = 2,
+  MOUNTAINS = 3,
+  LAKE = 4,
+}
+
 export class WorldGenerator {
   private seed: string
   private seedNum: number
@@ -39,13 +48,63 @@ export class WorldGenerator {
     const oreNoise2 = createSeededNoise(this.seedNum + 3)
     const oreNoise3 = createSeededNoise(this.seedNum + 4)
     const detailNoise = createSeededNoise(this.seedNum + 5)
+    const biomeNoise = createSeededNoise(this.seedNum + 6)
 
-    // Pre-compute surface heights
+    // Pre-compute surface biomes
+    const surfaceBiomes = new Uint8Array(width)
+    for (let x = 0; x < width; x++) {
+      const distFromEdge = Math.min(x, width - 1 - x)
+      if (distFromEdge < OCEAN_WIDTH) {
+        surfaceBiomes[x] = SurfaceBiome.PLAINS // ocean edges handled separately
+        continue
+      }
+      // Two noise octaves for biome selection — slow variation
+      const b1 = biomeNoise(x * 0.0015, 0.5)
+      const b2 = biomeNoise(x * 0.004, 1.5)
+      const bVal = b1 * 0.7 + b2 * 0.3
+
+      if (bVal < -0.35) surfaceBiomes[x] = SurfaceBiome.DESERT
+      else if (bVal < -0.05) surfaceBiomes[x] = SurfaceBiome.PLAINS
+      else if (bVal < 0.25) surfaceBiomes[x] = SurfaceBiome.FOREST
+      else if (bVal < 0.45) surfaceBiomes[x] = SurfaceBiome.MOUNTAINS
+      else surfaceBiomes[x] = SurfaceBiome.LAKE
+    }
+
+    // Pre-compute surface heights (shaped by biome)
     const surfaceHeights = new Float64Array(width)
     for (let x = 0; x < width; x++) {
-      let h = terrainNoise(x * 0.004, 0) * 25   // large rolling hills
-      h += terrainNoise(x * 0.015, 0) * 12       // medium variation
-      h += terrainNoise(x * 0.04, 0) * 5          // small detail
+      const biome = surfaceBiomes[x]!
+
+      // Base terrain noise
+      const n1 = terrainNoise(x * 0.004, 0)
+      const n2 = terrainNoise(x * 0.015, 0)
+      const n3 = terrainNoise(x * 0.04, 0)
+
+      let h: number
+      switch (biome) {
+        case SurfaceBiome.PLAINS:
+          // Flat with gentle rolls
+          h = n1 * 8 + n3 * 2
+          break
+        case SurfaceBiome.FOREST:
+          // Moderate rolling hills (original feel)
+          h = n1 * 20 + n2 * 10 + n3 * 4
+          break
+        case SurfaceBiome.DESERT:
+          // Gently rolling dunes, slightly lower
+          h = n1 * 6 + n2 * 4 + 5
+          break
+        case SurfaceBiome.MOUNTAINS:
+          // Tall, steep peaks
+          h = n1 * 40 + n2 * 15 + n3 * 6 - 15
+          break
+        case SurfaceBiome.LAKE:
+          // Depression that fills with water
+          h = n1 * 6 + 12 + n3 * 2
+          break
+        default:
+          h = n1 * 25 + n2 * 12 + n3 * 5
+      }
 
       // Ocean biomes — depress terrain at world edges
       const distFromEdge = Math.min(x, width - 1 - x)
@@ -58,7 +117,7 @@ export class WorldGenerator {
     }
 
     // Pass 1: Fill base terrain
-    this.fillBaseTerrain(tiles, width, height, surfaceHeights)
+    this.fillBaseTerrain(tiles, width, height, surfaceHeights, surfaceBiomes)
 
     // Pass 2: Carve caves
     this.carveCaves(tiles, width, height, surfaceHeights, caveNoise, detailNoise)
@@ -69,8 +128,11 @@ export class WorldGenerator {
     // Pass 4: Ocean coral
     this.placeCoral(tiles, width, surfaceHeights, detailNoise)
 
-    // Pass 5: Trees
-    this.placeTrees(tiles, width, surfaceHeights)
+    // Pass 5: Trees (biome-aware)
+    this.placeTrees(tiles, width, surfaceHeights, surfaceBiomes)
+
+    // Pass 6: Surface lakes
+    this.placeSurfaceLakes(tiles, width, surfaceHeights, surfaceBiomes)
 
     // Find spawn point — center of map, on surface
     const spawnX = Math.floor(width / 2)
@@ -95,12 +157,13 @@ export class WorldGenerator {
 
   private fillBaseTerrain(
     tiles: Uint8Array, width: number, height: number,
-    surfaceHeights: Float64Array
+    surfaceHeights: Float64Array, surfaceBiomes: Uint8Array
   ) {
     for (let x = 0; x < width; x++) {
       const surfaceY = Math.floor(surfaceHeights[x]!)
       const distFromEdge = Math.min(x, width - 1 - x)
       const isOcean = distFromEdge < OCEAN_WIDTH
+      const biome = surfaceBiomes[x]!
 
       for (let y = 0; y < height; y++) {
         const idx = y * width + x
@@ -113,11 +176,25 @@ export class WorldGenerator {
             tiles[idx] = TileType.AIR
           }
         } else if (y === surfaceY) {
-          // Surface block
-          tiles[idx] = isOcean ? TileType.SAND : TileType.GRASS
+          // Surface block — varies by biome
+          if (isOcean) {
+            tiles[idx] = TileType.SAND
+          } else if (biome === SurfaceBiome.DESERT) {
+            tiles[idx] = TileType.SAND
+          } else if (biome === SurfaceBiome.MOUNTAINS) {
+            tiles[idx] = TileType.STONE
+          } else {
+            tiles[idx] = TileType.GRASS
+          }
         } else if (y < surfaceY + 6) {
-          // Sub-surface
-          tiles[idx] = isOcean ? TileType.SAND : TileType.DIRT
+          // Sub-surface — varies by biome
+          if (isOcean || biome === SurfaceBiome.DESERT) {
+            tiles[idx] = TileType.SAND
+          } else if (biome === SurfaceBiome.MOUNTAINS) {
+            tiles[idx] = TileType.STONE
+          } else {
+            tiles[idx] = TileType.DIRT
+          }
         } else if (y < UNDERGROUND_START) {
           tiles[idx] = TileType.DIRT
         } else if (y < DEEP_UNDERGROUND_START) {
@@ -234,7 +311,7 @@ export class WorldGenerator {
     }
   }
 
-  private placeTrees(tiles: Uint8Array, width: number, surfaceHeights: Float64Array) {
+  private placeTrees(tiles: Uint8Array, width: number, surfaceHeights: Float64Array, surfaceBiomes: Uint8Array) {
     const rng = this.mulberry32(this.seedNum + 100)
 
     for (let x = 5; x < width - 5; x++) {
@@ -242,9 +319,42 @@ export class WorldGenerator {
       if (distFromEdge < OCEAN_WIDTH + 20) continue
 
       const surfaceY = Math.floor(surfaceHeights[x]!)
-      if (tiles[surfaceY * width + x] !== TileType.GRASS) continue
+      const surfTile = tiles[surfaceY * width + x]!
+      const biome = surfaceBiomes[x]!
 
-      if (rng() < 0.08) {
+      // Only place trees on grass
+      if (surfTile !== TileType.GRASS) {
+        rng() // consume RNG to keep stream consistent
+        continue
+      }
+
+      // Tree probability varies by biome
+      let treeChance: number
+      let minSpacing: number
+      switch (biome) {
+        case SurfaceBiome.FOREST:
+          treeChance = 0.18
+          minSpacing = 2
+          break
+        case SurfaceBiome.PLAINS:
+          treeChance = 0.03
+          minSpacing = 6
+          break
+        case SurfaceBiome.LAKE:
+          treeChance = 0.06
+          minSpacing = 4
+          break
+        case SurfaceBiome.DESERT:
+        case SurfaceBiome.MOUNTAINS:
+          treeChance = 0
+          minSpacing = 3
+          break
+        default:
+          treeChance = 0.08
+          minSpacing = 3
+      }
+
+      if (rng() < treeChance) {
         const treeHeight = 4 + Math.floor(rng() * 4)
 
         // Trunk
@@ -267,7 +377,36 @@ export class WorldGenerator {
           }
         }
 
-        x += 3 // min spacing
+        x += minSpacing
+      }
+    }
+  }
+
+  private placeSurfaceLakes(
+    tiles: Uint8Array, width: number,
+    surfaceHeights: Float64Array, surfaceBiomes: Uint8Array
+  ) {
+    // Fill lake biome depressions with water
+    for (let x = 0; x < width; x++) {
+      if (surfaceBiomes[x] !== SurfaceBiome.LAKE) continue
+      const distFromEdge = Math.min(x, width - 1 - x)
+      if (distFromEdge < OCEAN_WIDTH) continue
+
+      const surfaceY = Math.floor(surfaceHeights[x]!)
+      // Lake water level is slightly above SURFACE_BASE
+      const waterLevel = SURFACE_BASE + 8
+      if (surfaceY > waterLevel) {
+        // Surface is below water level — fill above with water
+        for (let y = surfaceY - 1; y >= waterLevel; y--) {
+          const idx = y * width + x
+          if (tiles[idx] === TileType.AIR) {
+            tiles[idx] = TileType.WATER
+          }
+        }
+        // Convert surface grass to sand at lake edges
+        if (tiles[surfaceY * width + x] === TileType.GRASS) {
+          tiles[surfaceY * width + x] = TileType.SAND
+        }
       }
     }
   }

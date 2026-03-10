@@ -57,6 +57,7 @@ export const RECIPES: Recipe[] = [
   { id: 'app_staff',    station: StationType.ANVIL,      inputs: [{ itemId: 100, count: 5 }, { itemId: TileType.DIAMOND_ORE, count: 2 }], output: { itemId: 150, count: 1 } },
   { id: 'drone_totem',  station: StationType.ANVIL,      inputs: [{ itemId: 100, count: 8 }, { itemId: 104, count: 4 }], output: { itemId: 160, count: 1 } },
   { id: 'crystal_lens', station: StationType.ANVIL,      inputs: [{ itemId: 100, count: 6 }, { itemId: TileType.DIAMOND_ORE, count: 4 }, { itemId: 104, count: 3 }], output: { itemId: 172, count: 1 } },
+  { id: 'rebreather',   station: StationType.ANVIL,      inputs: [{ itemId: TileType.CORAL, count: 30 }, { itemId: TileType.SAND, count: 20 }, { itemId: 104, count: 5 }, { itemId: 100, count: 3 }], output: { itemId: 192, count: 1 } },
   { id: 'iron_helmet',  station: StationType.ANVIL,      inputs: [{ itemId: 100, count: 6 }, { itemId: TileType.WOOD, count: 2 }], output: { itemId: 208, count: 1 } },
   { id: 'iron_chest',   station: StationType.ANVIL,      inputs: [{ itemId: 100, count: 10 }, { itemId: TileType.WOOD, count: 3 }], output: { itemId: 209, count: 1 } },
   { id: 'iron_legs',    station: StationType.ANVIL,      inputs: [{ itemId: 100, count: 8 }, { itemId: TileType.WOOD, count: 2 }], output: { itemId: 210, count: 1 } },

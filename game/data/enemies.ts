@@ -5,6 +5,7 @@ export enum EnemyType {
   ANGLERFISH = 'anglerfish',
   LAVA_SERPENT = 'lava_serpent',
   CORRUPTED_DRONE = 'corrupted_drone',
+  VAMPIRE = 'vampire',
 }
 
 export enum EnemyAI {
@@ -29,6 +30,7 @@ export interface EnemyDef {
   biomeYMin: number   // min Y tile coord for spawning
   biomeYMax: number   // max Y tile coord for spawning
   oceanOnly?: boolean // only spawn in ocean biome edges
+  nightOnly?: boolean // only spawn at night
   xp: number
   loot: { itemId: number; count: number; chance: number }[]
   knockbackResist: number // 0 = full knockback, 1 = none
@@ -154,5 +156,25 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
       { itemId: 102, count: 1, chance: 0.15 },  // titanium bar
     ],
     knockbackResist: 0.3,
+  },
+  [EnemyType.VAMPIRE]: {
+    type: EnemyType.VAMPIRE,
+    name: 'Vampire',
+    hp: 45,
+    damage: 15,
+    speed: 90,
+    color: 0x440044,
+    width: 16,
+    height: 22,
+    ai: EnemyAI.SWOOP,
+    biomeYMin: SURFACE - 10,
+    biomeYMax: UNDERGROUND,
+    nightOnly: true,
+    xp: 15,
+    loot: [
+      { itemId: 190, count: 2, chance: 0.5 },   // healing herb
+      { itemId: 105, count: 3, chance: 0.4 },   // plant fiber
+    ],
+    knockbackResist: 0.1,
   },
 }

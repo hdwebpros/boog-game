@@ -1,11 +1,10 @@
 import Phaser from 'phaser'
 import { ChunkManager } from '../world/ChunkManager'
-import { TileType, TILE_SIZE, TILE_PROPERTIES, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
+import { TileType, TILE_SIZE, TILE_PROPERTIES, WORLD_WIDTH, WORLD_HEIGHT, STATION_TILE_TYPE } from '../world/TileRegistry'
 import { InventoryManager } from '../systems/InventoryManager'
 import { CombatSystem } from '../systems/CombatSystem'
 import { Enemy } from './Enemy'
 import { ITEMS, ItemCategory, getItemDef } from '../data/items'
-import { STATION_ITEM_MAP } from '../data/recipes'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 import { SkillTreeManager } from '../systems/SkillTreeManager'
@@ -15,6 +14,19 @@ const MOVE_SPEED = 200
 const JUMP_VELOCITY = -380
 const GRAVITY = 900
 const MAX_FALL_SPEED = 700
+
+// Water physics
+const WATER_MOVE_MULT = 0.55       // horizontal speed multiplier in water
+const WATER_REBREATHER_MULT = 0.8  // horizontal speed with rebreather
+const WATER_GRAVITY = 180          // reduced gravity (buoyancy)
+const WATER_MAX_FALL = 120         // max sink speed
+const WATER_SWIM_UP = -140         // swim upward velocity
+const WATER_SWIM_DOWN = 160        // swim downward velocity
+const MAX_OXYGEN = 100
+const OXYGEN_DEPLETE_RATE = 10     // per second
+const OXYGEN_REFILL_RATE = 40      // per second (fast refill on surface)
+const DROWN_DAMAGE = 8             // damage per tick when oxygen is 0
+const DROWN_INTERVAL = 800         // ms between drown ticks
 
 // Collision box — player displays at 16×32 (1 tile wide, 2 tiles tall)
 const COL_W = 12
@@ -58,6 +70,7 @@ export class Player {
   // Input
   private keyA: Phaser.Input.Keyboard.Key
   private keyD: Phaser.Input.Keyboard.Key
+  private keyS: Phaser.Input.Keyboard.Key
   private keySpace: Phaser.Input.Keyboard.Key
   private keyW: Phaser.Input.Keyboard.Key
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys
@@ -87,6 +100,13 @@ export class Player {
   // Double jump tracking
   private hasUsedDoubleJump = false
 
+  // Water / Oxygen
+  isInWater = false
+  oxygen = MAX_OXYGEN
+  maxOxygen = MAX_OXYGEN
+  hasRebreather = false
+  private drownTimer = 0
+
   // Jetpack
   hasJetpack = false
   jetpackFuel = 100
@@ -99,6 +119,11 @@ export class Player {
   private walkFrameIndex = 0
   private actionAnim = '' // 'mining' | 'attacking' | ''
   private actionAnimTimer = 0
+
+  // Equipment overlay visuals
+  private equipOverlay: Phaser.GameObjects.Graphics
+  private heldItemSprite: Phaser.GameObjects.Image | null = null
+  private lastEquipHash = '' // track changes to avoid redrawing every frame
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene
@@ -114,6 +139,10 @@ export class Player {
     this.sprite.setDepth(10)
     this.applySpriteScale()
 
+    // Equipment overlay (armor tint drawn on top of player)
+    this.equipOverlay = scene.add.graphics()
+    this.equipOverlay.setDepth(11)
+
     // Overlay for tile highlights and mining progress
     this.overlay = scene.add.graphics()
     this.overlay.setDepth(15)
@@ -122,6 +151,7 @@ export class Player {
     const kb = scene.input.keyboard!
     this.keyA = kb.addKey(Phaser.Input.Keyboard.KeyCodes.A)
     this.keyD = kb.addKey(Phaser.Input.Keyboard.KeyCodes.D)
+    this.keyS = kb.addKey(Phaser.Input.Keyboard.KeyCodes.S)
     this.keyW = kb.addKey(Phaser.Input.Keyboard.KeyCodes.W)
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
     this.cursors = kb.createCursorKeys()
@@ -223,9 +253,14 @@ export class Player {
     // Flash during i-frames
     this.flashTimer -= dt * 1000
     if (this.iFrames > 0) {
-      this.sprite.setAlpha(Math.sin(this.iFrames * 0.02) > 0 ? 1 : 0.3)
+      const a = Math.sin(this.iFrames * 0.02) > 0 ? 1 : 0.3
+      this.sprite.setAlpha(a)
+      this.equipOverlay.setAlpha(a)
+      if (this.heldItemSprite) this.heldItemSprite.setAlpha(a)
     } else {
       this.sprite.setAlpha(1)
+      this.equipOverlay.setAlpha(1)
+      if (this.heldItemSprite) this.heldItemSprite.setAlpha(1)
     }
 
     this.handleMovement(dt, chunks)
@@ -279,6 +314,8 @@ export class Player {
     this.hp = 0
     this.sprite.setAlpha(0.2)
     this.sprite.setTint(0x666666)
+    this.equipOverlay.setAlpha(0.2)
+    if (this.heldItemSprite) this.heldItemSprite.setAlpha(0.2)
     this.respawnTimer = RESPAWN_DELAY
     AudioManager.get()?.play(SoundId.PLAYER_DIE)
   }
@@ -291,9 +328,12 @@ export class Player {
     this.sprite.y = this.spawnY
     this.sprite.clearTint()
     this.sprite.setAlpha(1)
+    this.equipOverlay.setAlpha(1)
+    if (this.heldItemSprite) this.heldItemSprite.setAlpha(1)
     this.iFrames = IFRAMES_DURATION * 2 // extra i-frames on respawn
     this.vx = 0
     this.vy = 0
+    this.lastEquipHash = '' // force redraw
   }
 
   private useConsumable() {
@@ -318,7 +358,7 @@ export class Player {
     const ws = this.scene as any
     if (typeof ws.spawnDrop === 'function') {
       const dir = this.facingRight ? 1 : -1
-      ws.spawnDrop(this.sprite.x + dir * 16, this.sprite.y, id, 1)
+      ws.spawnDrop(this.sprite.x + dir * 48, this.sprite.y, id, 1)
     }
   }
 
@@ -407,20 +447,53 @@ export class Player {
   }
 
   private checkEnvironmentDamage(chunks: ChunkManager, combat?: CombatSystem) {
-    if (this.iFrames > 0 || this.dead) return
-
     // Check if player is in lava
-    const ptx = Math.floor(this.sprite.x / TILE_SIZE)
-    const pty = Math.floor(this.sprite.y / TILE_SIZE)
-    const tile = chunks.getTile(ptx, pty)
-    if (tile === TileType.LAVA) {
-      this.takeDamage(10, 0, -100, combat)
+    if (this.iFrames <= 0 && !this.dead) {
+      const ptx = Math.floor(this.sprite.x / TILE_SIZE)
+      const pty = Math.floor(this.sprite.y / TILE_SIZE)
+      const tile = chunks.getTile(ptx, pty)
+      if (tile === TileType.LAVA) {
+        this.takeDamage(10, 0, -100, combat)
+      }
+    }
+
+    // Oxygen / drowning (runs every frame, independent of i-frames)
+    if (this.dead) return
+
+    if (this.isInWater) {
+      if (this.hasRebreather) {
+        // Rebreather prevents oxygen loss
+        this.oxygen = this.maxOxygen
+      } else {
+        // Deplete oxygen
+        this.oxygen -= OXYGEN_DEPLETE_RATE * (this.scene.game.loop.delta / 1000)
+        if (this.oxygen < 0) this.oxygen = 0
+      }
+
+      // Drowning damage when out of oxygen
+      if (this.oxygen <= 0 && !this.hasRebreather) {
+        this.drownTimer -= this.scene.game.loop.delta
+        if (this.drownTimer <= 0) {
+          this.drownTimer = DROWN_INTERVAL
+          this.takeDamage(DROWN_DAMAGE, 0, 0, combat)
+        }
+      }
+    } else {
+      // Refill oxygen when out of water
+      this.oxygen = Math.min(this.maxOxygen, this.oxygen + OXYGEN_REFILL_RATE * (this.scene.game.loop.delta / 1000))
+      this.drownTimer = 0
     }
   }
 
   // ─── Movement ───────────────────────────────────────────────
 
   private handleMovement(dt: number, chunks: ChunkManager) {
+    // Detect if player is in water (check center tile)
+    const ptx = Math.floor(this.sprite.x / TILE_SIZE)
+    const pty = Math.floor(this.sprite.y / TILE_SIZE)
+    const tileMid = chunks.getTile(ptx, pty)
+    this.isInWater = tileMid === TileType.WATER
+
     const left = this.keyA.isDown || this.cursors.left.isDown
     const right = this.keyD.isDown || this.cursors.right.isDown
     const jump = Phaser.Input.Keyboard.JustDown(this.keySpace) ||
@@ -428,7 +501,12 @@ export class Player {
                  Phaser.Input.Keyboard.JustDown(this.cursors.up!)
 
     const mods = this.skills.getModifiers()
-    const speed = MOVE_SPEED * mods.moveSpeedMult
+    let speed = MOVE_SPEED * mods.moveSpeedMult
+
+    // Slow horizontal movement in water
+    if (this.isInWater) {
+      speed *= this.hasRebreather ? WATER_REBREATHER_MULT : WATER_MOVE_MULT
+    }
 
     if (left && !right) {
       this.vx = -speed
@@ -440,50 +518,70 @@ export class Player {
       this.vx = 0
     }
 
-    if (jump && this.isGrounded) {
-      this.vy = JUMP_VELOCITY
+    if (this.isInWater) {
+      // ── Water movement: hold up to swim up, hold down to sink, float otherwise ──
+      const holdUp = this.keySpace.isDown || this.keyW.isDown || this.cursors.up!.isDown
+      const holdDown = this.keyS.isDown || this.cursors.down!.isDown
+
+      if (holdUp) {
+        this.vy = WATER_SWIM_UP * (this.hasRebreather ? 1.4 : 1)
+      } else if (holdDown) {
+        this.vy = WATER_SWIM_DOWN
+      } else {
+        // Gentle buoyancy — slow drift upward if sinking, else hold position
+        this.vy += WATER_GRAVITY * dt
+        if (this.vy > WATER_MAX_FALL) this.vy = WATER_MAX_FALL
+        if (this.vy < -WATER_MAX_FALL) this.vy = -WATER_MAX_FALL
+      }
+
+      // Cancel fall damage tracking in water
+      this.maxFallVy = 0
       this.isGrounded = false
-      this.hasUsedDoubleJump = false
-      AudioManager.get()?.play(SoundId.JUMP)
-    } else if (jump && !this.isGrounded && mods.doubleJump && !this.hasUsedDoubleJump) {
-      // Double jump from skill
-      this.vy = JUMP_VELOCITY * 0.85
-      this.hasUsedDoubleJump = true
-      AudioManager.get()?.play(SoundId.JUMP)
-    }
-
-    // Jetpack flight — hold Space/W while airborne with jetpack
-    const holdJump = this.keySpace.isDown || this.keyW.isDown || this.cursors.up!.isDown
-    if (this.hasJetpack && holdJump && !this.isGrounded && this.jetpackFuel > 0) {
-      this.vy -= 1200 * dt // strong upward thrust
-      if (this.vy < -300) this.vy = -300
-      this.jetpackFuel -= 30 * mods.jetpackFuelMult * dt
-      if (this.jetpackFuel < 0) this.jetpackFuel = 0
-      AudioManager.get()?.play(SoundId.JETPACK_THRUST)
-
-      // Show flame
-      if (!this.jetpackFlame) {
-        this.jetpackFlame = this.scene.add.rectangle(
-          this.sprite.x, this.sprite.y + 17, 4, 6, 0xff6600
-        ).setDepth(9)
-      }
-      this.jetpackFlame.setPosition(this.sprite.x, this.sprite.y + 17)
-      this.jetpackFlame.fillColor = Math.random() > 0.5 ? 0xff6600 : 0xffaa00
     } else {
-      if (this.jetpackFlame) {
-        this.jetpackFlame.destroy()
-        this.jetpackFlame = null
+      // ── Normal land movement ──
+      if (jump && this.isGrounded) {
+        this.vy = JUMP_VELOCITY
+        this.isGrounded = false
+        this.hasUsedDoubleJump = false
+        AudioManager.get()?.play(SoundId.JUMP)
+      } else if (jump && !this.isGrounded && mods.doubleJump && !this.hasUsedDoubleJump) {
+        this.vy = JUMP_VELOCITY * 0.85
+        this.hasUsedDoubleJump = true
+        AudioManager.get()?.play(SoundId.JUMP)
       }
-    }
 
-    // Recharge jetpack fuel on ground
-    if (this.isGrounded && this.hasJetpack) {
-      this.jetpackFuel = Math.min(this.maxJetpackFuel, this.jetpackFuel + 50 * dt)
-    }
+      // Jetpack flight — hold Space/W while airborne with jetpack
+      const holdJump = this.keySpace.isDown || this.keyW.isDown || this.cursors.up!.isDown
+      if (this.hasJetpack && holdJump && !this.isGrounded && this.jetpackFuel > 0) {
+        this.vy -= 1200 * dt
+        if (this.vy < -300) this.vy = -300
+        this.jetpackFuel -= 30 * mods.jetpackFuelMult * dt
+        if (this.jetpackFuel < 0) this.jetpackFuel = 0
+        AudioManager.get()?.play(SoundId.JETPACK_THRUST)
 
-    this.vy += GRAVITY * dt
-    if (this.vy > MAX_FALL_SPEED) this.vy = MAX_FALL_SPEED
-    if (this.vy > this.maxFallVy) this.maxFallVy = this.vy
+        if (!this.jetpackFlame) {
+          this.jetpackFlame = this.scene.add.rectangle(
+            this.sprite.x, this.sprite.y + 17, 4, 6, 0xff6600
+          ).setDepth(9)
+        }
+        this.jetpackFlame.setPosition(this.sprite.x, this.sprite.y + 17)
+        this.jetpackFlame.fillColor = Math.random() > 0.5 ? 0xff6600 : 0xffaa00
+      } else {
+        if (this.jetpackFlame) {
+          this.jetpackFlame.destroy()
+          this.jetpackFlame = null
+        }
+      }
+
+      // Recharge jetpack fuel on ground
+      if (this.isGrounded && this.hasJetpack) {
+        this.jetpackFuel = Math.min(this.maxJetpackFuel, this.jetpackFuel + 50 * dt)
+      }
+
+      this.vy += GRAVITY * dt
+      if (this.vy > MAX_FALL_SPEED) this.vy = MAX_FALL_SPEED
+      if (this.vy > this.maxFallVy) this.maxFallVy = this.vy
+    }
 
     this.resolveX(this.vx * dt, chunks)
     this.resolveY(this.vy * dt, chunks)
@@ -540,12 +638,109 @@ export class Player {
       this.sprite.setTexture(newFrame)
       this.applySpriteScale()
     }
+
+    this.updateEquipmentOverlay()
   }
 
   /** Scale sprite so it displays at 16×32 world px regardless of source texture size */
   private applySpriteScale() {
     const h = this.sprite.frame.height
     this.sprite.setScale(h > 32 ? 0.5 : 1)
+  }
+
+  /** Draw armor tint overlays and held item sprite on the player */
+  private updateEquipmentOverlay() {
+    const armor = this.inventory.armorSlots
+    const selected = this.inventory.getSelectedItem()
+    const selectedId = selected ? selected.id : -1
+
+    // Build a hash to skip redraw when nothing changed
+    const hIds = `${armor.helmet?.id ?? ''}:${armor.chestplate?.id ?? ''}:${armor.leggings?.id ?? ''}:${armor.boots?.id ?? ''}:${selectedId}:${this.facingRight ? 'R' : 'L'}`
+    if (hIds === this.lastEquipHash) {
+      // Just update position
+      this.equipOverlay.setPosition(this.sprite.x, this.sprite.y)
+      if (this.heldItemSprite) {
+        const dir = this.facingRight ? 1 : -1
+        this.heldItemSprite.setPosition(this.sprite.x + dir * 8, this.sprite.y + 4)
+        this.heldItemSprite.setFlipX(!this.facingRight)
+      }
+      return
+    }
+    this.lastEquipHash = hIds
+
+    // Redraw armor overlay
+    this.equipOverlay.clear()
+    this.equipOverlay.setPosition(this.sprite.x, this.sprite.y)
+    // Origin is center of 16x32, so offset from -8,-16
+
+    // Helmet overlay (rows 2-9 → y -14 to -7 from center)
+    if (armor.helmet) {
+      const def = getItemDef(armor.helmet.id)
+      if (def) {
+        this.equipOverlay.fillStyle(def.color, 0.55)
+        this.equipOverlay.fillRect(-6, -14, 12, 8) // helmet dome
+        // Visor accent
+        this.equipOverlay.fillStyle(def.color, 0.3)
+        this.equipOverlay.fillRect(-4, -12, 8, 4)
+      }
+    }
+
+    // Chestplate overlay (rows 11-19 → y -5 to +3)
+    if (armor.chestplate) {
+      const def = getItemDef(armor.chestplate.id)
+      if (def) {
+        this.equipOverlay.fillStyle(def.color, 0.5)
+        this.equipOverlay.fillRect(-6, -5, 12, 9) // torso
+        // Shoulder pads
+        this.equipOverlay.fillRect(-7, -5, 2, 3)
+        this.equipOverlay.fillRect(5, -5, 2, 3)
+      }
+    }
+
+    // Leggings overlay (rows 20-27 → y +4 to +11)
+    if (armor.leggings) {
+      const def = getItemDef(armor.leggings.id)
+      if (def) {
+        this.equipOverlay.fillStyle(def.color, 0.5)
+        // Left leg
+        this.equipOverlay.fillRect(-4, 4, 4, 8)
+        // Right leg
+        this.equipOverlay.fillRect(0, 4, 4, 8)
+      }
+    }
+
+    // Boots overlay (rows 28-31 → y +12 to +15)
+    if (armor.boots) {
+      const def = getItemDef(armor.boots.id)
+      if (def) {
+        this.equipOverlay.fillStyle(def.color, 0.55)
+        this.equipOverlay.fillRect(-5, 12, 5, 4) // left boot
+        this.equipOverlay.fillRect(0, 12, 5, 4) // right boot
+      }
+    }
+
+    // Held item sprite
+    const selDef = selectedId >= 0 ? getItemDef(selectedId) : undefined
+    const showHeld = selDef && (selDef.category === ItemCategory.WEAPON || selDef.category === ItemCategory.TOOL)
+    if (showHeld) {
+      const texKey = `item_${selectedId}`
+      if (this.scene.textures.exists(texKey)) {
+        if (!this.heldItemSprite) {
+          this.heldItemSprite = this.scene.add.image(0, 0, texKey)
+          this.heldItemSprite.setDepth(12)
+          this.heldItemSprite.setScale(0.75)
+        } else {
+          this.heldItemSprite.setTexture(texKey)
+        }
+        this.heldItemSprite.setVisible(true)
+        const dir = this.facingRight ? 1 : -1
+        this.heldItemSprite.setPosition(this.sprite.x + dir * 8, this.sprite.y + 4)
+        this.heldItemSprite.setFlipX(!this.facingRight)
+        this.heldItemSprite.setAlpha(this.sprite.alpha)
+      }
+    } else {
+      if (this.heldItemSprite) this.heldItemSprite.setVisible(false)
+    }
   }
 
   /** Trigger a mining animation */
@@ -736,8 +931,9 @@ export class Player {
 
     const itemDef = ITEMS[item.id]
 
-    if (itemDef && STATION_ITEM_MAP[item.id]) {
-      chunks.setTile(tx, ty, TileType.STONE)
+    const stationTile = STATION_TILE_TYPE[item.id]
+    if (itemDef && stationTile) {
+      chunks.setTile(tx, ty, stationTile)
       chunks.placeStation(tx, ty, item.id)
       this.inventory.consumeSelected()
       AudioManager.get()?.play(SoundId.PLACE_BLOCK)

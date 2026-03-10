@@ -15,7 +15,7 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     // Load PixelLab-generated tile PNGs (take priority over procedural sprites)
-    for (let i = 1; i <= 13; i++) {
+    for (let i = 1; i <= 19; i++) {
       this.load.image(`tile_${i}`, `/sprites/tile_${i}.png`)
     }
 
@@ -31,7 +31,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('player_attack2', '/sprites/player_attack2.png')
 
     // Load enemy PNGs
-    const enemies = ['space_slug', 'cave_bat', 'rock_golem', 'anglerfish', 'lava_serpent', 'corrupted_drone']
+    const enemies = ['space_slug', 'cave_bat', 'rock_golem', 'anglerfish', 'lava_serpent', 'corrupted_drone', 'vampire']
     for (const e of enemies) {
       this.load.image(`enemy_${e}`, `/sprites/enemy_${e}.png`)
     }
@@ -42,8 +42,7 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`boss_${b}`, `/sprites/boss_${b}.png`)
     }
 
-    // Load projectile & summon PNGs
-    this.load.image('proj_arrow', '/sprites/proj_arrow.png')
+    // Load projectile & summon PNGs (proj_arrow skipped — PNG is too dark, use procedural)
     this.load.image('proj_magic', '/sprites/proj_magic.png')
     this.load.image('proj_enemy', '/sprites/proj_enemy.png')
     this.load.image('summon_minion', '/sprites/summon_minion.png')
@@ -124,11 +123,10 @@ export class BootScene extends Phaser.Scene {
     })
 
     // Step 3: Load or generate world (the heavy part)
-    const loadSave = this.registry.get('loadSave') as boolean | undefined
-    this.registry.remove('loadSave')
+    const loadSlotId = this.registry.get('loadSlotId') as string | undefined
 
-    if (loadSave) {
-      const saveData = SaveManager.load()
+    if (loadSlotId) {
+      const saveData = SaveManager.load(loadSlotId)
       if (saveData) {
         steps.push({
           label: 'Loading saved world...',
@@ -144,6 +142,9 @@ export class BootScene extends Phaser.Scene {
             }
             this.registry.set('worldData', worldData)
             this.registry.set('saveData', saveData)
+            // Pass slot info so WorldScene knows which slot to auto-save to
+            this.registry.set('loadSlotId', loadSlotId)
+            this.registry.set('loadSlotName', saveData.name)
           },
         })
       }

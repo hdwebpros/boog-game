@@ -1,0 +1,80 @@
+// Day/Night cycle system
+// A full day lasts ~8 minutes real-time (480 seconds)
+// Night is darker, spawns more enemies, and enables night-only monsters
+
+const DAY_LENGTH = 480 // seconds per full cycle
+const DAWN_START = 0.20  // 20% — sunrise begins
+const DAWN_END = 0.30    // 30% — full daylight
+const DUSK_START = 0.70  // 70% — sunset begins
+const DUSK_END = 0.80    // 80% — full night
+
+export class DayNightCycle {
+  /** 0..1 representing progress through the day (0 = midnight, 0.5 = noon) */
+  time = 0.25 // start at dawn
+
+  update(dt: number) {
+    this.time = (this.time + dt / DAY_LENGTH) % 1
+  }
+
+  /** Returns true if it's currently "night" (for spawn rules) */
+  get isNight(): boolean {
+    return this.time < DAWN_START || this.time >= DUSK_END
+  }
+
+  /** Returns true during transition periods (dawn/dusk) */
+  get isTwilight(): boolean {
+    return (this.time >= DAWN_START && this.time < DAWN_END) ||
+           (this.time >= DUSK_START && this.time < DUSK_END)
+  }
+
+  /**
+   * Returns darkness alpha for the overlay (0 = fully lit, up to ~0.55 at midnight).
+   * Underground areas use their own darkness so this is mainly for surface.
+   */
+  get darkness(): number {
+    if (this.time >= DAWN_END && this.time < DUSK_START) {
+      // Full day — no darkness
+      return 0
+    }
+    if (this.time >= DAWN_START && this.time < DAWN_END) {
+      // Dawn transition
+      const t = (this.time - DAWN_START) / (DAWN_END - DAWN_START)
+      return 0.55 * (1 - t)
+    }
+    if (this.time >= DUSK_START && this.time < DUSK_END) {
+      // Dusk transition
+      const t = (this.time - DUSK_START) / (DUSK_END - DUSK_START)
+      return 0.55 * t
+    }
+    // Full night — max darkness
+    return 0.55
+  }
+
+  /** Spawn rate multiplier — more enemies at night */
+  get spawnMultiplier(): number {
+    return this.isNight ? 2.0 : 1.0
+  }
+
+  /** Time of day label for UI */
+  get label(): string {
+    if (this.time < DAWN_START) return 'Night'
+    if (this.time < DAWN_END) return 'Dawn'
+    if (this.time < DUSK_START) return 'Day'
+    if (this.time < DUSK_END) return 'Dusk'
+    return 'Night'
+  }
+
+  /** Sky tint color for the overlay */
+  get tintColor(): number {
+    if (this.isNight) return 0x0a0a2a // deep blue night
+    if (this.isTwilight) {
+      if (this.time < 0.3) {
+        // Dawn — warm orange tint
+        return 0x2a1a0a
+      }
+      // Dusk — purple/orange tint
+      return 0x1a0a2a
+    }
+    return 0x000000
+  }
+}

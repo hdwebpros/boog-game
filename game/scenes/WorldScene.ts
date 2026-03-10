@@ -11,9 +11,11 @@ import { BOSS_DEFS, BossType } from '../data/bosses'
 import { EnemyType, ENEMY_DEFS } from '../data/enemies'
 import { getItemDef, ItemCategory } from '../data/items'
 import { DroppedItem } from '../entities/DroppedItem'
+import { SaveManager } from '../systems/SaveManager'
 import type { SaveData } from '../systems/SaveManager'
 import { AudioManager, MusicTrack } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
+import { DayNightCycle } from '../systems/DayNightCycle'
 
 // Y pixel threshold for underground music (UNDERGROUND_START=130 tiles * 16px)
 const UNDERGROUND_Y = 130 * 16
@@ -28,6 +30,13 @@ export class WorldScene extends Phaser.Scene {
   private activeBoss: Boss | null = null
   private droppedItems: DroppedItem[] = []
   private keyF!: Phaser.Input.Keyboard.Key
+  private autoSaveTimer = 0
+  private boundBeforeUnload: (() => void) | null = null
+  private saveSlotId: string | null = null
+  private saveSlotName: string | null = null
+  private dayNight = new DayNightCycle()
+  private darknessOverlay!: Phaser.GameObjects.Rectangle
+  private wasNight = false
 
   constructor() {
     super({ key: 'WorldScene' })
@@ -38,6 +47,13 @@ export class WorldScene extends Phaser.Scene {
 
     // Sky gradient background
     this.createSkyBackground()
+
+    // Darkness overlay for day/night cycle (covers full screen, fixed to camera)
+    this.darknessOverlay = this.add.rectangle(400, 300, 800, 600, 0x0a0a2a, 0)
+      .setScrollFactor(0)
+      .setDepth(50) // above tiles (depth 0-10) but below UI (depth 100+)
+    // Reset cycle on new game
+    this.dayNight = new DayNightCycle()
 
     // Chunk-based tile rendering
     this.chunkManager = new ChunkManager(this, this.worldData)
@@ -58,6 +74,12 @@ export class WorldScene extends Phaser.Scene {
     const spawnPy = this.worldData.spawnY * TILE_SIZE + TILE_SIZE / 2
     this.player = new Player(this, spawnPx, spawnPy)
 
+    // Restore save slot info
+    this.saveSlotId = (this.registry.get('loadSlotId') as string | undefined) ?? null
+    this.saveSlotName = (this.registry.get('loadSlotName') as string | undefined) ?? null
+    this.registry.remove('loadSlotId')
+    this.registry.remove('loadSlotName')
+
     // Restore save data if loading
     const saveData = this.registry.get('saveData') as SaveData | undefined
     if (saveData) {
@@ -71,6 +93,7 @@ export class WorldScene extends Phaser.Scene {
       }
       this.player.inventory.selectedSlot = saveData.selectedSlot
       this.player.hasJetpack = saveData.hasJetpack
+      this.player.hasRebreather = saveData.hasRebreather ?? false
       if (saveData.armorSlots) {
         this.player.inventory.armorSlots = saveData.armorSlots
       }
@@ -81,6 +104,10 @@ export class WorldScene extends Phaser.Scene {
       // Restore skill tree
       if (saveData.skills) {
         this.player.skills.loadSaveData(saveData.skills)
+      }
+      // Restore day/night cycle time
+      if (saveData.dayNightTime != null) {
+        this.dayNight.time = saveData.dayNightTime
       }
       this.registry.remove('saveData')
     }
@@ -145,10 +172,60 @@ export class WorldScene extends Phaser.Scene {
 
     // Launch UI overlay
     this.scene.launch('UIScene')
+
+    // Auto-save: on page unload (refresh/close)
+    this.boundBeforeUnload = () => this.performSave()
+    window.addEventListener('beforeunload', this.boundBeforeUnload)
+
+    // Clean up beforeunload listener when scene stops
+    this.events.on('shutdown', () => {
+      if (this.boundBeforeUnload) {
+        window.removeEventListener('beforeunload', this.boundBeforeUnload)
+        this.boundBeforeUnload = null
+      }
+    })
+
+    // Reset auto-save timer
+    this.autoSaveTimer = 0
   }
 
   override update(_time: number, delta: number) {
     const dt = delta / 1000
+
+    // Advance day/night cycle
+    this.dayNight.update(dt)
+
+    // Night transition notifications
+    const nowNight = this.dayNight.isNight
+    if (nowNight && !this.wasNight) {
+      const text = this.add.text(
+        this.cameras.main.centerX, this.cameras.main.centerY - 100,
+        'Night falls... beware!',
+        {
+          fontSize: '18px', color: '#8888ff', fontFamily: 'monospace',
+          stroke: '#000000', strokeThickness: 4,
+        }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
+      this.tweens.add({ targets: text, alpha: 0, duration: 1500, delay: 2000, onComplete: () => text.destroy() })
+    } else if (!nowNight && this.wasNight) {
+      const text = this.add.text(
+        this.cameras.main.centerX, this.cameras.main.centerY - 100,
+        'Dawn breaks...',
+        {
+          fontSize: '18px', color: '#ffaa44', fontFamily: 'monospace',
+          stroke: '#000000', strokeThickness: 4,
+        }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
+      this.tweens.add({ targets: text, alpha: 0, duration: 1500, delay: 2000, onComplete: () => text.destroy() })
+    }
+    this.wasNight = nowNight
+
+    // Apply darkness overlay (only affects surface — fade out when deep underground)
+    const playerTY = Math.floor(this.player.sprite.y / TILE_SIZE)
+    const undergroundFade = Math.min(1, Math.max(0, (playerTY - 100) / 60)) // fade out 100-160 tiles deep
+    const effectiveDarkness = this.dayNight.darkness * (1 - undergroundFade)
+    this.darknessOverlay.fillColor = this.dayNight.tintColor
+    this.darknessOverlay.fillAlpha = effectiveDarkness
 
     // Combine enemies + boss for player combat
     const allTargets = this.activeBoss && this.activeBoss.alive
@@ -162,7 +239,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Spawn enemies (not during boss fight)
     if (!this.activeBoss || !this.activeBoss.alive) {
-      this.enemySpawner.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y, this.enemies)
+      this.enemySpawner.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y, this.enemies, this.dayNight.isNight)
     }
 
     // Update enemies
@@ -221,6 +298,27 @@ export class WorldScene extends Phaser.Scene {
       this.player.takeDamage(playerHit.damage, playerHit.kbx, playerHit.kby, this.combat)
     }
 
+    // Check boss death after combat (killing blow may come from combat.update)
+    if (this.activeBoss && !this.activeBoss.alive) {
+      this.onBossDefeated()
+    }
+
+    // Kill night-only enemies when day arrives
+    if (!this.dayNight.isNight) {
+      for (const enemy of this.enemies) {
+        if (enemy.alive && enemy.def.nightOnly) {
+          enemy.alive = false
+          // Burn-up effect
+          this.tweens.add({
+            targets: enemy.sprite,
+            alpha: 0, scaleX: 0.3, scaleY: 0.3,
+            duration: 400,
+            onComplete: () => { if (enemy.sprite.active) enemy.sprite.destroy() }
+          })
+        }
+      }
+    }
+
     // Clean up dead enemies
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i]
@@ -248,8 +346,18 @@ export class WorldScene extends Phaser.Scene {
     // Check if player has assembled the jetpack
     this.checkJetpack()
 
+    // Check if player has crafted the rebreather
+    this.checkRebreather()
+
     this.chunkManager.update()
     this.updateMusic()
+
+    // Auto-save every 60 seconds
+    this.autoSaveTimer += dt
+    if (this.autoSaveTimer >= 60) {
+      this.autoSaveTimer = 0
+      this.performSave()
+    }
   }
 
   private updateMusic() {
@@ -299,6 +407,24 @@ export class WorldScene extends Phaser.Scene {
       ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
 
       this.time.delayedCall(5000, () => text.destroy())
+    }
+  }
+
+  private checkRebreather() {
+    if (this.player.hasRebreather) return
+    if (this.player.inventory.getCount(192) > 0) {
+      this.player.hasRebreather = true
+
+      const text = this.add.text(
+        this.cameras.main.centerX, this.cameras.main.centerY - 100,
+        'REBREATHER EQUIPPED!\nSwim faster and breathe underwater!',
+        {
+          fontSize: '18px', color: '#00cccc', fontFamily: 'monospace',
+          align: 'center', stroke: '#000000', strokeThickness: 4,
+        }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
+
+      this.time.delayedCall(4000, () => text.destroy())
     }
   }
 
@@ -461,6 +587,40 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  performSave(overrideSlotId?: string, overrideName?: string): boolean {
+    if (this.player.dead) return false
+    const worldData = this.registry.get('worldData') as WorldData
+    if (!worldData) return false
+
+    const slotId = overrideSlotId ?? this.saveSlotId ?? SaveManager.generateSlotId()
+    const slotName = overrideName ?? this.saveSlotName ?? 'World'
+
+    // Remember for future auto-saves
+    this.saveSlotId = slotId
+    this.saveSlotName = slotName
+
+    return SaveManager.save(
+      slotId,
+      slotName,
+      worldData,
+      this.player.sprite.x, this.player.sprite.y,
+      this.player.hp, this.player.mana,
+      this.player.inventory.hotbar,
+      this.player.inventory.mainInventory,
+      this.player.inventory.selectedSlot,
+      this.chunkManager.getPlacedStations(),
+      this.player.hasJetpack,
+      this.player.hasRebreather,
+      this.player.inventory.armorSlots,
+      this.player.skills.toSaveData(),
+      this.dayNight.time
+    )
+  }
+
+  getSaveSlotName(): string | null {
+    return this.saveSlotName
+  }
+
   getChunkManager(): ChunkManager {
     return this.chunkManager
   }
@@ -479,5 +639,9 @@ export class WorldScene extends Phaser.Scene {
 
   getActiveBoss(): Boss | null {
     return this.activeBoss
+  }
+
+  getDayNight(): DayNightCycle {
+    return this.dayNight
   }
 }

@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import type { EnemyDef } from '../data/enemies'
 import { EnemyAI } from '../data/enemies'
 import { ChunkManager } from '../world/ChunkManager'
-import { TILE_SIZE } from '../world/TileRegistry'
+import { TILE_SIZE, TileType } from '../world/TileRegistry'
 
 const GRAVITY = 600
 const DESPAWN_DIST = 800 // pixels from camera edge
@@ -259,40 +259,52 @@ export class Enemy {
   }
 
   private aiLure(dt: number, chunks: ChunkManager, playerX: number, playerY: number, distToPlayer: number) {
-    // Swimming/floating enemy
+    // Swimming/floating enemy — stays in water
     this.aiTimer -= dt * 1000
 
-    if (distToPlayer < 150) {
-      // Lunge at player
-      const dx = playerX - this.sprite.x
-      const dy = playerY - this.sprite.y
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      this.vx = (dx / dist) * this.def.speed * 2
-      this.vy = (dy / dist) * this.def.speed * 2
-    } else if (distToPlayer < 300) {
-      // Slowly approach
-      const dx = playerX - this.sprite.x
-      const dy = playerY - this.sprite.y
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      this.vx = (dx / dist) * this.def.speed * 0.3
-      this.vy = (dy / dist) * this.def.speed * 0.3
+    // Check if currently in water
+    const cx = Math.floor(this.sprite.x / TILE_SIZE)
+    const cy = Math.floor(this.sprite.y / TILE_SIZE)
+    const inWater = chunks.getTile(cx, cy) === TileType.WATER
+
+    if (!inWater) {
+      // Apply gravity to pull back into water
+      this.vy += GRAVITY * dt
+      if (this.vy > 500) this.vy = 500
     } else {
-      // Drift
-      if (this.aiTimer <= 0) {
-        this.aiTimer = 2000 + Math.random() * 2000
-        this.vx = (Math.random() - 0.5) * this.def.speed * 0.5
-        this.vy = (Math.random() - 0.5) * this.def.speed * 0.3
+      if (distToPlayer < 150) {
+        // Lunge at player
+        const dx = playerX - this.sprite.x
+        const dy = playerY - this.sprite.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        this.vx = (dx / dist) * this.def.speed * 2
+        this.vy = (dy / dist) * this.def.speed * 2
+      } else if (distToPlayer < 300) {
+        // Slowly approach
+        const dx = playerX - this.sprite.x
+        const dy = playerY - this.sprite.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        this.vx = (dx / dist) * this.def.speed * 0.3
+        this.vy = (dy / dist) * this.def.speed * 0.3
+      } else {
+        // Drift
+        if (this.aiTimer <= 0) {
+          this.aiTimer = 2000 + Math.random() * 2000
+          this.vx = (Math.random() - 0.5) * this.def.speed * 0.5
+          this.vy = (Math.random() - 0.5) * this.def.speed * 0.3
+        }
       }
+
+      // Dampen velocity in water
+      this.vx *= 0.95
+      this.vy *= 0.95
     }
 
     this.facingRight = this.vx > 0
     if ('setFlipX' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setFlipX(!this.facingRight)
-    this.sprite.x += this.vx * dt
-    this.sprite.y += this.vy * dt
 
-    // Dampen velocity in water
-    this.vx *= 0.95
-    this.vy *= 0.95
+    // Use tile collision to prevent clipping through terrain
+    this.resolveMovement(dt, chunks)
 
     return { shootAtPlayer: false }
   }

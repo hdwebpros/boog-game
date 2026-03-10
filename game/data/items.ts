@@ -115,6 +115,7 @@ export const ITEMS: Record<number, ItemDef> = {
   // ── Consumables ─────────────────────────────────────────
   190: { id: 190, name: 'Healing Herb',  category: ItemCategory.CONSUMABLE, stackSize: 30, tier: 0, color: 0x33cc33, healAmount: 25 },
   191: { id: 191, name: 'Cooked Meat',   category: ItemCategory.CONSUMABLE, stackSize: 20, tier: 0, color: 0xcc6633, healAmount: 50 },
+  192: { id: 192, name: 'Rebreather',    category: ItemCategory.SPECIAL,    stackSize: 1,  tier: 2, color: 0x00cccc },
 
   // ── Armor: Wood (Tier 0) ──────────────────────────────
   200: { id: 200, name: 'Wood Helmet',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'helmet' },

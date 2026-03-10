@@ -3,10 +3,12 @@ import { Enemy } from '../entities/Enemy'
 import type { EnemyDef } from '../data/enemies'
 import { ENEMY_DEFS } from '../data/enemies'
 import { ChunkManager } from '../world/ChunkManager'
-import { TILE_SIZE, WORLD_WIDTH } from '../world/TileRegistry'
+import { TILE_SIZE, WORLD_WIDTH, TileType } from '../world/TileRegistry'
 
-const MAX_ENEMIES = 15
-const SPAWN_INTERVAL = 2000 // ms
+const MAX_ENEMIES_DAY = 15
+const MAX_ENEMIES_NIGHT = 22
+const SPAWN_INTERVAL_DAY = 2000 // ms
+const SPAWN_INTERVAL_NIGHT = 1200 // ms — faster spawns at night
 const SPAWN_RANGE_MIN = 400 // min px from player
 const SPAWN_RANGE_MAX = 700 // max px from player
 const OCEAN_WIDTH = 350
@@ -26,15 +28,19 @@ export class EnemySpawner {
     chunks: ChunkManager,
     playerX: number,
     playerY: number,
-    enemies: Enemy[]
+    enemies: Enemy[],
+    isNight = false
   ) {
+    const spawnInterval = isNight ? SPAWN_INTERVAL_NIGHT : SPAWN_INTERVAL_DAY
+    const maxEnemies = isNight ? MAX_ENEMIES_NIGHT : MAX_ENEMIES_DAY
+
     this.timer -= dt * 1000
     if (this.timer > 0) return
-    this.timer = SPAWN_INTERVAL
+    this.timer = spawnInterval
 
     // Don't exceed max
     const aliveCount = enemies.filter(e => e.alive).length
-    if (aliveCount >= MAX_ENEMIES) return
+    if (aliveCount >= maxEnemies) return
 
     // Pick a spawn position near the player but off-screen
     const cam = this.scene.cameras.main
@@ -71,6 +77,7 @@ export class EnemySpawner {
       if (spawnTY < def.biomeYMin || spawnTY > def.biomeYMax) return false
       if (def.oceanOnly && !isOcean) return false
       if (!def.oceanOnly && isOcean) return false
+      if (def.nightOnly && !isNight) return false
       return true
     })
 
@@ -79,9 +86,15 @@ export class EnemySpawner {
     const def = valid[Math.floor(Math.random() * valid.length)]!
 
     // Check spawn tile is passable for the enemy
-    const isFlying = def.ai === 'swoop' || def.ai === 'ranged' || def.ai === 'lure'
+    const isFlying = def.ai === 'swoop' || def.ai === 'ranged'
+    const isAquatic = def.ai === 'lure'
 
-    if (!isFlying) {
+    if (isAquatic) {
+      // Aquatic enemy: must spawn in a water tile
+      if (chunks.getTile(spawnTX, spawnTY) !== TileType.WATER) return
+      const enemy = new Enemy(this.scene, spawnX, spawnY, def)
+      enemies.push(enemy)
+    } else if (!isFlying) {
       // Ground enemy: need air above solid ground
       if (chunks.isSolid(spawnTX, spawnTY)) return
       // Find ground below
