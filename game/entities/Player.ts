@@ -8,6 +8,7 @@ import { ITEMS, ItemCategory, getItemDef } from '../data/items'
 import { STATION_ITEM_MAP } from '../data/recipes'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
+import { SkillTreeManager } from '../systems/SkillTreeManager'
 
 // Physics
 const MOVE_SPEED = 200
@@ -15,9 +16,9 @@ const JUMP_VELOCITY = -380
 const GRAVITY = 900
 const MAX_FALL_SPEED = 700
 
-// Collision box (smaller than 32×64 visual for forgiving movement)
-const COL_W = 20
-const COL_H = 56
+// Collision box — player displays at 16×32 (1 tile wide, 2 tiles tall)
+const COL_W = 12
+const COL_H = 28
 
 // Fall damage
 const FALL_DMG_THRESHOLD = 450
@@ -37,6 +38,7 @@ const RESPAWN_DELAY = 2000 // ms
 export class Player {
   sprite: Phaser.GameObjects.Image
   inventory: InventoryManager
+  skills: SkillTreeManager
 
   vx = 0
   vy = 0
@@ -69,8 +71,10 @@ export class Player {
   // Mining/placement overlay
   private overlay: Phaser.GameObjects.Graphics
 
-  // Crafting UI state
+  // UI state
   craftingOpen = false
+  inventoryOpen = false
+  skillTreeOpen = false
 
   // Combat
   private iFrames = 0
@@ -79,6 +83,9 @@ export class Player {
   private spawnX: number
   private spawnY: number
   private flashTimer = 0
+
+  // Double jump tracking
+  private hasUsedDoubleJump = false
 
   // Jetpack
   hasJetpack = false
@@ -96,14 +103,16 @@ export class Player {
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene
     this.inventory = new InventoryManager()
+    this.skills = new SkillTreeManager()
     this.spawnX = x
     this.spawnY = y
 
-    // Visual: 32×64 sprite (pixel art astronaut)
+    // Visual: sprite scaled to 16×32 world px (1 tile wide, 2 tiles tall)
     const texKey = scene.textures.exists('player_idle1') ? 'player_idle1' : 'player'
     this.sprite = scene.add.image(x, y, texKey)
     this.sprite.setOrigin(0.5, 0.5)
     this.sprite.setDepth(10)
+    this.applySpriteScale()
 
     // Overlay for tile highlights and mining progress
     this.overlay = scene.add.graphics()
@@ -121,11 +130,16 @@ export class Player {
     for (let i = 0; i <= 9; i++) {
       const key = kb.addKey(48 + i) // KeyCodes 48='0', 49='1', ...
       const slot = i === 0 ? 9 : i - 1
-      key.on('down', () => { this.inventory.selectedSlot = slot; AudioManager.get()?.play(SoundId.SLOT_CHANGE) })
+      key.on('down', () => {
+        if (this.inventoryOpen) return
+        this.inventory.selectedSlot = slot
+        AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+      })
     }
 
     // Mouse wheel slot cycling
     scene.input.on('wheel', (_pointer: Phaser.Input.Pointer, _dx: number[], _dy: number[], dz: number) => {
+      if (this.inventoryOpen || this.craftingOpen) return
       if (dz > 0) {
         this.inventory.selectedSlot = (this.inventory.selectedSlot + 1) % 10
       } else if (dz < 0) {
@@ -136,15 +150,46 @@ export class Player {
 
     // C key toggles crafting UI
     const keyC = kb.addKey(Phaser.Input.Keyboard.KeyCodes.C)
-    keyC.on('down', () => { this.craftingOpen = !this.craftingOpen })
+    keyC.on('down', () => {
+      this.craftingOpen = !this.craftingOpen
+      if (this.craftingOpen) {
+        this.inventoryOpen = false
+        this.inventory.returnHeldItem()
+      }
+    })
 
-    // ESC closes crafting
-    const keyEsc = kb.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
-    keyEsc.on('down', () => { this.craftingOpen = false })
+    // E key toggles inventory
+    const keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E)
+    keyE.on('down', () => {
+      if (this.inventoryOpen) {
+        this.inventoryOpen = false
+        this.inventory.returnHeldItem()
+      } else {
+        this.inventoryOpen = true
+        this.craftingOpen = false
+      }
+    })
 
-    // Q key uses consumable
+    // K key toggles skill tree
+    const keyK = kb.addKey(Phaser.Input.Keyboard.KeyCodes.K)
+    keyK.on('down', () => {
+      this.skillTreeOpen = !this.skillTreeOpen
+      if (this.skillTreeOpen) {
+        this.craftingOpen = false
+        this.inventoryOpen = false
+        this.inventory.returnHeldItem()
+      }
+    })
+
+    // ESC handled by WorldScene to coordinate with pause menu
+
+    // Q key drops selected item
     const keyQ = kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q)
-    keyQ.on('down', () => { this.useConsumable() })
+    keyQ.on('down', () => { this.dropItem() })
+
+    // I key uses consumable
+    const keyI = kb.addKey(Phaser.Input.Keyboard.KeyCodes.I)
+    keyI.on('down', () => { this.useConsumable() })
   }
 
   update(dt: number, chunks: ChunkManager, combat?: CombatSystem, enemies?: Enemy[]) {
@@ -156,8 +201,18 @@ export class Player {
       return
     }
 
-    // Mana regen
-    this.mana = Math.min(this.maxMana, this.mana + MANA_REGEN * dt)
+    // Apply skill-based max HP/mana bonuses
+    const mods = this.skills.getModifiers()
+    this.maxHp = MAX_HP + mods.maxHpBonus
+    this.maxMana = MAX_MANA + mods.maxManaBonus
+
+    // Mana regen (with skill multiplier)
+    this.mana = Math.min(this.maxMana, this.mana + MANA_REGEN * mods.manaRegenMult * dt)
+
+    // HP regen from skills
+    if (mods.hpRegen > 0 && this.hp < this.maxHp) {
+      this.hp = Math.min(this.maxHp, this.hp + mods.hpRegen * dt)
+    }
 
     // I-frames
     this.iFrames -= dt * 1000
@@ -172,8 +227,10 @@ export class Player {
     }
 
     this.handleMovement(dt, chunks)
-    this.handleMining(dt, chunks)
-    this.handleCombat(dt, chunks, combat, enemies)
+    if (!this.inventoryOpen) {
+      this.handleMining(dt, chunks)
+      this.handleCombat(dt, chunks, combat, enemies)
+    }
     this.handleEnemyCollision(dt, enemies, combat)
     this.checkEnvironmentDamage(chunks, combat)
     this.drawOverlay(chunks)
@@ -181,6 +238,19 @@ export class Player {
 
   takeDamage(amount: number, kbx: number, kby: number, combat?: CombatSystem) {
     if (this.iFrames > 0 || this.dead) return
+    const mods = this.skills.getModifiers()
+    const defense = this.inventory.getTotalDefense() + mods.defenseBonus
+    amount = Math.max(1, amount - defense)
+
+    // Mana shield: redirect portion of damage to mana
+    if (mods.manaShieldPct > 0 && this.mana > 0) {
+      const shielded = Math.floor(amount * mods.manaShieldPct)
+      const manaCost = shielded * 2 // each point of shielded damage costs 2 mana
+      const actualShield = Math.min(shielded, Math.floor(this.mana / 2))
+      this.mana -= actualShield * 2
+      amount -= actualShield
+    }
+
     this.hp -= amount
     this.iFrames = IFRAMES_DURATION
     this.vx += kbx
@@ -194,7 +264,7 @@ export class Player {
     })
 
     if (combat) {
-      combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 20, amount, 0xff4444)
+      combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 10, amount, 0xff4444)
     }
 
     if (this.hp <= 0) {
@@ -237,6 +307,19 @@ export class Player {
     }
   }
 
+  private dropItem() {
+    const item = this.inventory.getSelectedItem()
+    if (!item) return
+    const id = item.id
+    if (!this.inventory.consumeSelected()) return
+    // Spawn a world drop via WorldScene
+    const ws = this.scene as any
+    if (typeof ws.spawnDrop === 'function') {
+      const dir = this.facingRight ? 1 : -1
+      ws.spawnDrop(this.sprite.x + dir * 16, this.sprite.y, id, 1)
+    }
+  }
+
   // ─── Combat ─────────────────────────────────────────────────
 
   private handleCombat(dt: number, chunks: ChunkManager, combat?: CombatSystem, enemies?: Enemy[]) {
@@ -259,12 +342,16 @@ export class Player {
 
     this.attackCooldown = def.attackSpeed ?? 400
 
+    const cam = this.scene.cameras.main
+    const wp = cam.getWorldPoint(pointer.x, pointer.y)
+    const worldCursorX = wp.x
+    const worldCursorY = wp.y
+
+    // Face the direction of the cursor when attacking
+    this.facingRight = worldCursorX >= this.sprite.x
+
     // Play attack animation for melee/ranged
     this.playAttackAnim()
-
-    const cam = this.scene.cameras.main
-    const worldCursorX = pointer.x + cam.scrollX
-    const worldCursorY = pointer.y + cam.scrollY
 
     switch (def.weaponStyle) {
       case 'melee':
@@ -330,11 +417,14 @@ export class Player {
                  Phaser.Input.Keyboard.JustDown(this.keyW) ||
                  Phaser.Input.Keyboard.JustDown(this.cursors.up!)
 
+    const mods = this.skills.getModifiers()
+    const speed = MOVE_SPEED * mods.moveSpeedMult
+
     if (left && !right) {
-      this.vx = -MOVE_SPEED
+      this.vx = -speed
       this.facingRight = false
     } else if (right && !left) {
-      this.vx = MOVE_SPEED
+      this.vx = speed
       this.facingRight = true
     } else {
       this.vx = 0
@@ -343,6 +433,12 @@ export class Player {
     if (jump && this.isGrounded) {
       this.vy = JUMP_VELOCITY
       this.isGrounded = false
+      this.hasUsedDoubleJump = false
+      AudioManager.get()?.play(SoundId.JUMP)
+    } else if (jump && !this.isGrounded && mods.doubleJump && !this.hasUsedDoubleJump) {
+      // Double jump from skill
+      this.vy = JUMP_VELOCITY * 0.85
+      this.hasUsedDoubleJump = true
       AudioManager.get()?.play(SoundId.JUMP)
     }
 
@@ -351,17 +447,17 @@ export class Player {
     if (this.hasJetpack && holdJump && !this.isGrounded && this.jetpackFuel > 0) {
       this.vy -= 1200 * dt // strong upward thrust
       if (this.vy < -300) this.vy = -300
-      this.jetpackFuel -= 30 * dt
+      this.jetpackFuel -= 30 * mods.jetpackFuelMult * dt
       if (this.jetpackFuel < 0) this.jetpackFuel = 0
       AudioManager.get()?.play(SoundId.JETPACK_THRUST)
 
       // Show flame
       if (!this.jetpackFlame) {
         this.jetpackFlame = this.scene.add.rectangle(
-          this.sprite.x, this.sprite.y + 34, 8, 12, 0xff6600
+          this.sprite.x, this.sprite.y + 17, 4, 6, 0xff6600
         ).setDepth(9)
       }
-      this.jetpackFlame.setPosition(this.sprite.x, this.sprite.y + 34)
+      this.jetpackFlame.setPosition(this.sprite.x, this.sprite.y + 17)
       this.jetpackFlame.fillColor = Math.random() > 0.5 ? 0xff6600 : 0xffaa00
     } else {
       if (this.jetpackFlame) {
@@ -432,7 +528,14 @@ export class Player {
     if (newFrame !== this.animFrame && this.scene.textures.exists(newFrame)) {
       this.animFrame = newFrame
       this.sprite.setTexture(newFrame)
+      this.applySpriteScale()
     }
+  }
+
+  /** Scale sprite so it displays at 16×32 world px regardless of source texture size */
+  private applySpriteScale() {
+    const h = this.sprite.frame.height
+    this.sprite.setScale(h > 32 ? 0.5 : 1)
   }
 
   /** Trigger a mining animation */
@@ -505,8 +608,9 @@ export class Player {
   }
 
   private applyFallDamage() {
-    const damage = Math.floor((this.maxFallVy - FALL_DMG_THRESHOLD) * FALL_DMG_FACTOR)
-    this.takeDamage(damage, 0, 0)
+    const mods = this.skills.getModifiers()
+    const damage = Math.floor((this.maxFallVy - FALL_DMG_THRESHOLD) * FALL_DMG_FACTOR * mods.fallDamageMult)
+    if (damage > 0) this.takeDamage(damage, 0, 0)
   }
 
   // ─── Mining & Placement ─────────────────────────────────────
@@ -514,10 +618,9 @@ export class Player {
   getCursorTile(): { tx: number; ty: number; inRange: boolean } {
     const pointer = this.scene.input.activePointer
     const cam = this.scene.cameras.main
-    const wx = pointer.x + cam.scrollX
-    const wy = pointer.y + cam.scrollY
-    const tx = Math.floor(wx / TILE_SIZE)
-    const ty = Math.floor(wy / TILE_SIZE)
+    const wp = cam.getWorldPoint(pointer.x, pointer.y)
+    const tx = Math.floor(wp.x / TILE_SIZE)
+    const ty = Math.floor(wp.y / TILE_SIZE)
 
     // Check range (Chebyshev distance in tiles)
     const ptx = Math.floor(this.sprite.x / TILE_SIZE)
@@ -544,13 +647,16 @@ export class Player {
       if (isWeapon && (tileType === TileType.AIR || !props?.mineable)) return
 
       if (tileType !== TileType.AIR && props?.mineable) {
+        // Get mining speed multiplier from held tool
+        const toolSpeed = (def?.category === ItemCategory.TOOL && def.miningSpeed) ? def.miningSpeed : 1
+
         if (tx === this.miningTX && ty === this.miningTY) {
           this.miningProgress += dt * 1000
         } else {
           this.miningTX = tx
           this.miningTY = ty
           this.miningProgress = 0
-          this.miningRequired = props.hardness * BASE_MINE_TIME
+          this.miningRequired = (props.hardness * BASE_MINE_TIME) / toolSpeed
         }
 
         // Play mining animation while actively mining

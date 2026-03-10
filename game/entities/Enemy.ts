@@ -60,10 +60,11 @@ export class Enemy {
 
     // Despawn check
     const cam = this.scene.cameras.main
-    const camL = cam.scrollX - DESPAWN_DIST
-    const camR = cam.scrollX + cam.width + DESPAWN_DIST
-    const camT = cam.scrollY - DESPAWN_DIST
-    const camB = cam.scrollY + cam.height + DESPAWN_DIST
+    const view = cam.worldView
+    const camL = view.x - DESPAWN_DIST
+    const camR = view.x + view.width + DESPAWN_DIST
+    const camT = view.y - DESPAWN_DIST
+    const camB = view.y + view.height + DESPAWN_DIST
     if (this.sprite.x < camL || this.sprite.x > camR ||
         this.sprite.y < camT || this.sprite.y > camB) {
       this.destroy()

@@ -54,14 +54,15 @@ export class ChunkManager {
 
   update() {
     const cam = this.scene.cameras.main
-    const camCX = cam.scrollX + cam.width / 2
-    const camCY = cam.scrollY + cam.height / 2
+    const view = cam.worldView
+    const camCX = view.centerX
+    const camCY = view.centerY
 
-    // Visible chunk range (with buffer)
-    const cx0 = Math.max(0, Math.floor(cam.scrollX / CHUNK_PX) - VIEW_BUFFER)
-    const cy0 = Math.max(0, Math.floor(cam.scrollY / CHUNK_PX) - VIEW_BUFFER)
-    const cx1 = Math.min(this.chunksX - 1, Math.ceil((cam.scrollX + cam.width) / CHUNK_PX) + VIEW_BUFFER)
-    const cy1 = Math.min(this.chunksY - 1, Math.ceil((cam.scrollY + cam.height) / CHUNK_PX) + VIEW_BUFFER)
+    // Visible chunk range (with buffer) — uses worldView for zoom correctness
+    const cx0 = Math.max(0, Math.floor(view.x / CHUNK_PX) - VIEW_BUFFER)
+    const cy0 = Math.max(0, Math.floor(view.y / CHUNK_PX) - VIEW_BUFFER)
+    const cx1 = Math.min(this.chunksX - 1, Math.ceil((view.x + view.width) / CHUNK_PX) + VIEW_BUFFER)
+    const cy1 = Math.min(this.chunksY - 1, Math.ceil((view.y + view.height) / CHUNK_PX) + VIEW_BUFFER)
 
     const needed = new Set<string>()
     const toCreate: { cx: number; cy: number; dist: number }[] = []

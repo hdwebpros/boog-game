@@ -10,6 +10,7 @@ import { EnemySpawner } from '../systems/EnemySpawner'
 import { BOSS_DEFS, BossType } from '../data/bosses'
 import { EnemyType, ENEMY_DEFS } from '../data/enemies'
 import { getItemDef, ItemCategory } from '../data/items'
+import { DroppedItem } from '../entities/DroppedItem'
 import type { SaveData } from '../systems/SaveManager'
 import { AudioManager, MusicTrack } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
@@ -25,6 +26,7 @@ export class WorldScene extends Phaser.Scene {
   private enemySpawner!: EnemySpawner
   private enemies: Enemy[] = []
   private activeBoss: Boss | null = null
+  private droppedItems: DroppedItem[] = []
   private keyF!: Phaser.Input.Keyboard.Key
 
   constructor() {
@@ -64,8 +66,14 @@ export class WorldScene extends Phaser.Scene {
       this.player.hp = saveData.hp
       this.player.mana = saveData.mana
       this.player.inventory.hotbar = saveData.hotbar
+      if (saveData.mainInventory) {
+        this.player.inventory.mainInventory = saveData.mainInventory
+      }
       this.player.inventory.selectedSlot = saveData.selectedSlot
       this.player.hasJetpack = saveData.hasJetpack
+      if (saveData.armorSlots) {
+        this.player.inventory.armorSlots = saveData.armorSlots
+      }
       // Restore placed stations
       for (const s of saveData.placedStations) {
         this.chunkManager.placeStation(s.tx, s.ty, s.itemId)
@@ -73,7 +81,8 @@ export class WorldScene extends Phaser.Scene {
       this.registry.remove('saveData')
     }
 
-    // Camera follows player
+    // Camera follows player — 2x zoom so tiles feel substantial
+    this.cameras.main.setZoom(2)
     this.cameras.main.startFollow(this.player.sprite, true, 0.1, 0.1)
 
     // Seed display (fixed to camera)
@@ -95,9 +104,29 @@ export class WorldScene extends Phaser.Scene {
     // Disable right-click context menu so RMB works for placement
     this.input.mouse!.disableContextMenu()
 
-    // ESC opens pause menu (when crafting is not open)
+    // M toggles music/sound mute
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M).on('down', () => {
+      const audio = AudioManager.get()
+      if (!audio) return
+      const muted = audio.toggleMute()
+      const label = this.add.text(400, 300, muted ? 'MUTED' : 'UNMUTED', {
+        fontSize: '24px', color: '#ffffff', fontFamily: 'monospace',
+        backgroundColor: '#000000aa', padding: { x: 12, y: 6 },
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(200)
+      this.tweens.add({ targets: label, alpha: 0, duration: 1000, delay: 500, onComplete: () => label.destroy() })
+    })
+
+    // ESC: close crafting/inventory first, otherwise open pause menu
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on('down', () => {
-      if (this.player.craftingOpen) return // ESC closes crafting first
+      if (this.player.craftingOpen) {
+        this.player.craftingOpen = false
+        return
+      }
+      if (this.player.inventoryOpen) {
+        this.player.inventoryOpen = false
+        this.player.inventory.returnHeldItem()
+        return
+      }
       this.scene.pause('WorldScene')
       this.scene.pause('UIScene')
       this.scene.launch('MenuScene', { pause: true })
@@ -173,9 +202,9 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    // Update combat
+    // Update combat (include boss in targets so projectiles can hit it)
     const playerHit = this.combat.update(
-      dt, this.chunkManager, this.enemies,
+      dt, this.chunkManager, allTargets,
       this.player.sprite.x, this.player.sprite.y,
       12, 28
     )
@@ -190,13 +219,16 @@ export class WorldScene extends Phaser.Scene {
       if (enemy && !enemy.alive) {
         const loot = enemy.getLoot()
         for (const drop of loot) {
-          this.player.inventory.addItem(drop.itemId, drop.count)
+          this.spawnDrop(enemy.sprite.x, enemy.sprite.y, drop.itemId, drop.count)
         }
         AudioManager.get()?.play(SoundId.ENEMY_DIE)
         if (enemy.sprite.active) enemy.sprite.destroy()
         this.enemies.splice(i, 1)
       }
     }
+
+    // Update dropped items & pickup
+    this.updateDroppedItems(dt)
 
     // Check if player has assembled the jetpack
     this.checkJetpack()
@@ -356,6 +388,37 @@ export class WorldScene extends Phaser.Scene {
       const color = (r << 16) | (g << 8) | b
       gfx.fillStyle(color)
       gfx.fillRect(0, (i / steps) * height, width, height / steps + 1)
+    }
+  }
+
+  spawnDrop(x: number, y: number, itemId: number, count: number) {
+    const spread = (Math.random() - 0.5) * 120
+    const drop = new DroppedItem(this, x, y, itemId, count, spread)
+    this.droppedItems.push(drop)
+  }
+
+  private updateDroppedItems(dt: number) {
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    const getTile = (tx: number, ty: number) => this.chunkManager.getTile(tx, ty)
+
+    for (let i = this.droppedItems.length - 1; i >= 0; i--) {
+      const drop = this.droppedItems[i]!
+      drop.update(dt, getTile)
+
+      if (!drop.alive) {
+        this.droppedItems.splice(i, 1)
+        continue
+      }
+
+      // Check pickup
+      if (drop.canPickup() && drop.isNear(px, py)) {
+        if (this.player.inventory.addItem(drop.itemId, drop.count)) {
+          AudioManager.get()?.play(SoundId.PICKUP)
+          drop.destroy()
+          this.droppedItems.splice(i, 1)
+        }
+      }
     }
   }
 

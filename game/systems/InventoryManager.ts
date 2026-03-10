@@ -1,18 +1,34 @@
+import { getItemDef, ItemCategory } from '../data/items'
+import type { ArmorSlot } from '../data/items'
+
 export interface ItemStack {
   id: number
   count: number
 }
 
+export interface ArmorSlots {
+  helmet: ItemStack | null
+  chestplate: ItemStack | null
+  leggings: ItemStack | null
+  boots: ItemStack | null
+}
+
 const MAX_STACK = 99
 const HOTBAR_SIZE = 10
+const MAIN_INV_SIZE = 30
+
+export const ARMOR_SLOT_ORDER: ArmorSlot[] = ['helmet', 'chestplate', 'leggings', 'boots']
 
 export class InventoryManager {
   hotbar: (ItemStack | null)[] = new Array(HOTBAR_SIZE).fill(null)
+  mainInventory: (ItemStack | null)[] = new Array(MAIN_INV_SIZE).fill(null)
+  armorSlots: ArmorSlots = { helmet: null, chestplate: null, leggings: null, boots: null }
   selectedSlot = 0
+  heldItem: ItemStack | null = null
 
-  /** Add item to hotbar. Returns true if added, false if full. */
+  /** Add item — tries hotbar first, then main inventory. Returns true if added. */
   addItem(id: number, count = 1): boolean {
-    // Try stacking with existing matching slots
+    // Try stacking with existing matching slots in hotbar
     for (let i = 0; i < HOTBAR_SIZE; i++) {
       const slot = this.hotbar[i]
       if (slot && slot.id === id && slot.count < MAX_STACK) {
@@ -23,13 +39,34 @@ export class InventoryManager {
       }
     }
 
-    // Put remainder in first empty slot
+    // Try stacking in main inventory
+    for (let i = 0; i < MAIN_INV_SIZE; i++) {
+      const slot = this.mainInventory[i]
+      if (slot && slot.id === id && slot.count < MAX_STACK) {
+        const canAdd = Math.min(count, MAX_STACK - slot.count)
+        slot.count += canAdd
+        count -= canAdd
+        if (count === 0) return true
+      }
+    }
+
+    // Put remainder in first empty slot (hotbar first, then main)
     while (count > 0) {
-      const emptyIdx = this.hotbar.indexOf(null)
-      if (emptyIdx === -1) return false // full
-      const toAdd = Math.min(count, MAX_STACK)
-      this.hotbar[emptyIdx] = { id, count: toAdd }
-      count -= toAdd
+      const hotbarEmpty = this.hotbar.indexOf(null)
+      if (hotbarEmpty !== -1) {
+        const toAdd = Math.min(count, MAX_STACK)
+        this.hotbar[hotbarEmpty] = { id, count: toAdd }
+        count -= toAdd
+        continue
+      }
+      const mainEmpty = this.mainInventory.indexOf(null)
+      if (mainEmpty !== -1) {
+        const toAdd = Math.min(count, MAX_STACK)
+        this.mainInventory[mainEmpty] = { id, count: toAdd }
+        count -= toAdd
+        continue
+      }
+      return false // completely full
     }
 
     return true
@@ -53,6 +90,112 @@ export class InventoryManager {
     for (const slot of this.hotbar) {
       if (slot && slot.id === id) total += slot.count
     }
+    for (const slot of this.mainInventory) {
+      if (slot && slot.id === id) total += slot.count
+    }
     return total
+  }
+
+  /** Return held item to inventory when closing */
+  returnHeldItem(): void {
+    if (this.heldItem) {
+      this.addItem(this.heldItem.id, this.heldItem.count)
+      this.heldItem = null
+    }
+  }
+
+  /** Left-click a slot: pick up / place / swap / stack */
+  clickSlot(area: 'hotbar' | 'main', idx: number): void {
+    const slots = area === 'hotbar' ? this.hotbar : this.mainInventory
+    const slot = slots[idx]
+
+    if (!this.heldItem) {
+      if (slot) {
+        this.heldItem = { id: slot.id, count: slot.count }
+        slots[idx] = null
+      }
+    } else {
+      if (!slot) {
+        slots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
+        this.heldItem = null
+      } else if (slot.id === this.heldItem.id) {
+        const canAdd = Math.min(this.heldItem.count, MAX_STACK - slot.count)
+        slot.count += canAdd
+        this.heldItem.count -= canAdd
+        if (this.heldItem.count <= 0) this.heldItem = null
+      } else {
+        const temp = { id: slot.id, count: slot.count }
+        slots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
+        this.heldItem = temp
+      }
+    }
+  }
+
+  /** Click an armor slot: equip held item or swap/unequip */
+  clickArmorSlot(slot: ArmorSlot): void {
+    const current = this.armorSlots[slot]
+
+    if (!this.heldItem) {
+      // Pick up equipped armor
+      if (current) {
+        this.heldItem = { id: current.id, count: current.count }
+        this.armorSlots[slot] = null
+      }
+    } else {
+      // Check if held item is valid armor for this slot
+      const def = getItemDef(this.heldItem.id)
+      if (def?.category === ItemCategory.ARMOR && def.armorSlot === slot) {
+        // Swap: equip held, pick up current
+        const temp = current ? { id: current.id, count: current.count } : null
+        this.armorSlots[slot] = { id: this.heldItem.id, count: this.heldItem.count }
+        this.heldItem = temp
+      } else if (!current) {
+        // Wrong armor type for this slot — do nothing
+      } else {
+        // Slot has armor, held item isn't valid — pick up current armor, keep held
+        // (swap held with current)
+        const temp = { id: current.id, count: current.count }
+        this.armorSlots[slot] = null
+        this.addItem(temp.id, temp.count)
+      }
+    }
+  }
+
+  /** Get total defense from all equipped armor */
+  getTotalDefense(): number {
+    let total = 0
+    for (const slot of ARMOR_SLOT_ORDER) {
+      const item = this.armorSlots[slot]
+      if (item) {
+        const def = getItemDef(item.id)
+        if (def?.defense) total += def.defense
+      }
+    }
+    return total
+  }
+
+  /** Right-click a slot: pick up half / place one */
+  rightClickSlot(area: 'hotbar' | 'main', idx: number): void {
+    const slots = area === 'hotbar' ? this.hotbar : this.mainInventory
+    const slot = slots[idx]
+
+    if (!this.heldItem) {
+      if (slot && slot.count > 0) {
+        const half = Math.ceil(slot.count / 2)
+        this.heldItem = { id: slot.id, count: half }
+        slot.count -= half
+        if (slot.count <= 0) slots[idx] = null
+      }
+    } else {
+      if (!slot) {
+        slots[idx] = { id: this.heldItem.id, count: 1 }
+        this.heldItem.count--
+        if (this.heldItem.count <= 0) this.heldItem = null
+      } else if (slot.id === this.heldItem.id && slot.count < MAX_STACK) {
+        slot.count++
+        this.heldItem.count--
+        if (this.heldItem.count <= 0) this.heldItem = null
+      }
+    }
   }
 }

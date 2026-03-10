@@ -47,7 +47,8 @@ export class AudioManager {
   private currentMusic: MusicTrack | null = null
   private musicVolume = MUSIC_VOLUME
   private fadingOut: HTMLAudioElement | null = null
-  private fadeTimer: number | null = null
+  private fadeInTimer: number | null = null
+  private fadeOutTimer: number | null = null
 
   static init(): AudioManager {
     if (!AudioManager.instance) {
@@ -130,10 +131,10 @@ export class AudioManager {
     const next = this.musicElements.get(track)
     if (!next) return
 
-    // Cancel any in-progress fade
-    if (this.fadeTimer !== null) {
-      cancelAnimationFrame(this.fadeTimer)
-      this.fadeTimer = null
+    // Cancel any in-progress fade-in
+    if (this.fadeInTimer !== null) {
+      cancelAnimationFrame(this.fadeInTimer)
+      this.fadeInTimer = null
     }
 
     // Fade out current track
@@ -156,9 +157,9 @@ export class AudioManager {
   }
 
   stopMusic() {
-    if (this.fadeTimer !== null) {
-      cancelAnimationFrame(this.fadeTimer)
-      this.fadeTimer = null
+    if (this.fadeInTimer !== null) {
+      cancelAnimationFrame(this.fadeInTimer)
+      this.fadeInTimer = null
     }
 
     const current = this.currentMusic ? this.musicElements.get(this.currentMusic) : null
@@ -169,6 +170,9 @@ export class AudioManager {
   }
 
   private fadeOut(audio: HTMLAudioElement) {
+    if (this.fadeOutTimer !== null) {
+      cancelAnimationFrame(this.fadeOutTimer)
+    }
     this.fadingOut = audio
     const startVol = audio.volume
     const startTime = performance.now()
@@ -178,36 +182,49 @@ export class AudioManager {
       const t = Math.min(1, elapsed / CROSSFADE_MS)
       audio.volume = startVol * (1 - t)
       if (t < 1) {
-        this.fadeTimer = requestAnimationFrame(tick)
+        this.fadeOutTimer = requestAnimationFrame(tick)
       } else {
         audio.pause()
         audio.currentTime = 0
         audio.volume = 0
         this.fadingOut = null
-        this.fadeTimer = null
+        this.fadeOutTimer = null
       }
     }
-    this.fadeTimer = requestAnimationFrame(tick)
+    this.fadeOutTimer = requestAnimationFrame(tick)
   }
 
   private fadeIn(audio: HTMLAudioElement, targetVol: number) {
     const startTime = performance.now()
 
     const tick = () => {
+      // Respect mute state during fade
+      if (this.muted) {
+        audio.volume = 0
+        this.fadeInTimer = null
+        return
+      }
       const elapsed = performance.now() - startTime
       const t = Math.min(1, elapsed / CROSSFADE_MS)
       audio.volume = targetVol * t
       if (t < 1) {
-        this.fadeTimer = requestAnimationFrame(tick)
+        this.fadeInTimer = requestAnimationFrame(tick)
       } else {
-        this.fadeTimer = null
+        this.fadeInTimer = null
       }
     }
-    this.fadeTimer = requestAnimationFrame(tick)
+    this.fadeInTimer = requestAnimationFrame(tick)
   }
 
   setMuted(muted: boolean) {
     this.muted = muted
+
+    // Cancel any in-progress fade-in so it can't override volume
+    if (this.fadeInTimer !== null) {
+      cancelAnimationFrame(this.fadeInTimer)
+      this.fadeInTimer = null
+    }
+
     // Update current music volume
     if (this.currentMusic) {
       const el = this.musicElements.get(this.currentMusic)

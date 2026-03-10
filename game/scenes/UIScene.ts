@@ -1,10 +1,11 @@
 import Phaser from 'phaser'
 import { TileType, TILE_PROPERTIES } from '../world/TileRegistry'
-import { InventoryManager } from '../systems/InventoryManager'
+import { InventoryManager, ARMOR_SLOT_ORDER } from '../systems/InventoryManager'
 import type { ItemStack } from '../systems/InventoryManager'
+import type { ArmorSlot } from '../data/items'
 import { CraftingManager } from '../systems/CraftingManager'
 import type { Recipe } from '../data/recipes'
-import { ITEMS, getItemDef } from '../data/items'
+import { ITEMS, getItemDef, ItemCategory } from '../data/items'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 
@@ -17,6 +18,18 @@ const HOTBAR_WIDTH = HOTBAR_SLOTS * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP
 const CRAFT_W = 320
 const CRAFT_H = 400
 const CRAFT_ROW_H = 32
+
+// Inventory panel
+const INV_COLS = 10
+const INV_MAIN_ROWS = 3
+const INV_PAD = 12
+const INV_INNER_W = INV_COLS * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP // 436
+const INV_W = INV_INNER_W + INV_PAD * 2 // 460
+const INV_TITLE_H = 28
+const INV_MAIN_H = INV_MAIN_ROWS * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP // 128
+const INV_SEP = 10
+const INV_H = INV_PAD + INV_TITLE_H + INV_MAIN_H + INV_SEP + SLOT_SIZE + INV_PAD // 232
+const INV_TOTAL_SLOTS = INV_COLS * INV_MAIN_ROWS + HOTBAR_SLOTS // 40
 
 export class UIScene extends Phaser.Scene {
   private hotbarGfx!: Phaser.GameObjects.Graphics
@@ -40,6 +53,29 @@ export class UIScene extends Phaser.Scene {
   private craftVisible = false
   private craftScroll = 0
   private craftRecipes: { recipe: Recipe; canCraft: boolean }[] = []
+
+  // Inventory panel
+  private invGfx!: Phaser.GameObjects.Graphics
+  private invTitle!: Phaser.GameObjects.Text
+  private invSlotIcons: Phaser.GameObjects.Rectangle[] = []
+  private invSlotImages: (Phaser.GameObjects.Image | null)[] = []
+  private invSlotTexts: Phaser.GameObjects.Text[] = []
+  private invSlotZones: Phaser.GameObjects.Zone[] = []
+  private invVisible = false
+  private invTooltipText!: Phaser.GameObjects.Text
+
+  // Armor panel
+  private armorGfx!: Phaser.GameObjects.Graphics
+  private armorSlotIcons: Phaser.GameObjects.Rectangle[] = []
+  private armorSlotImages: (Phaser.GameObjects.Image | null)[] = []
+  private armorSlotLabels: Phaser.GameObjects.Text[] = []
+  private armorSlotZones: Phaser.GameObjects.Zone[] = []
+  private armorDefenseText!: Phaser.GameObjects.Text
+
+  // Held item (cursor)
+  private heldIcon!: Phaser.GameObjects.Rectangle
+  private heldImage: Phaser.GameObjects.Image | null = null
+  private heldText!: Phaser.GameObjects.Text
 
   constructor() {
     super({ key: 'UIScene' })
@@ -86,6 +122,21 @@ export class UIScene extends Phaser.Scene {
       }).setDepth(202)
     }
 
+    // Clickable hotbar zones
+    for (let i = 0; i < HOTBAR_SLOTS; i++) {
+      const sx = hotbarX + i * (SLOT_SIZE + SLOT_GAP)
+      const zone = this.add.zone(sx + SLOT_SIZE / 2, hotbarY + SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE)
+        .setInteractive().setDepth(205)
+      zone.on('pointerdown', () => {
+        const worldScene = this.scene.get('WorldScene') as any
+        const player = worldScene?.getPlayer?.()
+        if (player) {
+          player.inventory.selectedSlot = i
+          AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+        }
+      })
+    }
+
     // ── HP/Mana bars ─────────────────────────────────────
     this.statsGfx = this.add.graphics().setDepth(200)
     this.hpText = this.add.text(12, 48, '', {
@@ -117,7 +168,11 @@ export class UIScene extends Phaser.Scene {
     for (let i = 0; i < maxVisible; i++) {
       const t = this.add.text(craftX + 10, craftY + 38 + i * CRAFT_ROW_H, '', {
         fontSize: '11px', color: '#cccccc', fontFamily: 'monospace',
-      }).setDepth(301).setVisible(false).setInteractive()
+      }).setDepth(301).setVisible(false)
+        .setInteractive(
+          new Phaser.Geom.Rectangle(-8, -2, CRAFT_W - 4, CRAFT_ROW_H),
+          Phaser.Geom.Rectangle.Contains
+        )
       t.on('pointerdown', () => this.onCraftClick(i))
       t.on('pointerover', () => t.setColor('#ffffff'))
       t.on('pointerout', () => this.refreshCraftRowColor(t, i))
@@ -126,10 +181,114 @@ export class UIScene extends Phaser.Scene {
 
     // Scroll crafting with wheel
     this.input.on('wheel', (_p: any, _gx: any, _gy: any, _gz: any, _delta: number, deltaY: number) => {
+      if (this.invVisible) return
       if (!this.craftVisible) return
       this.craftScroll += deltaY > 0 ? 1 : -1
       this.craftScroll = Math.max(0, this.craftScroll)
     })
+
+    // ── Inventory panel ──────────────────────────────────
+    this.createInventoryPanel()
+  }
+
+  private createInventoryPanel() {
+    const { width, height } = this.scale
+    const invX = (width - INV_W) / 2
+    const invY = (height - INV_H) / 2
+
+    this.invGfx = this.add.graphics().setDepth(310)
+
+    this.invTitle = this.add.text(width / 2, invY + INV_PAD + 2, 'INVENTORY', {
+      fontSize: '14px', color: '#ffff00', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5, 0).setDepth(311).setVisible(false)
+
+    const mainStartY = invY + INV_PAD + INV_TITLE_H
+    const hotbarStartY = mainStartY + INV_MAIN_H + INV_SEP
+
+    // Create slots: 0-29 = main inventory, 30-39 = hotbar
+    for (let i = 0; i < INV_TOTAL_SLOTS; i++) {
+      let sx: number, sy: number
+      if (i < 30) {
+        const row = Math.floor(i / INV_COLS)
+        const col = i % INV_COLS
+        sx = invX + INV_PAD + col * (SLOT_SIZE + SLOT_GAP)
+        sy = mainStartY + row * (SLOT_SIZE + SLOT_GAP)
+      } else {
+        const col = i - 30
+        sx = invX + INV_PAD + col * (SLOT_SIZE + SLOT_GAP)
+        sy = hotbarStartY
+      }
+
+      // Interactive zone
+      const zone = this.add.zone(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE)
+        .setInteractive()
+        .setDepth(313)
+      zone.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.onInvSlotClick(i, pointer))
+      this.invSlotZones.push(zone)
+
+      // Item icon (colored rectangle fallback)
+      const icon = this.add.rectangle(
+        sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2,
+        SLOT_SIZE - 12, SLOT_SIZE - 12, 0x000000, 0
+      ).setDepth(311).setVisible(false)
+      this.invSlotIcons.push(icon)
+      this.invSlotImages.push(null)
+
+      // Count text
+      const txt = this.add.text(sx + SLOT_SIZE - 4, sy + SLOT_SIZE - 4, '', {
+        fontSize: '10px', color: '#ffffff', fontFamily: 'monospace',
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(1, 1).setDepth(312).setVisible(false)
+      this.invSlotTexts.push(txt)
+    }
+
+    // Tooltip for hovered slot
+    this.invTooltipText = this.add.text(width / 2, invY - 4, '', {
+      fontSize: '11px', color: '#aaaaaa', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5, 1).setDepth(315).setVisible(false)
+
+    // ── Armor panel (right of inventory) ──────────────
+    this.armorGfx = this.add.graphics().setDepth(310)
+    const armorLabels = ['H', 'C', 'L', 'B']
+    const armorPanelX = invX + INV_W + 6
+    const armorPanelY = invY
+
+    for (let i = 0; i < 4; i++) {
+      const sy = armorPanelY + INV_PAD + INV_TITLE_H + i * (SLOT_SIZE + SLOT_GAP)
+      const sx = armorPanelX + INV_PAD
+
+      const zone = this.add.zone(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE)
+        .setInteractive().setDepth(313)
+      zone.on('pointerdown', () => this.onArmorSlotClick(i))
+      this.armorSlotZones.push(zone)
+
+      const icon = this.add.rectangle(
+        sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2,
+        SLOT_SIZE - 12, SLOT_SIZE - 12, 0x000000, 0
+      ).setDepth(311).setVisible(false)
+      this.armorSlotIcons.push(icon)
+      this.armorSlotImages.push(null)
+
+      const label = this.add.text(sx - 2, sy + SLOT_SIZE / 2, armorLabels[i]!, {
+        fontSize: '9px', color: '#555555', fontFamily: 'monospace',
+      }).setOrigin(1, 0.5).setDepth(312).setVisible(false)
+      this.armorSlotLabels.push(label)
+    }
+
+    this.armorDefenseText = this.add.text(
+      armorPanelX + INV_PAD + SLOT_SIZE / 2,
+      armorPanelY + INV_PAD + INV_TITLE_H + 4 * (SLOT_SIZE + SLOT_GAP) + 4,
+      '', { fontSize: '10px', color: '#88aaff', fontFamily: 'monospace', stroke: '#000000', strokeThickness: 2 }
+    ).setOrigin(0.5, 0).setDepth(312).setVisible(false)
+
+    // Held item display (follows cursor)
+    this.heldIcon = this.add.rectangle(0, 0, SLOT_SIZE - 12, SLOT_SIZE - 12, 0x000000, 0)
+      .setDepth(420).setVisible(false)
+    this.heldText = this.add.text(0, 0, '', {
+      fontSize: '10px', color: '#ffffff', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(1, 1).setDepth(421).setVisible(false)
   }
 
   override update() {
@@ -145,6 +304,7 @@ export class UIScene extends Phaser.Scene {
     this.updateTooltip(inv)
     this.updateStatsBars(player)
     this.updateCrafting(player, inv, chunks)
+    this.updateInventoryPanel(player, inv)
   }
 
   // ── Hotbar ──────────────────────────────────────────────
@@ -158,6 +318,11 @@ export class UIScene extends Phaser.Scene {
       this.hotbarGfx.lineStyle(1, 0x444444, 0.9)
       this.hotbarGfx.strokeRect(sx, y, SLOT_SIZE, SLOT_SIZE)
     }
+  }
+
+  /** Get the appropriate texture key for an item */
+  private getItemTexKey(itemId: number): string {
+    return itemId < 100 ? `tile_${itemId}` : `item_${itemId}`
   }
 
   private updateSlots(inv: InventoryManager) {
@@ -174,19 +339,18 @@ export class UIScene extends Phaser.Scene {
       if (item) {
         const def = getItemDef(item.id)
         const tileProps = TILE_PROPERTIES[item.id as TileType]
-        const tileTexKey = `tile_${item.id}`
+        const texKey = this.getItemTexKey(item.id)
 
-        // Use sprite texture for blocks if available
-        if (this.textures.exists(tileTexKey) && item.id < 100) {
+        if (this.textures.exists(texKey)) {
           icon.fillAlpha = 0
-          if (!this.slotImages[i] || this.slotImages[i]!.texture.key !== tileTexKey) {
+          if (!this.slotImages[i] || this.slotImages[i]!.texture.key !== texKey) {
             if (this.slotImages[i]) this.slotImages[i]!.destroy()
-            this.slotImages[i] = this.add.image(sx, hotbarY + SLOT_SIZE / 2, tileTexKey)
+            this.slotImages[i] = this.add.image(sx, hotbarY + SLOT_SIZE / 2, texKey)
               .setDisplaySize(SLOT_SIZE - 12, SLOT_SIZE - 12)
               .setDepth(201)
           }
         } else {
-          // Colored rectangle for non-block items
+          // Colored rectangle fallback
           const color = def?.color ?? tileProps?.color ?? 0xffffff
           icon.fillColor = color
           icon.fillAlpha = 1
@@ -251,7 +415,9 @@ export class UIScene extends Phaser.Scene {
     // HP border
     this.statsGfx.lineStyle(1, 0x882222)
     this.statsGfx.strokeRect(x, hpY, barW, barH)
-    this.hpText.setText(`HP ${Math.ceil(player.hp)}/${player.maxHp}`)
+    const totalDef = player.inventory.getTotalDefense()
+    const defStr = totalDef > 0 ? ` [${totalDef}DEF]` : ''
+    this.hpText.setText(`HP ${Math.ceil(player.hp)}/${player.maxHp}${defStr}`)
 
     // Mana bar background
     this.statsGfx.fillStyle(0x000033, 0.8)
@@ -395,5 +561,334 @@ export class UIScene extends Phaser.Scene {
     if (entry) {
       txt.setColor(entry.canCraft ? '#00ff88' : '#666666')
     }
+  }
+
+  // ── Inventory Panel ───────────────────────────────────
+
+  private updateInventoryPanel(player: any, inv: InventoryManager) {
+    const shouldShow = player.inventoryOpen === true
+    if (shouldShow !== this.invVisible) {
+      this.invVisible = shouldShow
+    }
+
+    this.invGfx.clear()
+    this.armorGfx.clear()
+    this.invTitle.setVisible(this.invVisible)
+    this.invTooltipText.setVisible(false)
+
+    if (!this.invVisible) {
+      for (let i = 0; i < INV_TOTAL_SLOTS; i++) {
+        this.invSlotIcons[i]!.setVisible(false)
+        this.invSlotTexts[i]!.setVisible(false)
+        this.invSlotZones[i]!.setActive(false)
+        if (this.invSlotImages[i]) {
+          this.invSlotImages[i]!.setVisible(false)
+        }
+      }
+      for (let i = 0; i < 4; i++) {
+        this.armorSlotIcons[i]!.setVisible(false)
+        this.armorSlotLabels[i]!.setVisible(false)
+        this.armorSlotZones[i]!.setActive(false)
+        if (this.armorSlotImages[i]) {
+          this.armorSlotImages[i]!.setVisible(false)
+        }
+      }
+      this.armorDefenseText.setVisible(false)
+      this.heldIcon.setVisible(false)
+      this.heldText.setVisible(false)
+      if (this.heldImage) this.heldImage.setVisible(false)
+      return
+    }
+
+    const { width, height } = this.scale
+    const invX = (width - INV_W) / 2
+    const invY = (height - INV_H) / 2
+
+    // Draw panel background
+    this.invGfx.fillStyle(0x0a0a1a, 0.95)
+    this.invGfx.fillRect(invX, invY, INV_W, INV_H)
+    this.invGfx.lineStyle(2, 0x444466)
+    this.invGfx.strokeRect(invX, invY, INV_W, INV_H)
+
+    const mainStartY = invY + INV_PAD + INV_TITLE_H
+    const hotbarStartY = mainStartY + INV_MAIN_H + INV_SEP
+
+    // Separator line above hotbar row
+    this.invGfx.lineStyle(1, 0x333355)
+    this.invGfx.lineBetween(
+      invX + INV_PAD, hotbarStartY - INV_SEP / 2,
+      invX + INV_W - INV_PAD, hotbarStartY - INV_SEP / 2
+    )
+
+    // Track hovered slot for tooltip
+    const pointer = this.input.activePointer
+    let hoveredItem: ItemStack | null = null
+
+    for (let i = 0; i < INV_TOTAL_SLOTS; i++) {
+      let sx: number, sy: number
+      let item: ItemStack | null
+      if (i < 30) {
+        const row = Math.floor(i / INV_COLS)
+        const col = i % INV_COLS
+        sx = invX + INV_PAD + col * (SLOT_SIZE + SLOT_GAP)
+        sy = mainStartY + row * (SLOT_SIZE + SLOT_GAP)
+        item = inv.mainInventory[i] ?? null
+      } else {
+        const col = i - 30
+        sx = invX + INV_PAD + col * (SLOT_SIZE + SLOT_GAP)
+        sy = hotbarStartY
+        item = inv.hotbar[col] ?? null
+      }
+
+      // Slot background
+      this.invGfx.fillStyle(0x111111, 0.85)
+      this.invGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+      this.invGfx.lineStyle(1, 0x444444, 0.9)
+      this.invGfx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+
+      // Highlight selected hotbar slot
+      if (i >= 30 && i - 30 === inv.selectedSlot) {
+        this.invGfx.lineStyle(2, 0xffff00, 1)
+        this.invGfx.strokeRect(sx - 1, sy - 1, SLOT_SIZE + 2, SLOT_SIZE + 2)
+      }
+
+      // Hover highlight + tooltip
+      if (pointer.x >= sx && pointer.x < sx + SLOT_SIZE &&
+          pointer.y >= sy && pointer.y < sy + SLOT_SIZE && item) {
+        hoveredItem = item
+        this.invGfx.fillStyle(0xffffff, 0.1)
+        this.invGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+      }
+
+      this.invSlotZones[i]!.setActive(true)
+
+      // Render item
+      const icon = this.invSlotIcons[i]!
+      const txt = this.invSlotTexts[i]!
+      icon.setPosition(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2)
+      txt.setPosition(sx + SLOT_SIZE - 4, sy + SLOT_SIZE - 4)
+
+      if (item) {
+        const def = getItemDef(item.id)
+        const tileProps = TILE_PROPERTIES[item.id as TileType]
+        const texKey = this.getItemTexKey(item.id)
+
+        if (this.textures.exists(texKey)) {
+          icon.fillAlpha = 0
+          icon.setVisible(true)
+          const existingImg = this.invSlotImages[i]
+          if (!existingImg || existingImg.texture.key !== texKey) {
+            if (existingImg) existingImg.destroy()
+            this.invSlotImages[i] = this.add.image(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2, texKey)
+              .setDisplaySize(SLOT_SIZE - 12, SLOT_SIZE - 12)
+              .setDepth(311)
+          } else {
+            existingImg.setPosition(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2)
+            existingImg.setVisible(true)
+          }
+        } else {
+          const color = def?.color ?? tileProps?.color ?? 0xffffff
+          icon.fillColor = color
+          icon.fillAlpha = 1
+          icon.setVisible(true)
+          if (this.invSlotImages[i]) {
+            this.invSlotImages[i]!.destroy()
+            this.invSlotImages[i] = null
+          }
+        }
+        txt.setText(item.count > 1 ? `${item.count}` : '')
+        txt.setVisible(true)
+      } else {
+        icon.fillAlpha = 0
+        icon.setVisible(false)
+        txt.setText('')
+        txt.setVisible(false)
+        if (this.invSlotImages[i]) {
+          this.invSlotImages[i]!.destroy()
+          this.invSlotImages[i] = null
+        }
+      }
+    }
+
+    // Tooltip
+    if (hoveredItem) {
+      const def = getItemDef(hoveredItem.id)
+      const tileProps = TILE_PROPERTIES[hoveredItem.id as TileType]
+      let name = def?.name ?? tileProps?.name ?? `Item ${hoveredItem.id}`
+      if (def?.defense) name += ` (+${def.defense} def)`
+      this.invTooltipText.setText(name)
+      this.invTooltipText.setPosition(width / 2, invY - 4)
+      this.invTooltipText.setVisible(true)
+    }
+
+    // ── Armor slots (right of inventory panel) ──────
+    this.updateArmorPanel(inv, invX, invY, pointer)
+
+    this.updateHeldItem(inv)
+  }
+
+  private updateArmorPanel(inv: InventoryManager, invX: number, invY: number, pointer: Phaser.Input.Pointer) {
+    const armorPanelX = invX + INV_W + 6
+    const armorPanelW = SLOT_SIZE + INV_PAD * 2
+    const armorPanelH = INV_PAD + INV_TITLE_H + 4 * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP + INV_PAD + 16
+
+    // Panel background
+    this.armorGfx.fillStyle(0x0a0a1a, 0.95)
+    this.armorGfx.fillRect(armorPanelX, invY, armorPanelW, armorPanelH)
+    this.armorGfx.lineStyle(2, 0x444466)
+    this.armorGfx.strokeRect(armorPanelX, invY, armorPanelW, armorPanelH)
+
+    for (let i = 0; i < 4; i++) {
+      const slot = ARMOR_SLOT_ORDER[i]!
+      const item = inv.armorSlots[slot]
+      const sy = invY + INV_PAD + INV_TITLE_H + i * (SLOT_SIZE + SLOT_GAP)
+      const sx = armorPanelX + INV_PAD
+
+      // Slot background
+      this.armorGfx.fillStyle(0x1a1a2e, 0.85)
+      this.armorGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+      this.armorGfx.lineStyle(1, 0x555577, 0.9)
+      this.armorGfx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+
+      // Hover highlight
+      if (pointer.x >= sx && pointer.x < sx + SLOT_SIZE &&
+          pointer.y >= sy && pointer.y < sy + SLOT_SIZE) {
+        this.armorGfx.fillStyle(0xffffff, 0.1)
+        this.armorGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+
+        if (item) {
+          const def = getItemDef(item.id)
+          if (def) {
+            this.invTooltipText.setText(`${def.name} (+${def.defense} def)`)
+            this.invTooltipText.setVisible(true)
+          }
+        }
+      }
+
+      this.armorSlotZones[i]!.setActive(true)
+      this.armorSlotZones[i]!.setPosition(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2)
+      this.armorSlotLabels[i]!.setPosition(sx - 2, sy + SLOT_SIZE / 2)
+      this.armorSlotLabels[i]!.setVisible(true)
+
+      const icon = this.armorSlotIcons[i]!
+      icon.setPosition(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2)
+
+      if (item) {
+        const def = getItemDef(item.id)
+        const texKey = this.getItemTexKey(item.id)
+
+        if (this.textures.exists(texKey)) {
+          icon.fillAlpha = 0
+          icon.setVisible(true)
+          const existing = this.armorSlotImages[i]
+          if (!existing || existing.texture.key !== texKey) {
+            if (existing) existing.destroy()
+            this.armorSlotImages[i] = this.add.image(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2, texKey)
+              .setDisplaySize(SLOT_SIZE - 12, SLOT_SIZE - 12).setDepth(311)
+          } else {
+            existing.setPosition(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2)
+            existing.setVisible(true)
+          }
+        } else {
+          const color = def?.color ?? 0xffffff
+          icon.fillColor = color
+          icon.fillAlpha = 1
+          icon.setVisible(true)
+          if (this.armorSlotImages[i]) {
+            this.armorSlotImages[i]!.destroy()
+            this.armorSlotImages[i] = null
+          }
+        }
+      } else {
+        icon.fillAlpha = 0
+        icon.setVisible(false)
+        if (this.armorSlotImages[i]) {
+          this.armorSlotImages[i]!.destroy()
+          this.armorSlotImages[i] = null
+        }
+      }
+    }
+
+    // Defense total
+    const totalDef = inv.getTotalDefense()
+    this.armorDefenseText.setText(`DEF ${totalDef}`)
+    this.armorDefenseText.setPosition(
+      armorPanelX + armorPanelW / 2,
+      invY + INV_PAD + INV_TITLE_H + 4 * (SLOT_SIZE + SLOT_GAP) + 2
+    )
+    this.armorDefenseText.setVisible(true)
+  }
+
+  private updateHeldItem(inv: InventoryManager) {
+    const held = inv.heldItem
+    if (!held) {
+      this.heldIcon.setVisible(false)
+      this.heldText.setVisible(false)
+      if (this.heldImage) this.heldImage.setVisible(false)
+      return
+    }
+
+    const pointer = this.input.activePointer
+    const cx = pointer.x
+    const cy = pointer.y
+
+    const def = getItemDef(held.id)
+    const tileProps = TILE_PROPERTIES[held.id as TileType]
+    const texKey = this.getItemTexKey(held.id)
+
+    if (this.textures.exists(texKey)) {
+      this.heldIcon.setVisible(false)
+      if (!this.heldImage || this.heldImage.texture.key !== texKey) {
+        if (this.heldImage) this.heldImage.destroy()
+        this.heldImage = this.add.image(cx, cy, texKey)
+          .setDisplaySize(SLOT_SIZE - 12, SLOT_SIZE - 12)
+          .setDepth(420)
+      }
+      this.heldImage.setPosition(cx, cy)
+      this.heldImage.setVisible(true)
+    } else {
+      const color = def?.color ?? tileProps?.color ?? 0xffffff
+      this.heldIcon.fillColor = color
+      this.heldIcon.fillAlpha = 0.9
+      this.heldIcon.setPosition(cx, cy)
+      this.heldIcon.setVisible(true)
+      if (this.heldImage) this.heldImage.setVisible(false)
+    }
+
+    this.heldText.setText(held.count > 1 ? `${held.count}` : '')
+    this.heldText.setPosition(cx + SLOT_SIZE / 2 - 6, cy + SLOT_SIZE / 2 - 6)
+    this.heldText.setVisible(held.count > 1)
+  }
+
+  private onArmorSlotClick(index: number) {
+    if (!this.invVisible) return
+    const worldScene = this.scene.get('WorldScene') as any
+    const player = worldScene?.getPlayer()
+    if (!player) return
+
+    const inv: InventoryManager = player.inventory
+    const slot = ARMOR_SLOT_ORDER[index]!
+    inv.clickArmorSlot(slot)
+    AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+  }
+
+  private onInvSlotClick(slotIndex: number, pointer: Phaser.Input.Pointer) {
+    if (!this.invVisible) return
+
+    const worldScene = this.scene.get('WorldScene') as any
+    const player = worldScene?.getPlayer()
+    if (!player) return
+
+    const inv: InventoryManager = player.inventory
+    const area: 'hotbar' | 'main' = slotIndex >= 30 ? 'hotbar' : 'main'
+    const idx = slotIndex >= 30 ? slotIndex - 30 : slotIndex
+
+    if (pointer.button === 2) {
+      inv.rightClickSlot(area, idx)
+    } else {
+      inv.clickSlot(area, idx)
+    }
+
+    AudioManager.get()?.play(SoundId.SLOT_CHANGE)
   }
 }

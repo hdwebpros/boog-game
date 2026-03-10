@@ -70,6 +70,15 @@ export class CraftingManager {
         if (slot.count <= 0) inventory.hotbar[i] = null
       }
     }
+    for (let i = 0; i < inventory.mainInventory.length && remaining > 0; i++) {
+      const slot = inventory.mainInventory[i]
+      if (slot && slot.id === itemId) {
+        const take = Math.min(remaining, slot.count)
+        slot.count -= take
+        remaining -= take
+        if (slot.count <= 0) inventory.mainInventory[i] = null
+      }
+    }
   }
 
   private findNearbyStations(

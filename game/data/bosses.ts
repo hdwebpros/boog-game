@@ -73,7 +73,7 @@ export const BOSS_DEFS: Record<BossType, BossDef> = {
       { hpThreshold: 0.5, speed: 100, damage: 30, attackInterval: 1800 },
     ],
     dropItemId: 181, // Thrust Regulator
-    summonItemId: 170,
+    summonItemId: 171, // Tidal Pearl
     xp: 150,
   },
   [BossType.CRYSTAL_GOLEM]: {
@@ -92,7 +92,7 @@ export const BOSS_DEFS: Record<BossType, BossDef> = {
       { hpThreshold: 0.3, speed: 70, damage: 50, attackInterval: 1500 },
     ],
     dropItemId: 182, // Pressure Valve
-    summonItemId: 170,
+    summonItemId: 172, // Crystal Lens
     xp: 250,
   },
   [BossType.MAGMA_WYRM]: {
@@ -111,7 +111,7 @@ export const BOSS_DEFS: Record<BossType, BossDef> = {
       { hpThreshold: 0.2, speed: 140, damage: 55, attackInterval: 1000 },
     ],
     dropItemId: 183, // Energy Capacitor
-    summonItemId: 171, // Signal Beacon
+    summonItemId: 173, // Magma Core
     xp: 350,
   },
   [BossType.CORE_SENTINEL]: {
@@ -130,7 +130,7 @@ export const BOSS_DEFS: Record<BossType, BossDef> = {
       { hpThreshold: 0.25, speed: 100, damage: 60, attackInterval: 1200 },
     ],
     dropItemId: 184, // Ignition Core
-    summonItemId: 171,
+    summonItemId: 174, // Void Sigil
     xp: 450,
   },
   [BossType.MOTHERSHIP]: {
@@ -150,7 +150,7 @@ export const BOSS_DEFS: Record<BossType, BossDef> = {
       { hpThreshold: 0.15, speed: 90, damage: 80, attackInterval: 1200 },
     ],
     dropItemId: 185, // Navigation Module
-    summonItemId: 171,
+    summonItemId: 175, // Signal Beacon
     xp: 600,
   },
 }

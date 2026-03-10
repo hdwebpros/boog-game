@@ -20,7 +20,7 @@ export class BootScene extends Phaser.Scene {
     }
 
     // Load player frame PNGs directly (all 32x64 or 48x64)
-    const playerFrames = ['idle1', 'idle2', 'walk1', 'walk2', 'walk3', 'walk4', 'jump', 'fall']
+    const playerFrames = ['idle1', 'idle2', 'walk1', 'walk2', 'walk3', 'walk4']
     for (const f of playerFrames) {
       this.load.image(`player_${f}`, `/sprites/player_${f}.png`)
     }

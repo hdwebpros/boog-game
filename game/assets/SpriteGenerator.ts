@@ -964,6 +964,790 @@ function makeSummonMinion(): PixelGrid {
   return g
 }
 
+// ─── ITEM TEXTURES (16×16 icons for hotbar/inventory) ─────
+
+function makeItemIronBar(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0xc9a96e
+  const hi = lighten(base, 0.25)
+  const sh = darken(base, 0.25)
+  // Ingot shape
+  for (let y = 5; y <= 11; y++)
+    for (let x = 2; x <= 13; x++)
+      g[y]![x] = base
+  // Top bevel
+  for (let x = 3; x <= 12; x++) g[4]![x] = hi
+  // Bottom shadow
+  for (let x = 2; x <= 13; x++) g[12]![x] = sh
+  // Side shading
+  for (let y = 5; y <= 11; y++) { g[y]![2] = sh; g[y]![13] = sh }
+  // Highlight
+  g[5]![4] = hi; g[5]![5] = hi; g[6]![4] = hi
+  return g
+}
+
+function makeItemDiamond(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0x7fffff
+  const hi = lighten(base, 0.3)
+  const sh = darken(base, 0.25)
+  // Diamond gem shape
+  for (let y = 2; y <= 8; y++) {
+    const w = y <= 5 ? y - 1 : 9 - y
+    for (let x = 7 - w; x <= 8 + w; x++)
+      g[y]![x] = base
+  }
+  // Lower facet
+  for (let y = 9; y <= 13; y++) {
+    const w = 13 - y
+    for (let x = 7 - w; x <= 8 + w; x++)
+      g[y]![x] = sh
+  }
+  // Sparkle
+  g[3]![7] = hi; g[4]![6] = hi; g[4]![9] = 0xffffff
+  g[5]![8] = hi
+  return g
+}
+
+function makeItemTitaniumBar(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0xe8e8e8
+  const hi = 0xffffff
+  const sh = darken(base, 0.2)
+  for (let y = 5; y <= 11; y++)
+    for (let x = 2; x <= 13; x++)
+      g[y]![x] = base
+  for (let x = 3; x <= 12; x++) g[4]![x] = hi
+  for (let x = 2; x <= 13; x++) g[12]![x] = sh
+  for (let y = 5; y <= 11; y++) { g[y]![2] = sh; g[y]![13] = sh }
+  g[5]![4] = hi; g[5]![5] = hi; g[6]![5] = hi
+  // Subtle blue tint streak
+  g[7]![6] = 0xccddff; g[7]![7] = 0xccddff; g[7]![8] = 0xccddff
+  return g
+}
+
+function makeItemCarbonPlate(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0x3a3a5e
+  const hi = lighten(base, 0.2)
+  const sh = darken(base, 0.2)
+  // Plate shape
+  for (let y = 3; y <= 12; y++)
+    for (let x = 2; x <= 13; x++)
+      g[y]![x] = base
+  // Crosshatch pattern
+  for (let y = 3; y <= 12; y++)
+    for (let x = 2; x <= 13; x++)
+      if ((x + y) % 3 === 0) g[y]![x] = hi
+  // Edges
+  for (let x = 2; x <= 13; x++) { g[3]![x] = hi; g[12]![x] = sh }
+  for (let y = 3; y <= 12; y++) { g[y]![2] = sh; g[y]![13] = sh }
+  return g
+}
+
+function makeItemGlass(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0xccddee
+  const hi = 0xeeffff
+  const sh = darken(base, 0.15)
+  // Glass pane
+  for (let y = 2; y <= 13; y++)
+    for (let x = 3; x <= 12; x++)
+      g[y]![x] = base
+  // Frame edges
+  for (let x = 3; x <= 12; x++) { g[2]![x] = sh; g[13]![x] = sh }
+  for (let y = 2; y <= 13; y++) { g[y]![3] = sh; g[y]![12] = sh }
+  // Reflection shine
+  g[4]![5] = hi; g[4]![6] = hi; g[5]![5] = hi
+  g[5]![6] = 0xffffff; g[6]![6] = hi
+  return g
+}
+
+function makeItemPlantFiber(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const rng = mulberry32(200)
+  const base = 0x66aa44
+  const hi = lighten(base, 0.2)
+  const sh = darken(base, 0.2)
+  // Bundle of fibers
+  for (let strand = 0; strand < 5; strand++) {
+    const sx = 3 + strand * 2
+    for (let y = 2; y <= 13; y++) {
+      const c = rng() > 0.5 ? base : (rng() > 0.5 ? hi : sh)
+      g[y]![sx] = c
+      if (rng() > 0.6) g[y]![sx + 1] = c
+    }
+  }
+  // Tie in middle
+  for (let x = 3; x <= 12; x++) { g[7]![x] = 0x997744; g[8]![x] = 0x886633 }
+  return g
+}
+
+function makeItemTorch(): PixelGrid {
+  const g = makeGrid(16, 16)
+  // Stick
+  for (let y = 6; y <= 14; y++) { g[y]![7] = 0x8b6b3a; g[y]![8] = 0x7a5a2a }
+  // Flame base
+  g[5]![7] = 0xff6600; g[5]![8] = 0xff6600
+  g[4]![7] = 0xff8800; g[4]![8] = 0xff8800
+  g[3]![6] = 0xffaa00; g[3]![7] = 0xffcc00; g[3]![8] = 0xffcc00; g[3]![9] = 0xffaa00
+  g[2]![7] = 0xffdd44; g[2]![8] = 0xffdd44
+  g[1]![7] = 0xffee88; g[1]![8] = 0xffee88
+  g[0]![7] = 0xffff88
+  // Glow
+  g[4]![6] = 0xff8800; g[4]![9] = 0xff8800
+  return g
+}
+
+function makeItemWorkbench(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const wood = 0x8b6b3a
+  const dark = darken(wood, 0.25)
+  const darker = darken(wood, 0.4)
+  const hi = lighten(wood, 0.2)
+  const light = lighten(wood, 0.35)
+  const metal = 0x888899
+  const metalHi = 0xaaaabb
+  const metalDk = 0x555566
+  const handle = 0x6b4b2a
+
+  // ── Thick tabletop (rows 5-8) with front edge highlight ──
+  for (let x = 1; x <= 14; x++) {
+    g[5]![x] = light    // top surface highlight
+    g[6]![x] = hi       // main surface
+    g[7]![x] = wood     // surface body
+    g[8]![x] = dark     // front edge / underside shadow
+  }
+  // Wood grain on surface
+  g[6]![3] = light; g[6]![7] = light; g[6]![11] = light
+  g[7]![5] = dark; g[7]![9] = dark; g[7]![13] = dark
+  // Edge caps
+  g[5]![0] = dark; g[6]![0] = dark; g[7]![0] = darker; g[8]![0] = darker
+  g[5]![15] = dark; g[6]![15] = dark; g[7]![15] = darker; g[8]![15] = darker
+
+  // ── Sturdy legs (rows 9-14) — 3px wide with shading ──
+  for (let y = 9; y <= 14; y++) {
+    // Left leg
+    g[y]![1] = hi; g[y]![2] = wood; g[y]![3] = dark
+    // Right leg
+    g[y]![12] = hi; g[y]![13] = wood; g[y]![14] = dark
+  }
+  // Feet
+  g[14]![0] = darker; g[14]![4] = darker
+  g[14]![11] = darker; g[14]![15] = darker
+
+  // ── Crossbar/shelf (row 11-12) ──
+  for (let x = 3; x <= 12; x++) {
+    g[11]![x] = wood
+    g[12]![x] = dark
+  }
+
+  // ── Vice/clamp on left edge ──
+  g[4]![1] = metal; g[4]![2] = metalDk
+  g[3]![1] = metalHi; g[3]![2] = metal
+
+  // ── Hammer on tabletop ──
+  // Handle (diagonal)
+  g[4]![6] = handle; g[3]![7] = handle; g[2]![8] = handle
+  // Head
+  g[1]![8] = metalDk; g[1]![9] = metal; g[1]![10] = metalHi
+  g[2]![9] = metalDk
+
+  // ── Saw leaning on right side ──
+  g[4]![12] = metal; g[3]![12] = metalHi; g[2]![12] = metal; g[1]![12] = metalDk
+  g[4]![13] = handle  // saw handle
+  g[3]![13] = handle
+  // Saw teeth
+  g[2]![11] = metalDk; g[1]![11] = metalDk
+
+  return g
+}
+
+function makeItemWorkbenchMk2(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const wood = 0xa0824a
+  const dark = darken(wood, 0.25)
+  const darker = darken(wood, 0.4)
+  const hi = lighten(wood, 0.2)
+  const light = lighten(wood, 0.35)
+  const metal = 0x9999aa
+  const metalHi = 0xbbbbcc
+  const metalDk = 0x666677
+  const accent = 0xccaa44
+
+  // ── Reinforced tabletop (rows 5-8) with metal trim ──
+  for (let x = 1; x <= 14; x++) {
+    g[5]![x] = metalHi   // metal top trim
+    g[6]![x] = light      // main surface
+    g[7]![x] = wood       // surface body
+    g[8]![x] = dark       // front edge shadow
+  }
+  // Wood grain
+  g[6]![3] = hi; g[6]![7] = hi; g[6]![11] = hi
+  g[7]![5] = dark; g[7]![9] = dark; g[7]![13] = dark
+  // Metal edge caps
+  g[5]![0] = metalDk; g[6]![0] = metalDk; g[7]![0] = darker; g[8]![0] = darker
+  g[5]![15] = metalDk; g[6]![15] = metalDk; g[7]![15] = darker; g[8]![15] = darker
+
+  // ── Reinforced legs (rows 9-14) ──
+  for (let y = 9; y <= 14; y++) {
+    g[y]![1] = hi; g[y]![2] = wood; g[y]![3] = dark
+    g[y]![12] = hi; g[y]![13] = wood; g[y]![14] = dark
+  }
+  // Metal feet
+  g[14]![0] = metalDk; g[14]![4] = metalDk
+  g[14]![11] = metalDk; g[14]![15] = metalDk
+
+  // ── Crossbar with metal reinforcement (row 11-12) ──
+  for (let x = 3; x <= 12; x++) {
+    g[11]![x] = metal
+    g[12]![x] = dark
+  }
+
+  // ── Star/upgrade emblem on front ──
+  g[3]![7] = accent; g[3]![8] = accent
+  g[2]![7] = accent; g[2]![8] = accent
+  g[1]![7] = accent; g[4]![8] = accent
+
+  // ── Gear on tabletop ──
+  g[4]![12] = metal; g[3]![12] = metalHi; g[3]![11] = metal; g[4]![11] = metalDk
+
+  return g
+}
+
+function makeItemFurnace(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const brick = 0xaa4422
+  const dark = darken(brick, 0.25)
+  const mortar = darken(brick, 0.1)
+  // Brick body
+  for (let y = 3; y <= 13; y++)
+    for (let x = 2; x <= 13; x++)
+      g[y]![x] = brick
+  // Brick lines
+  for (let x = 2; x <= 13; x++) { g[5]![x] = mortar; g[8]![x] = mortar; g[11]![x] = mortar }
+  for (let y = 3; y <= 13; y++) if (y % 3 === 0) { g[y]![7] = mortar }
+  // Fire opening
+  for (let y = 9; y <= 12; y++)
+    for (let x = 5; x <= 10; x++)
+      g[y]![x] = 0x111111
+  // Fire inside
+  g[11]![6] = 0xff6600; g[11]![7] = 0xffaa00; g[11]![8] = 0xff8800; g[11]![9] = 0xff6600
+  g[10]![7] = 0xffcc00; g[10]![8] = 0xffaa00
+  // Chimney
+  g[2]![6] = dark; g[2]![7] = dark; g[1]![6] = dark; g[1]![7] = dark
+  // Smoke
+  g[0]![6] = 0x888888; g[0]![5] = 0x777777
+  return g
+}
+
+function makeItemAnvil(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const metal = 0x666688
+  const hi = lighten(metal, 0.2)
+  const sh = darken(metal, 0.25)
+  // Top flat surface
+  for (let x = 1; x <= 14; x++) g[5]![x] = hi
+  for (let x = 1; x <= 14; x++) g[6]![x] = metal
+  // Horn (left protrusion)
+  for (let x = 0; x <= 3; x++) { g[5]![x] = hi; g[6]![x] = metal; g[7]![x] = sh }
+  g[6]![0] = sh
+  // Body
+  for (let y = 7; y <= 9; y++)
+    for (let x = 3; x <= 12; x++)
+      g[y]![x] = metal
+  // Base wider
+  for (let y = 10; y <= 12; y++)
+    for (let x = 2; x <= 13; x++)
+      g[y]![x] = sh
+  // Highlight on top
+  g[5]![6] = 0xffffff; g[5]![7] = hi
+  return g
+}
+
+function makeItemTechBench(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const metal = 0x4488aa
+  const dark = darken(metal, 0.25)
+  const hi = lighten(metal, 0.2)
+  // Table surface
+  for (let x = 1; x <= 14; x++) { g[6]![x] = hi; g[7]![x] = metal }
+  // Legs
+  for (let y = 8; y <= 13; y++) { g[y]![2] = dark; g[y]![13] = dark }
+  // Screen on top
+  for (let y = 2; y <= 5; y++)
+    for (let x = 4; x <= 11; x++)
+      g[y]![x] = 0x113344
+  // Screen content
+  g[3]![5] = 0x00ff88; g[3]![6] = 0x00ff88; g[3]![7] = 0x00ff88
+  g[4]![5] = 0x00ff88; g[4]![8] = 0x00ff88
+  // Screen frame
+  for (let x = 4; x <= 11; x++) { g[1]![x] = dark; g[5]![x] = dark }
+  g[2]![4] = dark; g[2]![11] = dark; g[3]![4] = dark; g[3]![11] = dark; g[4]![4] = dark; g[4]![11] = dark
+  return g
+}
+
+function makeItemFusionStation(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0x8844cc
+  const hi = lighten(base, 0.3)
+  const sh = darken(base, 0.2)
+  // Platform
+  for (let x = 1; x <= 14; x++) { g[8]![x] = base; g[9]![x] = sh }
+  // Legs
+  for (let y = 10; y <= 13; y++) { g[y]![2] = sh; g[y]![3] = sh; g[y]![12] = sh; g[y]![13] = sh }
+  // Energy ring on top
+  for (let x = 4; x <= 11; x++) { g[4]![x] = hi; g[7]![x] = hi }
+  for (let y = 4; y <= 7; y++) { g[y]![4] = hi; g[y]![11] = hi }
+  // Core glow
+  g[5]![7] = 0xffffff; g[5]![8] = 0xffffff
+  g[6]![7] = 0xffffff; g[6]![8] = 0xffffff
+  // Energy particles
+  g[2]![7] = 0xff88ff; g[3]![6] = 0xaa66ff; g[3]![9] = 0xaa66ff
+  return g
+}
+
+function makePickaxe(headColor: number, handleColor: number): PixelGrid {
+  const g = makeGrid(16, 16)
+  const sh = darken(headColor, 0.2)
+  // Handle (diagonal)
+  for (let i = 0; i < 8; i++) {
+    const x = 3 + i
+    const y = 13 - i
+    g[y]![x] = handleColor
+    if (y + 1 < 16) g[y + 1]![x] = darken(handleColor, 0.2)
+  }
+  // Pickaxe head (horizontal at top of handle)
+  for (let x = 7; x <= 14; x++) g[5]![x] = headColor
+  for (let x = 8; x <= 14; x++) g[4]![x] = lighten(headColor, 0.15)
+  for (let x = 7; x <= 13; x++) g[6]![x] = sh
+  // Point on right
+  g[5]![15] = sh; g[4]![15] = headColor
+  // Left curve down
+  g[7]![7] = sh; g[7]![8] = sh
+  return g
+}
+
+function makeItemWoodPickaxe(): PixelGrid { return makePickaxe(0x8b6b3a, 0x6b4226) }
+function makeItemStonePickaxe(): PixelGrid { return makePickaxe(0x999999, 0x6b4226) }
+function makeItemIronPickaxe(): PixelGrid { return makePickaxe(0xc9a96e, 0x6b4226) }
+function makeItemDiamondPickaxe(): PixelGrid { return makePickaxe(0x7fffff, 0x6b4226) }
+function makeItemTitaniumPickaxe(): PixelGrid { return makePickaxe(0xe8e8e8, 0x6b4226) }
+
+function makeSword(bladeColor: number, handleColor: number): PixelGrid {
+  const g = makeGrid(16, 16)
+  const hi = lighten(bladeColor, 0.25)
+  const sh = darken(bladeColor, 0.2)
+  // Blade (diagonal from top-right to center)
+  for (let i = 0; i < 9; i++) {
+    const x = 12 - i
+    const y = 1 + i
+    g[y]![x] = bladeColor
+    if (x + 1 < 16) g[y]![x + 1] = hi
+    if (x - 1 >= 0) g[y + 1]![x] = sh
+  }
+  // Tip
+  g[0]![13] = hi; g[0]![12] = bladeColor
+  // Guard (crossbar)
+  for (let x = 2; x <= 8; x++) g[10]![x] = 0x888888
+  g[10]![5] = 0xaaaa44
+  // Handle
+  for (let i = 0; i < 4; i++) {
+    g[11 + i]![3 - i] = handleColor
+    if (3 - i + 1 < 16) g[11 + i]![4 - i] = darken(handleColor, 0.15)
+  }
+  // Pommel
+  g[14]![0] = 0xaaaa44
+  return g
+}
+
+function makeItemWoodSword(): PixelGrid { return makeSword(0x8b6b3a, 0x5a3a20) }
+function makeItemStoneSword(): PixelGrid { return makeSword(0x999999, 0x6b4226) }
+function makeItemIronSword(): PixelGrid { return makeSword(0xc9a96e, 0x6b4226) }
+function makeItemDiamondSword(): PixelGrid { return makeSword(0x7fffff, 0x6b4226) }
+function makeItemTitaniumSword(): PixelGrid { return makeSword(0xe8e8e8, 0x6b4226) }
+
+function makeBow(bodyColor: number): PixelGrid {
+  const g = makeGrid(16, 16)
+  const sh = darken(bodyColor, 0.2)
+  // Bow arc (curved left side)
+  g[1]![4] = bodyColor; g[2]![3] = bodyColor; g[3]![2] = bodyColor
+  g[4]![2] = bodyColor; g[5]![2] = bodyColor; g[6]![2] = bodyColor
+  g[7]![2] = bodyColor; g[8]![3] = sh
+  g[9]![3] = sh; g[10]![3] = sh; g[11]![4] = sh
+  g[12]![4] = sh; g[13]![5] = sh; g[14]![6] = sh
+  // String (straight right side)
+  for (let y = 1; y <= 14; y++) g[y]![9] = 0xcccccc
+  // Arrow
+  g[7]![9] = 0x8b6b3a; g[7]![10] = 0x8b6b3a; g[7]![11] = 0x8b6b3a
+  g[7]![12] = 0x8b6b3a; g[7]![13] = 0xcccccc
+  // Arrow tip
+  g[6]![14] = 0xaaaaaa; g[7]![14] = 0xaaaaaa; g[7]![15] = 0xcccccc; g[8]![14] = 0xaaaaaa
+  // Arrow fletching
+  g[6]![9] = 0xff4444; g[8]![9] = 0xff4444
+  return g
+}
+
+function makeItemWoodBow(): PixelGrid { return makeBow(0x8b6b3a) }
+function makeItemIronBow(): PixelGrid { return makeBow(0xc9a96e) }
+
+function makeItemLaserGun(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const body = 0xaa2222
+  const metal = 0x888888
+  const hi = lighten(body, 0.2)
+  const sh = darken(body, 0.25)
+  // Gun body
+  for (let y = 5; y <= 9; y++)
+    for (let x = 2; x <= 13; x++)
+      g[y]![x] = body
+  // Barrel
+  for (let x = 12; x <= 15; x++) { g[6]![x] = metal; g[7]![x] = metal; g[8]![x] = metal }
+  // Barrel opening glow
+  g[7]![15] = 0xff4444
+  // Handle/grip
+  for (let y = 10; y <= 14; y++) { g[y]![4] = sh; g[y]![5] = body; g[y]![6] = sh }
+  // Trigger
+  g[10]![7] = metal; g[11]![7] = metal
+  // Top detail
+  g[4]![5] = metal; g[4]![6] = metal; g[4]![7] = metal
+  // Highlight
+  g[5]![4] = hi; g[5]![5] = hi
+  // Scope
+  g[3]![8] = metal; g[3]![9] = metal; g[4]![8] = 0xff0000; g[4]![9] = metal
+  return g
+}
+
+function makeStaff(orbColor: number, shaftColor: number): PixelGrid {
+  const g = makeGrid(16, 16)
+  const orbHi = lighten(orbColor, 0.3)
+  // Shaft (diagonal)
+  for (let i = 0; i < 12; i++) {
+    const x = 4 + Math.floor(i * 0.5)
+    const y = 3 + i
+    if (y < 16 && x < 16) g[y]![x] = shaftColor
+  }
+  // Orb at top
+  for (let y = 0; y <= 4; y++)
+    for (let x = 5; x <= 9; x++) {
+      const dx = x - 7, dy = y - 2
+      if (dx * dx + dy * dy <= 5) g[y]![x] = orbColor
+    }
+  // Orb highlight
+  g[1]![6] = orbHi; g[1]![7] = 0xffffff; g[2]![6] = orbHi
+  // Orb glow
+  g[0]![7] = lighten(orbColor, 0.15); g[2]![9] = lighten(orbColor, 0.15)
+  return g
+}
+
+function makeItemApprenticeStaff(): PixelGrid { return makeStaff(0x6644cc, 0x8b6b3a) }
+function makeItemCrystalStaff(): PixelGrid { return makeStaff(0xaa66ff, 0x666688) }
+
+function makeItemDroneTotem(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0x44aa88
+  const hi = lighten(base, 0.25)
+  const sh = darken(base, 0.2)
+  // Totem pole
+  for (let y = 2; y <= 14; y++)
+    for (let x = 5; x <= 10; x++)
+      g[y]![x] = base
+  // Face segments
+  for (let x = 5; x <= 10; x++) { g[4]![x] = sh; g[8]![x] = sh; g[12]![x] = sh }
+  // Eyes
+  g[3]![6] = 0xffffff; g[3]![9] = 0xffffff
+  g[6]![6] = 0x00ffaa; g[6]![9] = 0x00ffaa
+  g[10]![6] = 0xffffff; g[10]![9] = 0xffffff
+  // Wings/arms
+  g[5]![3] = sh; g[5]![4] = sh; g[5]![11] = sh; g[5]![12] = sh
+  g[9]![3] = sh; g[9]![4] = sh; g[9]![11] = sh; g[9]![12] = sh
+  // Top
+  g[1]![7] = hi; g[1]![8] = hi; g[0]![7] = 0x00ffaa
+  return g
+}
+
+function makeItemSwarmBeacon(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0x88ffcc
+  const sh = darken(base, 0.2)
+  // Beacon body
+  for (let y = 5; y <= 13; y++)
+    for (let x = 5; x <= 10; x++)
+      g[y]![x] = base
+  // Tapered top
+  for (let x = 6; x <= 9; x++) g[4]![x] = base
+  for (let x = 7; x <= 8; x++) g[3]![x] = base
+  // Base wider
+  for (let x = 3; x <= 12; x++) { g[13]![x] = sh; g[14]![x] = sh }
+  // Glow on top
+  g[2]![7] = 0xffffff; g[2]![8] = 0xffffff
+  g[1]![7] = 0xaaffdd; g[1]![8] = 0xaaffdd
+  g[0]![7] = 0x88ffcc
+  // Energy lines
+  g[7]![5] = 0xffffff; g[9]![10] = 0xffffff; g[11]![6] = 0xffffff
+  return g
+}
+
+function makeItemVineBeacon(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0x44cc44
+  const dark = darken(base, 0.25)
+  const hi = lighten(base, 0.2)
+  // Beacon body
+  for (let y = 5; y <= 13; y++)
+    for (let x = 5; x <= 10; x++)
+      g[y]![x] = base
+  for (let x = 6; x <= 9; x++) g[4]![x] = base
+  for (let x = 7; x <= 8; x++) g[3]![x] = hi
+  // Base
+  for (let x = 4; x <= 11; x++) { g[13]![x] = dark; g[14]![x] = dark }
+  // Vine wrapping around
+  g[6]![4] = dark; g[7]![4] = dark; g[8]![5] = dark
+  g[9]![11] = dark; g[10]![11] = dark; g[11]![10] = dark
+  // Top glow
+  g[2]![7] = 0x88ff88; g[2]![8] = 0x88ff88
+  g[1]![7] = 0xaaffaa; g[1]![8] = 0xaaffaa
+  return g
+}
+
+function makeItemSignalBeacon(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0xff44ff
+  const sh = darken(base, 0.2)
+  const hi = lighten(base, 0.3)
+  // Beacon body
+  for (let y = 5; y <= 13; y++)
+    for (let x = 5; x <= 10; x++)
+      g[y]![x] = base
+  for (let x = 6; x <= 9; x++) g[4]![x] = base
+  for (let x = 7; x <= 8; x++) g[3]![x] = hi
+  // Base
+  for (let x = 3; x <= 12; x++) { g[13]![x] = sh; g[14]![x] = sh }
+  // Signal waves
+  g[1]![5] = 0xff88ff; g[1]![10] = 0xff88ff
+  g[0]![4] = 0xffaaff; g[0]![11] = 0xffaaff
+  g[2]![7] = 0xffffff; g[2]![8] = 0xffffff
+  // Antenna
+  g[2]![7] = hi; g[1]![7] = 0xffffff; g[0]![7] = 0xffffff
+  return g
+}
+
+function makeItemFuelCellCasing(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0xddaa33
+  const sh = darken(base, 0.2)
+  const hi = lighten(base, 0.2)
+  // Cylinder shape
+  for (let y = 3; y <= 12; y++)
+    for (let x = 4; x <= 11; x++)
+      g[y]![x] = base
+  // Top cap
+  for (let x = 5; x <= 10; x++) g[2]![x] = hi
+  // Bottom cap
+  for (let x = 4; x <= 11; x++) g[13]![x] = sh
+  // Side shading
+  for (let y = 3; y <= 12; y++) { g[y]![4] = sh; g[y]![11] = sh }
+  // Highlight stripe
+  for (let y = 4; y <= 11; y++) g[y]![6] = hi
+  // Label/detail
+  g[7]![7] = 0xff8800; g[7]![8] = 0xff8800; g[8]![7] = 0xff8800; g[8]![8] = 0xff8800
+  return g
+}
+
+function makeItemThrustRegulator(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const metal = 0xbbbbbb
+  const dark = darken(metal, 0.25)
+  const hi = lighten(metal, 0.15)
+  // Main body (box shape)
+  for (let y = 4; y <= 11; y++)
+    for (let x = 3; x <= 12; x++)
+      g[y]![x] = metal
+  // Edges
+  for (let x = 3; x <= 12; x++) { g[3]![x] = hi; g[12]![x] = dark }
+  for (let y = 4; y <= 11; y++) { g[y]![3] = dark; g[y]![12] = dark }
+  // Vents/fins
+  for (let x = 4; x <= 11; x += 2) { g[5]![x] = dark; g[9]![x] = dark }
+  // Center dial
+  g[7]![7] = 0xff4444; g[7]![8] = 0xff4444
+  g[6]![7] = hi; g[6]![8] = hi
+  return g
+}
+
+function makeItemPressureValve(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0x5599cc
+  const sh = darken(base, 0.2)
+  const hi = lighten(base, 0.2)
+  // Valve body (circular)
+  for (let y = 4; y <= 11; y++)
+    for (let x = 4; x <= 11; x++) {
+      const dx = x - 7.5, dy = y - 7.5
+      if (dx * dx + dy * dy <= 16) g[y]![x] = base
+    }
+  // Handle on top
+  for (let x = 6; x <= 9; x++) g[2]![x] = 0x888888
+  g[3]![6] = 0x888888; g[3]![9] = 0x888888
+  g[3]![7] = sh; g[3]![8] = sh
+  // Pipe connections
+  for (let x = 1; x <= 3; x++) { g[7]![x] = sh; g[8]![x] = sh }
+  for (let x = 12; x <= 14; x++) { g[7]![x] = sh; g[8]![x] = sh }
+  // Center bolt
+  g[7]![7] = hi; g[7]![8] = hi; g[8]![7] = hi; g[8]![8] = 0xffffff
+  return g
+}
+
+function makeItemEnergyCapacitor(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0xcc66ff
+  const sh = darken(base, 0.25)
+  const hi = lighten(base, 0.25)
+  // Capacitor body
+  for (let y = 4; y <= 12; y++)
+    for (let x = 4; x <= 11; x++)
+      g[y]![x] = base
+  // Top terminals
+  g[2]![5] = 0x888888; g[2]![6] = 0x888888; g[3]![5] = 0x888888; g[3]![6] = 0x888888
+  g[2]![9] = 0x888888; g[2]![10] = 0x888888; g[3]![9] = 0x888888; g[3]![10] = 0x888888
+  // Energy glow inside
+  for (let y = 6; y <= 10; y++) { g[y]![6] = hi; g[y]![9] = hi }
+  g[8]![7] = 0xffffff; g[8]![8] = 0xffffff
+  // Edges
+  for (let y = 4; y <= 12; y++) { g[y]![4] = sh; g[y]![11] = sh }
+  for (let x = 4; x <= 11; x++) g[12]![x] = sh
+  // Lightning bolt symbol
+  g[6]![7] = 0xffffff; g[7]![8] = 0xffffff; g[7]![7] = 0xffffff; g[8]![7] = hi
+  return g
+}
+
+function makeItemIgnitionCore(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const base = 0xff6600
+  const hi = 0xffaa00
+  const sh = darken(base, 0.25)
+  // Spherical core
+  for (let y = 3; y <= 12; y++)
+    for (let x = 3; x <= 12; x++) {
+      const dx = x - 7.5, dy = y - 7.5
+      if (dx * dx + dy * dy <= 20) g[y]![x] = base
+    }
+  // Inner glow
+  for (let y = 5; y <= 10; y++)
+    for (let x = 5; x <= 10; x++) {
+      const dx = x - 7.5, dy = y - 7.5
+      if (dx * dx + dy * dy <= 8) g[y]![x] = hi
+    }
+  // Core center
+  g[7]![7] = 0xffffff; g[7]![8] = 0xffffff; g[8]![7] = 0xffffff; g[8]![8] = 0xffdd44
+  // Heat radiation
+  g[1]![7] = 0xff8800; g[14]![7] = 0xff4400; g[7]![1] = 0xff8800; g[7]![14] = 0xff4400
+  g[2]![4] = 0xff6600; g[2]![11] = 0xff6600; g[13]![4] = 0xff4400; g[13]![11] = 0xff4400
+  return g
+}
+
+function makeItemNavigationModule(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const board = 0x115533
+  const trace = 0x00ffaa
+  const chip = 0x333333
+  // Circuit board
+  for (let y = 3; y <= 12; y++)
+    for (let x = 2; x <= 13; x++)
+      g[y]![x] = board
+  // Frame
+  for (let x = 2; x <= 13; x++) { g[3]![x] = 0x228855; g[12]![x] = 0x228855 }
+  for (let y = 3; y <= 12; y++) { g[y]![2] = 0x228855; g[y]![13] = 0x228855 }
+  // Traces
+  for (let x = 4; x <= 11; x++) g[5]![x] = trace
+  for (let x = 4; x <= 11; x++) g[9]![x] = trace
+  for (let y = 5; y <= 9; y++) { g[y]![4] = trace; g[y]![11] = trace }
+  // Central chip
+  for (let y = 6; y <= 8; y++)
+    for (let x = 6; x <= 9; x++)
+      g[y]![x] = chip
+  // Chip detail
+  g[7]![7] = trace; g[7]![8] = trace
+  // Pin connectors
+  g[6]![5] = trace; g[8]![5] = trace; g[6]![10] = trace; g[8]![10] = trace
+  return g
+}
+
+function makeItemJetpack(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const body = 0xddaa00
+  const dark = darken(body, 0.25)
+  const hi = lighten(body, 0.2)
+  const metal = 0x888888
+  // Main body (two tanks)
+  for (let y = 2; y <= 10; y++) {
+    for (let x = 2; x <= 6; x++) g[y]![x] = body
+    for (let x = 9; x <= 13; x++) g[y]![x] = body
+  }
+  // Strap bridge
+  for (let x = 6; x <= 9; x++) { g[4]![x] = metal; g[5]![x] = metal }
+  // Tank highlights
+  for (let y = 3; y <= 9; y++) { g[y]![3] = hi; g[y]![10] = hi }
+  // Tank shadows
+  for (let y = 2; y <= 10; y++) { g[y]![6] = dark; g[y]![13] = dark }
+  // Nozzles
+  for (let x = 3; x <= 5; x++) { g[11]![x] = metal; g[12]![x] = dark }
+  for (let x = 10; x <= 12; x++) { g[11]![x] = metal; g[12]![x] = dark }
+  // Flame
+  g[13]![4] = 0xff6600; g[14]![4] = 0xffaa00; g[15]![4] = 0xffcc44
+  g[13]![11] = 0xff6600; g[14]![11] = 0xffaa00; g[15]![11] = 0xffcc44
+  // Caps
+  for (let x = 3; x <= 5; x++) g[1]![x] = hi
+  for (let x = 10; x <= 12; x++) g[1]![x] = hi
+  return g
+}
+
+function makeItemHealingHerb(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const leaf = 0x33cc33
+  const hi = lighten(leaf, 0.25)
+  const stem = 0x227722
+  // Stem
+  for (let y = 7; y <= 14; y++) g[y]![7] = stem
+  g[14]![8] = stem
+  // Leaves
+  g[5]![6] = leaf; g[5]![7] = leaf; g[5]![8] = leaf
+  g[4]![5] = leaf; g[4]![6] = hi; g[4]![7] = leaf; g[4]![8] = leaf; g[4]![9] = leaf
+  g[3]![5] = leaf; g[3]![6] = hi; g[3]![7] = hi; g[3]![8] = leaf; g[3]![9] = leaf
+  g[2]![6] = leaf; g[2]![7] = hi; g[2]![8] = leaf
+  // Side leaves
+  g[7]![5] = leaf; g[7]![4] = leaf; g[6]![4] = hi
+  g[9]![8] = leaf; g[9]![9] = leaf; g[8]![9] = hi
+  // Sparkle (healing)
+  g[1]![7] = 0xaaffaa; g[3]![10] = 0x88ff88
+  return g
+}
+
+function makeItemCookedMeat(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const meat = 0xcc6633
+  const hi = lighten(meat, 0.2)
+  const sh = darken(meat, 0.25)
+  const bone = 0xeeeecc
+  // Drumstick meat (oval)
+  for (let y = 3; y <= 10; y++)
+    for (let x = 3; x <= 12; x++) {
+      const dx = (x - 7.5) / 5, dy = (y - 6.5) / 4
+      if (dx * dx + dy * dy <= 1) g[y]![x] = meat
+    }
+  // Shading
+  for (let y = 3; y <= 10; y++) {
+    if (g[y]![3]) g[y]![3] = sh
+    if (g[y]![12]) g[y]![12] = sh
+  }
+  for (let x = 3; x <= 12; x++) { if (g[10]![x]) g[10]![x] = sh }
+  // Highlight (grilled marks)
+  g[5]![5] = hi; g[5]![8] = hi; g[7]![6] = hi; g[7]![9] = hi
+  // Bone sticking out
+  g[9]![11] = bone; g[10]![12] = bone; g[11]![13] = bone; g[12]![14] = bone; g[13]![14] = bone
+  g[11]![14] = bone; g[12]![13] = darken(0xeeeecc, 0.1)
+  return g
+}
+
 // ─── PUBLIC API ────────────────────────────────────────────
 
 export function generateAllSprites(scene: Phaser.Scene) {
@@ -996,8 +1780,6 @@ export function generateAllSprites(scene: Phaser.Scene) {
     ['player_walk2', 'walk2'],
     ['player_walk3', 'walk3'],
     ['player_walk4', 'walk4'],
-    ['player_jump', 'jump'],
-    ['player_fall', 'fall'],
   ]
   for (const [key, frame] of playerFrames) {
     drawToTexture(scene, key, makePlayerFrame(frame))
@@ -1024,4 +1806,53 @@ export function generateAllSprites(scene: Phaser.Scene) {
   drawToTexture(scene, 'proj_magic', makeProjectileMagic())
   drawToTexture(scene, 'proj_enemy', makeProjectileEnemy())
   drawToTexture(scene, 'summon_minion', makeSummonMinion())
+
+  // Item icons (for hotbar/inventory display)
+  const itemMakers: Record<number, () => PixelGrid> = {
+    100: makeItemIronBar,
+    101: makeItemDiamond,
+    102: makeItemTitaniumBar,
+    103: makeItemCarbonPlate,
+    104: makeItemGlass,
+    105: makeItemPlantFiber,
+    106: makeItemTorch,
+    110: makeItemWorkbench,
+    111: makeItemFurnace,
+    112: makeItemAnvil,
+    113: makeItemTechBench,
+    114: makeItemFusionStation,
+    115: makeItemWorkbenchMk2,
+    120: makeItemWoodPickaxe,
+    121: makeItemStonePickaxe,
+    122: makeItemIronPickaxe,
+    123: makeItemDiamondPickaxe,
+    124: makeItemTitaniumPickaxe,
+    130: makeItemWoodSword,
+    131: makeItemStoneSword,
+    132: makeItemIronSword,
+    133: makeItemDiamondSword,
+    134: makeItemTitaniumSword,
+    140: makeItemWoodBow,
+    141: makeItemIronBow,
+    142: makeItemLaserGun,
+    150: makeItemApprenticeStaff,
+    151: makeItemCrystalStaff,
+    160: makeItemDroneTotem,
+    161: makeItemSwarmBeacon,
+    170: makeItemVineBeacon,
+    171: makeItemSignalBeacon,
+    180: makeItemFuelCellCasing,
+    181: makeItemThrustRegulator,
+    182: makeItemPressureValve,
+    183: makeItemEnergyCapacitor,
+    184: makeItemIgnitionCore,
+    185: makeItemNavigationModule,
+    186: makeItemJetpack,
+    190: makeItemHealingHerb,
+    191: makeItemCookedMeat,
+  }
+
+  for (const [id, maker] of Object.entries(itemMakers)) {
+    drawToTexture(scene, `item_${id}`, maker())
+  }
 }

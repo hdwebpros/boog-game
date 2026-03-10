@@ -1,5 +1,5 @@
 import type { WorldData } from '../world/WorldGenerator'
-import type { ItemStack } from './InventoryManager'
+import type { ItemStack, ArmorSlots } from './InventoryManager'
 import type { PlacedStation } from '../world/ChunkManager'
 
 const SAVE_KEY = 'starfall_save'
@@ -13,9 +13,11 @@ export interface SaveData {
   hp: number
   mana: number
   hotbar: (ItemStack | null)[]
+  mainInventory?: (ItemStack | null)[]
   selectedSlot: number
   placedStations: PlacedStation[]
   hasJetpack: boolean
+  armorSlots?: ArmorSlots
   timestamp: number
 }
 
@@ -25,9 +27,11 @@ export class SaveManager {
     playerX: number, playerY: number,
     hp: number, mana: number,
     hotbar: (ItemStack | null)[],
+    mainInventory: (ItemStack | null)[],
     selectedSlot: number,
     placedStations: PlacedStation[],
-    hasJetpack: boolean
+    hasJetpack: boolean,
+    armorSlots?: ArmorSlots
   ): boolean {
     try {
       const data: SaveData = {
@@ -39,9 +43,11 @@ export class SaveManager {
         hp,
         mana,
         hotbar,
+        mainInventory,
         selectedSlot,
         placedStations,
         hasJetpack,
+        armorSlots,
         timestamp: Date.now(),
       }
       localStorage.setItem(SAVE_KEY, JSON.stringify(data))

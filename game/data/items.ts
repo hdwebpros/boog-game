@@ -12,6 +12,7 @@ export enum ItemCategory {
 }
 
 export type WeaponStyle = 'melee' | 'ranged' | 'magic' | 'summon'
+export type ArmorSlot = 'helmet' | 'chestplate' | 'leggings' | 'boots'
 
 export interface ItemDef {
   id: number
@@ -29,6 +30,8 @@ export interface ItemDef {
   manaCost?: number      // mana cost per use (magic weapons)
   projectileSpeed?: number // pixels/sec (ranged/magic)
   healAmount?: number    // for consumables
+  defense?: number       // damage reduction (armor only)
+  armorSlot?: ArmorSlot  // which slot this armor equips to
 }
 
 // IDs 0-99: blocks (match TileType)
@@ -63,6 +66,7 @@ export const ITEMS: Record<number, ItemDef> = {
   112: { id: 112, name: 'Anvil',          category: ItemCategory.STATION, stackSize: 1, tier: 2, color: 0x666688 },
   113: { id: 113, name: 'Tech Bench',     category: ItemCategory.STATION, stackSize: 1, tier: 3, color: 0x4488aa },
   114: { id: 114, name: 'Fusion Station', category: ItemCategory.STATION, stackSize: 1, tier: 4, color: 0x8844cc },
+  115: { id: 115, name: 'Workbench Mk2', category: ItemCategory.STATION, stackSize: 1, tier: 1, color: 0xa0824a },
 
   // ── Tools ───────────────────────────────────────────────
   120: { id: 120, name: 'Wood Pickaxe',     category: ItemCategory.TOOL, stackSize: 1, tier: 0, color: 0x8b6b3a, miningSpeed: 1.5, miningTier: 0 },
@@ -93,7 +97,11 @@ export const ITEMS: Record<number, ItemDef> = {
 
   // ── Boss Summon Items ───────────────────────────────────
   170: { id: 170, name: 'Vine Beacon',    category: ItemCategory.SPECIAL, stackSize: 1, tier: 0, color: 0x44cc44 },
-  171: { id: 171, name: 'Signal Beacon',  category: ItemCategory.SPECIAL, stackSize: 1, tier: 4, color: 0xff44ff },
+  171: { id: 171, name: 'Tidal Pearl',    category: ItemCategory.SPECIAL, stackSize: 1, tier: 1, color: 0x2288cc },
+  172: { id: 172, name: 'Crystal Lens',   category: ItemCategory.SPECIAL, stackSize: 1, tier: 2, color: 0x66ddff },
+  173: { id: 173, name: 'Magma Core',     category: ItemCategory.SPECIAL, stackSize: 1, tier: 3, color: 0xff4400 },
+  174: { id: 174, name: 'Void Sigil',     category: ItemCategory.SPECIAL, stackSize: 1, tier: 4, color: 0xaa22ff },
+  175: { id: 175, name: 'Signal Beacon',  category: ItemCategory.SPECIAL, stackSize: 1, tier: 5, color: 0xff44ff },
 
   // ── Jetpack Components ──────────────────────────────────
   180: { id: 180, name: 'Fuel Cell Casing',  category: ItemCategory.SPECIAL, stackSize: 1, tier: 0, color: 0xddaa33 },
@@ -107,6 +115,36 @@ export const ITEMS: Record<number, ItemDef> = {
   // ── Consumables ─────────────────────────────────────────
   190: { id: 190, name: 'Healing Herb',  category: ItemCategory.CONSUMABLE, stackSize: 30, tier: 0, color: 0x33cc33, healAmount: 25 },
   191: { id: 191, name: 'Cooked Meat',   category: ItemCategory.CONSUMABLE, stackSize: 20, tier: 0, color: 0xcc6633, healAmount: 50 },
+
+  // ── Armor: Wood (Tier 0) ──────────────────────────────
+  200: { id: 200, name: 'Wood Helmet',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'helmet' },
+  201: { id: 201, name: 'Wood Chestplate',  category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 2, armorSlot: 'chestplate' },
+  202: { id: 202, name: 'Wood Leggings',   category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'leggings' },
+  203: { id: 203, name: 'Wood Boots',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'boots' },
+
+  // ── Armor: Stone (Tier 1) ─────────────────────────────
+  204: { id: 204, name: 'Stone Helmet',     category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 2, armorSlot: 'helmet' },
+  205: { id: 205, name: 'Stone Chestplate', category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 3, armorSlot: 'chestplate' },
+  206: { id: 206, name: 'Stone Leggings',  category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 2, armorSlot: 'leggings' },
+  207: { id: 207, name: 'Stone Boots',     category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 1, armorSlot: 'boots' },
+
+  // ── Armor: Iron (Tier 2) ──────────────────────────────
+  208: { id: 208, name: 'Iron Helmet',      category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 3, armorSlot: 'helmet' },
+  209: { id: 209, name: 'Iron Chestplate',  category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 5, armorSlot: 'chestplate' },
+  210: { id: 210, name: 'Iron Leggings',   category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 3, armorSlot: 'leggings' },
+  211: { id: 211, name: 'Iron Boots',      category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 2, armorSlot: 'boots' },
+
+  // ── Armor: Diamond (Tier 3) ───────────────────────────
+  212: { id: 212, name: 'Diamond Helmet',     category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 4, armorSlot: 'helmet' },
+  213: { id: 213, name: 'Diamond Chestplate', category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 7, armorSlot: 'chestplate' },
+  214: { id: 214, name: 'Diamond Leggings',  category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 5, armorSlot: 'leggings' },
+  215: { id: 215, name: 'Diamond Boots',     category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 3, armorSlot: 'boots' },
+
+  // ── Armor: Titanium (Tier 4) ──────────────────────────
+  216: { id: 216, name: 'Titanium Helmet',     category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 6, armorSlot: 'helmet' },
+  217: { id: 217, name: 'Titanium Chestplate', category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 10, armorSlot: 'chestplate' },
+  218: { id: 218, name: 'Titanium Leggings',  category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 7, armorSlot: 'leggings' },
+  219: { id: 219, name: 'Titanium Boots',     category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 4, armorSlot: 'boots' },
 }
 
 export function getItemDef(id: number): ItemDef | undefined {

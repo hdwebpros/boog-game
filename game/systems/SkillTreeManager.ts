@@ -1,0 +1,152 @@
+import { SKILLS, SKILL_MAP, xpForLevel } from '../data/skills'
+import type { SkillDef } from '../data/skills'
+
+export interface SkillModifiers {
+  meleeDamageMult: number
+  rangedDamageMult: number
+  magicDamageMult: number
+  attackSpeedMult: number
+  critChance: number
+  maxHpBonus: number
+  hpRegen: number
+  defenseBonus: number
+  healOnKillPct: number
+  mineSpeedMult: number
+  miningRangeBonus: number
+  doubleDropChance: number
+  maxManaBonus: number
+  manaRegenMult: number
+  manaShieldPct: number
+  moveSpeedMult: number
+  fallDamageMult: number
+  doubleJump: boolean
+  jetpackFuelMult: number
+  lowHpDamageMult: number
+}
+
+export class SkillTreeManager {
+  unlockedSkills: Set<string> = new Set()
+  xp = 0
+  level = 0
+  skillPoints = 0
+
+  private cachedModifiers: SkillModifiers | null = null
+
+  /** Add XP and check for level ups. Returns number of levels gained. */
+  addXP(amount: number): number {
+    this.xp += amount
+    let levelsGained = 0
+    while (this.xp >= xpForLevel(this.level + 1)) {
+      this.level++
+      this.skillPoints++
+      levelsGained++
+    }
+    return levelsGained
+  }
+
+  /** XP needed for next level */
+  xpToNextLevel(): number {
+    return xpForLevel(this.level + 1)
+  }
+
+  /** Check if a skill can be unlocked */
+  canUnlock(skillId: string): boolean {
+    const skill = SKILL_MAP[skillId]
+    if (!skill) return false
+    if (this.unlockedSkills.has(skillId)) return false
+    if (this.skillPoints < skill.cost) return false
+    if (skill.requires && !this.unlockedSkills.has(skill.requires)) return false
+    return true
+  }
+
+  /** Unlock a skill. Returns true if successful. */
+  unlock(skillId: string): boolean {
+    if (!this.canUnlock(skillId)) return false
+    const skill = SKILL_MAP[skillId]!
+    this.skillPoints -= skill.cost
+    this.unlockedSkills.add(skillId)
+    this.cachedModifiers = null // invalidate cache
+    return true
+  }
+
+  /** Check if a skill is unlocked */
+  hasSkill(skillId: string): boolean {
+    return this.unlockedSkills.has(skillId)
+  }
+
+  /** Get computed stat modifiers from all unlocked skills */
+  getModifiers(): SkillModifiers {
+    if (this.cachedModifiers) return this.cachedModifiers
+
+    const mods: SkillModifiers = {
+      meleeDamageMult: 1,
+      rangedDamageMult: 1,
+      magicDamageMult: 1,
+      attackSpeedMult: 1,
+      critChance: 0,
+      maxHpBonus: 0,
+      hpRegen: 0,
+      defenseBonus: 0,
+      healOnKillPct: 0,
+      mineSpeedMult: 1,
+      miningRangeBonus: 0,
+      doubleDropChance: 0,
+      maxManaBonus: 0,
+      manaRegenMult: 1,
+      manaShieldPct: 0,
+      moveSpeedMult: 1,
+      fallDamageMult: 1,
+      doubleJump: false,
+      jetpackFuelMult: 1,
+      lowHpDamageMult: 1,
+    }
+
+    for (const skillId of this.unlockedSkills) {
+      const s = SKILL_MAP[skillId]
+      if (!s) continue
+      // Multiplicative stacking for multipliers, additive for flat bonuses
+      if (s.meleeDamageMult) mods.meleeDamageMult *= s.meleeDamageMult
+      if (s.rangedDamageMult) mods.rangedDamageMult *= s.rangedDamageMult
+      if (s.magicDamageMult) mods.magicDamageMult *= s.magicDamageMult
+      if (s.attackSpeedMult) mods.attackSpeedMult *= s.attackSpeedMult
+      if (s.critChance) mods.critChance += s.critChance
+      if (s.maxHpBonus) mods.maxHpBonus += s.maxHpBonus
+      if (s.hpRegen) mods.hpRegen += s.hpRegen
+      if (s.defenseBonus) mods.defenseBonus += s.defenseBonus
+      if (s.healOnKillPct) mods.healOnKillPct += s.healOnKillPct
+      if (s.mineSpeedMult) mods.mineSpeedMult *= s.mineSpeedMult
+      if (s.miningRangeBonus) mods.miningRangeBonus += s.miningRangeBonus
+      if (s.doubleDropChance) mods.doubleDropChance += s.doubleDropChance
+      if (s.maxManaBonus) mods.maxManaBonus += s.maxManaBonus
+      if (s.manaRegenMult) mods.manaRegenMult *= s.manaRegenMult
+      if (s.manaShieldPct) mods.manaShieldPct += s.manaShieldPct
+      if (s.moveSpeedMult) mods.moveSpeedMult *= s.moveSpeedMult
+      if (s.fallDamageMult) mods.fallDamageMult *= s.fallDamageMult
+      if (s.doubleJump) mods.doubleJump = true
+      if (s.jetpackFuelMult) mods.jetpackFuelMult *= s.jetpackFuelMult
+      if (s.lowHpDamageMult) mods.lowHpDamageMult *= s.lowHpDamageMult
+    }
+
+    this.cachedModifiers = mods
+    return mods
+  }
+
+  /** Serialize for saving */
+  toSaveData(): { xp: number; level: number; skillPoints: number; unlockedSkills: string[] } {
+    return {
+      xp: this.xp,
+      level: this.level,
+      skillPoints: this.skillPoints,
+      unlockedSkills: Array.from(this.unlockedSkills),
+    }
+  }
+
+  /** Restore from save data */
+  loadSaveData(data: { xp: number; level: number; skillPoints: number; unlockedSkills: string[] }) {
+    this.xp = data.xp
+    this.level = data.level
+    this.skillPoints = data.skillPoints
+    this.unlockedSkills = new Set(data.unlockedSkills)
+    this.cachedModifiers = null
+  }
+}

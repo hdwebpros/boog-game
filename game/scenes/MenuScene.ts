@@ -78,8 +78,11 @@ export class MenuScene extends Phaser.Scene {
       })
     }
 
+    // M to mute on title screen
+    this.addMuteToggle(width)
+
     // Controls
-    this.add.text(width / 2, height - 60, 'WASD/Arrows: Move | Space: Jump | LMB: Mine/Attack\nRMB: Place | C: Craft | Q: Use Item | F: Boss Summon', {
+    this.add.text(width / 2, height - 60, 'WASD/Arrows: Move | Space: Jump | LMB: Mine/Attack\nRMB: Place | C: Craft | Q: Use Item | F: Boss Summon | M: Mute', {
       fontSize: '10px', color: '#555555', fontFamily: 'monospace', align: 'center',
     }).setOrigin(0.5)
   }
@@ -124,9 +127,11 @@ export class MenuScene extends Phaser.Scene {
         player.sprite.x, player.sprite.y,
         player.hp, player.mana,
         player.inventory.hotbar,
+        player.inventory.mainInventory,
         player.inventory.selectedSlot,
         chunks.getPlacedStations(),
-        player.hasJetpack
+        player.hasJetpack,
+        player.inventory.armorSlots
       )
       saveStatus.setText(success ? 'Game saved!' : 'Save failed!')
       saveStatus.setColor(success ? '#00ff88' : '#ff4444')
@@ -146,9 +151,26 @@ export class MenuScene extends Phaser.Scene {
       this.scene.start('MenuScene', { pause: false })
     })
 
+    // M to mute in pause menu
+    this.addMuteToggle(width)
+
     // ESC to resume
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on('down', () => {
       this.resumeGame()
+    })
+  }
+
+  private addMuteToggle(width: number) {
+    const audio = AudioManager.get()
+    const muteLabel = this.add.text(width - 10, 10, audio?.isMuted() ? '[M] MUTED' : '[M] MUSIC ON', {
+      fontSize: '12px', color: '#888888', fontFamily: 'monospace',
+    }).setOrigin(1, 0)
+
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M).on('down', () => {
+      const a = AudioManager.get()
+      if (!a) return
+      const muted = a.toggleMute()
+      muteLabel.setText(muted ? '[M] MUTED' : '[M] MUSIC ON')
     })
   }
 

@@ -2,7 +2,9 @@ import Phaser from 'phaser'
 import type { BossDef, BossPhase } from '../data/bosses'
 import { BossAI } from '../data/bosses'
 import { ChunkManager } from '../world/ChunkManager'
-import { TILE_SIZE } from '../world/TileRegistry'
+import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
+
+const MAX_BOSS_SPEED = 400
 
 export class Boss {
   sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
@@ -100,8 +102,9 @@ export class Boss {
     this.hp -= amount
     this.iFrames = 150
 
-    this.vx += knockbackX * 0.3 // bosses resist knockback
-    this.vy += knockbackY * 0.3
+    // Set knockback velocity (don't accumulate — prevents launch glitch)
+    this.vx = knockbackX * 0.3
+    this.vy = knockbackY * 0.3
 
     if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(0xffffff)
     else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = 0xffffff
@@ -213,6 +216,7 @@ export class Boss {
 
     this.sprite.x += this.vx * dt
     this.sprite.y += this.vy * dt
+    this.clampBoss()
 
     const projectiles: { x: number; y: number; tx: number; ty: number; damage: number }[] = []
 
@@ -291,11 +295,12 @@ export class Boss {
     }
 
     // Dampen velocity
-    this.vx *= 0.98
-    this.vy *= 0.98
+    this.vx *= 0.93
+    this.vy *= 0.93
 
     this.sprite.x += this.vx * dt
     this.sprite.y += this.vy * dt
+    this.clampBoss()
 
     // Bounce off walls
     const tx = Math.floor(this.sprite.x / TILE_SIZE)
@@ -355,6 +360,7 @@ export class Boss {
 
     this.sprite.x += this.vx * dt
     this.sprite.y += this.vy * dt
+    this.clampBoss()
 
     const tx = Math.floor(this.sprite.x / TILE_SIZE)
     const ty = Math.floor(this.sprite.y / TILE_SIZE)
@@ -415,6 +421,7 @@ export class Boss {
 
     this.sprite.x += this.vx * dt
     this.sprite.y += this.vy * dt
+    this.clampBoss()
 
     const projectiles: { x: number; y: number; tx: number; ty: number; damage: number }[] = []
     let spawnMinions = false
@@ -442,6 +449,17 @@ export class Boss {
     }
 
     return { shootAtPlayer: false, spawnMinions, projectiles }
+  }
+
+  /** Clamp velocity and keep sprite inside world bounds */
+  private clampBoss() {
+    this.vx = Phaser.Math.Clamp(this.vx, -MAX_BOSS_SPEED, MAX_BOSS_SPEED)
+    this.vy = Phaser.Math.Clamp(this.vy, -MAX_BOSS_SPEED, MAX_BOSS_SPEED)
+
+    const hw = this.def.width / 2
+    const hh = this.def.height / 2
+    this.sprite.x = Phaser.Math.Clamp(this.sprite.x, hw, WORLD_WIDTH * TILE_SIZE - hw)
+    this.sprite.y = Phaser.Math.Clamp(this.sprite.y, hh, WORLD_HEIGHT * TILE_SIZE - hh)
   }
 
   // ── Physics ───────────────────────────────────────────────

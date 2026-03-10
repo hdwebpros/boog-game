@@ -38,6 +38,7 @@ export class EnemySpawner {
 
     // Pick a spawn position near the player but off-screen
     const cam = this.scene.cameras.main
+    const view = cam.worldView
     let spawnX = 0
     let spawnY = 0
     let attempts = 0
@@ -49,12 +50,12 @@ export class EnemySpawner {
       attempts++
     } while (
       attempts < 8 &&
-      spawnX > cam.scrollX - 32 && spawnX < cam.scrollX + cam.width + 32 &&
-      spawnY > cam.scrollY - 32 && spawnY < cam.scrollY + cam.height + 32
+      spawnX > view.x - 32 && spawnX < view.x + view.width + 32 &&
+      spawnY > view.y - 32 && spawnY < view.y + view.height + 32
     )
     // If still on-screen after 8 attempts, skip this spawn cycle
-    if (spawnX > cam.scrollX - 32 && spawnX < cam.scrollX + cam.width + 32 &&
-        spawnY > cam.scrollY - 32 && spawnY < cam.scrollY + cam.height + 32) return
+    if (spawnX > view.x - 32 && spawnX < view.x + view.width + 32 &&
+        spawnY > view.y - 32 && spawnY < view.y + view.height + 32) return
 
     const spawnTX = Math.floor(spawnX / TILE_SIZE)
     const spawnTY = Math.floor(spawnY / TILE_SIZE)
