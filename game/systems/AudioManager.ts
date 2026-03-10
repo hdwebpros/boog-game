@@ -14,15 +14,37 @@ const SOUND_COOLDOWNS: Partial<Record<SoundId, number>> = {
 export enum MusicTrack {
   TITLE = 'title',
   SURFACE = 'surface',
+  FOREST = 'forest',
+  DESERT = 'desert',
+  SNOW = 'snow',
+  JUNGLE = 'jungle',
+  MUSHROOM = 'mushroom',
+  MOUNTAINS = 'mountains',
+  LAKE = 'lake',
+  OCEAN = 'ocean',
+  CLOUDS = 'clouds',
   UNDERGROUND = 'underground',
+  DEEP = 'deep',
   BOSS = 'boss',
+  ENDING = 'ending',
 }
 
 const MUSIC_PATHS: Record<MusicTrack, string> = {
   [MusicTrack.TITLE]: '/music/title-screen.mp3',
   [MusicTrack.SURFACE]: '/music/surface.mp3',
+  [MusicTrack.FOREST]: '/music/forest.mp3',
+  [MusicTrack.DESERT]: '/music/desert.mp3',
+  [MusicTrack.SNOW]: '/music/snow.mp3',
+  [MusicTrack.JUNGLE]: '/music/jungle.mp3',
+  [MusicTrack.MUSHROOM]: '/music/mushroom.mp3',
+  [MusicTrack.MOUNTAINS]: '/music/mountain.mp3',
+  [MusicTrack.LAKE]: '/music/lake.mp3',
+  [MusicTrack.OCEAN]: '/music/ocean.mp3',
+  [MusicTrack.CLOUDS]: '/music/clouds.mp3',
   [MusicTrack.UNDERGROUND]: '/music/underground.mp3',
+  [MusicTrack.DEEP]: '/music/deep.mp3',
   [MusicTrack.BOSS]: '/music/boss.mp3',
+  [MusicTrack.ENDING]: '/music/ending.mp3',
 }
 
 const MUSIC_VOLUME = 0.35

@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { AudioManager, MusicTrack } from '../systems/AudioManager'
 
 /** Multi-phase cinematic ending cutscene */
 export class EndingScene extends Phaser.Scene {
@@ -24,6 +25,7 @@ export class EndingScene extends Phaser.Scene {
     this.createStarfield(width, height)
 
     // Start the cutscene sequence
+    AudioManager.get()?.playMusic(MusicTrack.ENDING)
     this.phaseOneAscent(width, height)
   }
 

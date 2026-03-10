@@ -15,11 +15,15 @@ import { SaveManager } from '../systems/SaveManager'
 import type { SaveData } from '../systems/SaveManager'
 import { AudioManager, MusicTrack } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
+import { SurfaceBiome } from '../world/WorldGenerator'
 import { DayNightCycle } from '../systems/DayNightCycle'
 import { NPC } from '../entities/NPC'
 
-// Y pixel threshold for underground music (UNDERGROUND_START=130 tiles * 16px)
-const UNDERGROUND_Y = 130 * 16
+// Y pixel thresholds for music zones
+const SKY_Y        = 80  * 16  // above Cloud City
+const UNDERGROUND_Y = 130 * 16  // underground layer start
+const DEEP_Y        = 640 * 16  // deep underground / core
+const OCEAN_EDGE_TILES = 80     // tile columns at each world edge treated as ocean
 
 // Altar interaction range (in tiles)
 const ALTAR_INTERACT_RANGE = 3
@@ -449,18 +453,47 @@ export class WorldScene extends Phaser.Scene {
     const audio = AudioManager.get()
     if (!audio) return
 
-    // Boss music overrides biome music
+    // Boss music overrides everything
     if (this.activeBoss && this.activeBoss.alive) {
       audio.playMusic(MusicTrack.BOSS)
       return
     }
 
-    // Biome-based music
+    const playerX = this.player.sprite.x
     const playerY = this.player.sprite.y
+    const tileX = Math.floor(playerX / TILE_SIZE)
+
+    // Depth-based zones
+    if (playerY >= DEEP_Y) {
+      audio.playMusic(MusicTrack.DEEP)
+      return
+    }
     if (playerY >= UNDERGROUND_Y) {
       audio.playMusic(MusicTrack.UNDERGROUND)
-    } else {
-      audio.playMusic(MusicTrack.SURFACE)
+      return
+    }
+    if (playerY < SKY_Y) {
+      audio.playMusic(MusicTrack.CLOUDS)
+      return
+    }
+
+    // Ocean edges
+    if (tileX < OCEAN_EDGE_TILES || tileX > WORLD_WIDTH - OCEAN_EDGE_TILES) {
+      audio.playMusic(MusicTrack.OCEAN)
+      return
+    }
+
+    // Surface biome
+    const biome = this.worldData.surfaceBiomes?.[tileX] ?? SurfaceBiome.PLAINS
+    switch (biome) {
+      case SurfaceBiome.FOREST:    audio.playMusic(MusicTrack.FOREST);    break
+      case SurfaceBiome.DESERT:    audio.playMusic(MusicTrack.DESERT);    break
+      case SurfaceBiome.MOUNTAINS: audio.playMusic(MusicTrack.MOUNTAINS); break
+      case SurfaceBiome.LAKE:      audio.playMusic(MusicTrack.LAKE);      break
+      case SurfaceBiome.SNOW:      audio.playMusic(MusicTrack.SNOW);      break
+      case SurfaceBiome.JUNGLE:    audio.playMusic(MusicTrack.JUNGLE);    break
+      case SurfaceBiome.MUSHROOM:  audio.playMusic(MusicTrack.MUSHROOM);  break
+      default:                     audio.playMusic(MusicTrack.SURFACE);   break
     }
   }
 
