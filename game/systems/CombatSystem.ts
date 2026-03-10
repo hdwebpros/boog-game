@@ -130,7 +130,8 @@ export class CombatSystem {
     playerX: number,
     playerY: number,
     facingRight: boolean,
-    enemies: Enemy[]
+    enemies: Enemy[],
+    damageMult = 1
   ): boolean {
     const angle = facingRight ? 0 : Math.PI
     let hit = false
@@ -145,6 +146,9 @@ export class CombatSystem {
     this.scene.time.delayedCall(100, () => {
       this.meleeGfx.clear()
     })
+
+    const baseDmg = weapon.damage ?? 0
+    const finalDmg = Math.round(baseDmg * damageMult)
 
     for (const e of enemies) {
       if (!e.alive) continue
@@ -162,8 +166,9 @@ export class CombatSystem {
 
       if (Math.abs(angleDiff) <= MELEE_ARC / 2) {
         const kbx = dx > 0 ? 200 : -200
-        e.takeDamage(weapon.damage!, kbx, -100)
-        this.spawnDamageNumber(e.sprite.x, e.sprite.y - e.def.height / 2, weapon.damage!, 0xffff00)
+        e.takeDamage(finalDmg, kbx, -100)
+        const dmgColor = damageMult >= 2 ? 0xff4444 : 0xffff00 // red for crits
+        this.spawnDamageNumber(e.sprite.x, e.sprite.y - e.def.height / 2, finalDmg, dmgColor)
         hit = true
       }
     }
@@ -179,7 +184,8 @@ export class CombatSystem {
     playerY: number,
     targetX: number,
     targetY: number,
-    fromPlayer: boolean
+    fromPlayer: boolean,
+    damageMult = 1
   ) {
     const dx = targetX - playerX
     const dy = targetY - playerY
@@ -192,7 +198,7 @@ export class CombatSystem {
       y: playerY,
       vx: (dx / dist) * speed,
       vy: (dy / dist) * speed,
-      damage: weapon.damage ?? 0,
+      damage: Math.round((weapon.damage ?? 0) * damageMult),
       color: weapon.color,
       size: weapon.weaponStyle === 'magic' ? 8 : 5,
       fromPlayer,

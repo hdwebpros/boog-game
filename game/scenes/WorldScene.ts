@@ -78,6 +78,10 @@ export class WorldScene extends Phaser.Scene {
       for (const s of saveData.placedStations) {
         this.chunkManager.placeStation(s.tx, s.ty, s.itemId)
       }
+      // Restore skill tree
+      if (saveData.skills) {
+        this.player.skills.loadSaveData(saveData.skills)
+      }
       this.registry.remove('saveData')
     }
 
@@ -92,7 +96,7 @@ export class WorldScene extends Phaser.Scene {
       fontFamily: 'monospace',
     }).setScrollFactor(0).setDepth(100)
 
-    this.add.text(8, 24, 'WASD:Move Space:Jump LMB:Mine/Attack RMB:Place C:Craft Q:Use F:Summon ESC:Pause', {
+    this.add.text(8, 24, 'WASD:Move LMB:Mine/Attack RMB:Place C:Craft E:Inv K:Skills F:Summon', {
       fontSize: '11px',
       color: '#444444',
       fontFamily: 'monospace',
@@ -116,7 +120,7 @@ export class WorldScene extends Phaser.Scene {
       this.tweens.add({ targets: label, alpha: 0, duration: 1000, delay: 500, onComplete: () => label.destroy() })
     })
 
-    // ESC: close crafting/inventory first, otherwise open pause menu
+    // ESC: close crafting/inventory/skill tree first, otherwise open pause menu
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on('down', () => {
       if (this.player.craftingOpen) {
         this.player.craftingOpen = false
@@ -125,6 +129,10 @@ export class WorldScene extends Phaser.Scene {
       if (this.player.inventoryOpen) {
         this.player.inventoryOpen = false
         this.player.inventory.returnHeldItem()
+        return
+      }
+      if (this.player.skillTreeOpen) {
+        this.player.skillTreeOpen = false
         return
       }
       this.scene.pause('WorldScene')
@@ -220,6 +228,13 @@ export class WorldScene extends Phaser.Scene {
         const loot = enemy.getLoot()
         for (const drop of loot) {
           this.spawnDrop(enemy.sprite.x, enemy.sprite.y, drop.itemId, drop.count)
+        }
+        // Grant XP
+        this.grantXP(enemy.def.xp, enemy.sprite.x, enemy.sprite.y)
+        // Heal on kill (skill)
+        const healPct = this.player.skills.getModifiers().healOnKillPct
+        if (healPct > 0) {
+          this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * healPct)
         }
         AudioManager.get()?.play(SoundId.ENEMY_DIE)
         if (enemy.sprite.active) enemy.sprite.destroy()
@@ -336,6 +351,9 @@ export class WorldScene extends Phaser.Scene {
     if (!this.activeBoss) return
     AudioManager.get()?.play(SoundId.BOSS_DIE)
 
+    // Grant boss XP
+    this.grantXP(this.activeBoss.def.xp, this.activeBoss.sprite.x, this.activeBoss.sprite.y)
+
     // Drop jetpack component
     this.player.inventory.addItem(this.activeBoss.def.dropItemId)
 
@@ -419,6 +437,27 @@ export class WorldScene extends Phaser.Scene {
           this.droppedItems.splice(i, 1)
         }
       }
+    }
+  }
+
+  private grantXP(amount: number, worldX: number, worldY: number) {
+    const levelsGained = this.player.skills.addXP(amount)
+
+    // Show XP number
+    this.combat.spawnDamageNumber(worldX, worldY - 20, amount, 0x44ffff)
+
+    if (levelsGained > 0) {
+      const text = this.add.text(
+        this.cameras.main.centerX, this.cameras.main.centerY - 80,
+        `LEVEL UP! (Lv ${this.player.skills.level})\n+${levelsGained} Skill Point${levelsGained > 1 ? 's' : ''}`,
+        {
+          fontSize: '18px', color: '#ffff00', fontFamily: 'monospace',
+          align: 'center', stroke: '#000000', strokeThickness: 4,
+        }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
+
+      this.time.delayedCall(3000, () => text.destroy())
+      AudioManager.get()?.play(SoundId.CRAFT_SUCCESS) // reuse jingle
     }
   }
 

@@ -8,6 +8,9 @@ import type { Recipe } from '../data/recipes'
 import { ITEMS, getItemDef, ItemCategory } from '../data/items'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
+import { SKILLS, SKILL_MAP, BRANCH_INFO, BRANCH_ORDER, xpForLevel } from '../data/skills'
+import type { SkillDef } from '../data/skills'
+import type { SkillTreeManager } from '../systems/SkillTreeManager'
 
 const SLOT_SIZE = 40
 const SLOT_GAP = 4
@@ -30,6 +33,14 @@ const INV_MAIN_H = INV_MAIN_ROWS * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP // 128
 const INV_SEP = 10
 const INV_H = INV_PAD + INV_TITLE_H + INV_MAIN_H + INV_SEP + SLOT_SIZE + INV_PAD // 232
 const INV_TOTAL_SLOTS = INV_COLS * INV_MAIN_ROWS + HOTBAR_SLOTS // 40
+
+// Skill tree panel
+const SKILL_W = 520
+const SKILL_H = 360
+const SKILL_NODE_SIZE = 36
+const SKILL_NODE_GAP_X = 56
+const SKILL_NODE_GAP_Y = 70
+const SKILL_BRANCH_PAD = 10
 
 export class UIScene extends Phaser.Scene {
   private hotbarGfx!: Phaser.GameObjects.Graphics
@@ -76,6 +87,18 @@ export class UIScene extends Phaser.Scene {
   private heldIcon!: Phaser.GameObjects.Rectangle
   private heldImage: Phaser.GameObjects.Image | null = null
   private heldText!: Phaser.GameObjects.Text
+
+  // Skill tree
+  private skillGfx!: Phaser.GameObjects.Graphics
+  private skillTitle!: Phaser.GameObjects.Text
+  private skillInfoText!: Phaser.GameObjects.Text
+  private skillNodeZones: Phaser.GameObjects.Zone[] = []
+  private skillNodeTexts: Phaser.GameObjects.Text[] = [] // abbreviation labels
+  private skillNameTexts: Phaser.GameObjects.Text[] = [] // name labels below nodes
+  private skillBranchLabels: Phaser.GameObjects.Text[] = []
+  private skillNodeSkills: SkillDef[] = [] // parallel array with zones
+  private skillVisible = false
+  private skillXpText!: Phaser.GameObjects.Text
 
   constructor() {
     super({ key: 'UIScene' })
@@ -189,6 +212,9 @@ export class UIScene extends Phaser.Scene {
 
     // ── Inventory panel ──────────────────────────────────
     this.createInventoryPanel()
+
+    // ── Skill tree panel ──────────────────────────────
+    this.createSkillTreePanel()
   }
 
   private createInventoryPanel() {
@@ -305,6 +331,7 @@ export class UIScene extends Phaser.Scene {
     this.updateStatsBars(player)
     this.updateCrafting(player, inv, chunks)
     this.updateInventoryPanel(player, inv)
+    this.updateSkillTree(player)
   }
 
   // ── Hotbar ──────────────────────────────────────────────
@@ -432,6 +459,7 @@ export class UIScene extends Phaser.Scene {
     this.manaText.setText(`MP ${Math.ceil(player.mana)}/${player.maxMana}`)
 
     // Jetpack fuel bar (only if player has jetpack)
+    const nextBarY = player.hasJetpack ? 94 : 78
     if (player.hasJetpack) {
       const fuelY = 78
       this.statsGfx.fillStyle(0x333300, 0.8)
@@ -441,6 +469,29 @@ export class UIScene extends Phaser.Scene {
       this.statsGfx.fillRect(x, fuelY, barW * fuelPct, barH)
       this.statsGfx.lineStyle(1, 0x886622)
       this.statsGfx.strokeRect(x, fuelY, barW, barH)
+    }
+
+    // XP bar
+    const skills: SkillTreeManager = player.skills
+    const xpY = nextBarY
+    this.statsGfx.fillStyle(0x002233, 0.8)
+    this.statsGfx.fillRect(x, xpY, barW, barH)
+    const xpNeeded = skills.xpToNextLevel()
+    const xpPct = xpNeeded > 0 ? Math.min(1, skills.xp / xpNeeded) : 0
+    this.statsGfx.fillStyle(0x44ffff, 0.9)
+    this.statsGfx.fillRect(x, xpY, barW * xpPct, barH)
+    this.statsGfx.lineStyle(1, 0x226688)
+    this.statsGfx.strokeRect(x, xpY, barW, barH)
+
+    // Level + SP display to the right of XP bar
+    const spStr = skills.skillPoints > 0 ? ` [${skills.skillPoints}SP]` : ''
+    this.hpText.y = hpY  // ensure position stays correct
+    if (!this.skillXpText) {
+      // will be created in createSkillTreePanel
+    } else {
+      this.skillXpText.setText(`Lv${skills.level} ${skills.xp}/${xpNeeded}${spStr}`)
+      this.skillXpText.setPosition(x, xpY + barH + 2)
+      this.skillXpText.setVisible(true)
     }
 
     // Death overlay
@@ -858,6 +909,238 @@ export class UIScene extends Phaser.Scene {
     this.heldText.setText(held.count > 1 ? `${held.count}` : '')
     this.heldText.setPosition(cx + SLOT_SIZE / 2 - 6, cy + SLOT_SIZE / 2 - 6)
     this.heldText.setVisible(held.count > 1)
+  }
+
+  // ── Skill Tree ─────────────────────────────────────
+
+  private createSkillTreePanel() {
+    this.skillGfx = this.add.graphics().setDepth(320)
+
+    const { width, height } = this.scale
+    const panelX = (width - SKILL_W) / 2
+    const panelY = (height - SKILL_H) / 2
+
+    this.skillTitle = this.add.text(width / 2, panelY + 10, 'SKILL TREE', {
+      fontSize: '16px', color: '#ffff00', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5, 0).setDepth(321).setVisible(false)
+
+    this.skillInfoText = this.add.text(width / 2, panelY + SKILL_H - 14, '', {
+      fontSize: '10px', color: '#aaaaaa', fontFamily: 'monospace',
+    }).setOrigin(0.5, 1).setDepth(321).setVisible(false)
+
+    // XP text under stats bars (always visible)
+    this.skillXpText = this.add.text(10, 90, '', {
+      fontSize: '9px', color: '#44ffff', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 2,
+    }).setDepth(201)
+
+    // Create branch header labels
+    const startX = panelX + 30
+    const startY = panelY + 55
+
+    for (let bi = 0; bi < BRANCH_ORDER.length; bi++) {
+      const branch = BRANCH_ORDER[bi]!
+      const info = BRANCH_INFO[branch]
+      const bx = startX + bi * (SKILL_NODE_SIZE + SKILL_NODE_GAP_X) + SKILL_NODE_SIZE / 2
+      const label = this.add.text(bx, panelY + 34, `[${info.icon}] ${info.name}`, {
+        fontSize: '9px', color: info.colorStr, fontFamily: 'monospace',
+      }).setOrigin(0.5, 0).setDepth(321).setVisible(false)
+      this.skillBranchLabels.push(label)
+    }
+
+    // Create clickable zones and text labels for each skill node
+    // Layout: 5 columns (branches), up to 3 rows (tiers)
+    for (const branch of BRANCH_ORDER) {
+      const branchIdx = BRANCH_ORDER.indexOf(branch)
+      const branchSkills = SKILLS.filter(s => s.branch === branch)
+
+      for (const skill of branchSkills) {
+        const tierSkills = branchSkills.filter(s => s.tier === skill.tier)
+        const tierIdx = tierSkills.indexOf(skill)
+        const tierCount = tierSkills.length
+
+        const col = branchIdx
+        const row = skill.tier - 1
+        const subOffset = tierCount > 1 ? (tierIdx - (tierCount - 1) / 2) * (SKILL_NODE_SIZE + 4) : 0
+
+        const nx = startX + col * (SKILL_NODE_SIZE + SKILL_NODE_GAP_X) + subOffset
+        const ny = startY + row * SKILL_NODE_GAP_Y
+        const cx = nx + SKILL_NODE_SIZE / 2
+        const cy = ny + SKILL_NODE_SIZE / 2
+
+        const zone = this.add.zone(cx, cy, SKILL_NODE_SIZE, SKILL_NODE_SIZE)
+          .setInteractive().setDepth(323)
+        zone.on('pointerdown', () => this.onSkillNodeClick(skill.id))
+        this.skillNodeZones.push(zone)
+        this.skillNodeSkills.push(skill)
+
+        // Abbreviation label inside node
+        const abbr = skill.name.split(' ').map(w => w[0]).join('').substring(0, 3)
+        const nodeText = this.add.text(cx, cy - 2, abbr, {
+          fontSize: '11px', color: '#ffffff', fontFamily: 'monospace',
+          stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(322).setVisible(false)
+        this.skillNodeTexts.push(nodeText)
+
+        // Small name label below the node
+        const nameText = this.add.text(cx, ny + SKILL_NODE_SIZE + 2, skill.name, {
+          fontSize: '7px', color: '#888888', fontFamily: 'monospace',
+        }).setOrigin(0.5, 0).setDepth(321).setVisible(false)
+        this.skillNameTexts.push(nameText)
+      }
+    }
+  }
+
+  private updateSkillTree(player: any) {
+    const shouldShow = player.skillTreeOpen === true
+    if (shouldShow !== this.skillVisible) {
+      this.skillVisible = shouldShow
+    }
+
+    this.skillGfx.clear()
+    this.skillTitle.setVisible(this.skillVisible)
+    this.skillInfoText.setVisible(this.skillVisible)
+
+    for (const z of this.skillNodeZones) z.setActive(this.skillVisible)
+    for (const t of this.skillNodeTexts) t.setVisible(this.skillVisible)
+    for (const t of this.skillNameTexts) t.setVisible(this.skillVisible)
+    for (const l of this.skillBranchLabels) l.setVisible(this.skillVisible)
+
+    if (!this.skillVisible) return
+
+    const { width, height } = this.scale
+    const panelX = (width - SKILL_W) / 2
+    const panelY = (height - SKILL_H) / 2
+    const skills: SkillTreeManager = player.skills
+
+    // Panel background
+    this.skillGfx.fillStyle(0x0a0a1a, 0.95)
+    this.skillGfx.fillRect(panelX, panelY, SKILL_W, SKILL_H)
+    this.skillGfx.lineStyle(2, 0x444466)
+    this.skillGfx.strokeRect(panelX, panelY, SKILL_W, SKILL_H)
+
+    // Skill points display
+    this.skillTitle.setText(`SKILL TREE  [${skills.skillPoints} SP]`)
+
+    // Track pointer for hover
+    const pointer = this.input.activePointer
+    let hoveredSkill: SkillDef | null = null
+
+    // Draw connecting lines first, then nodes on top
+    for (let i = 0; i < this.skillNodeSkills.length; i++) {
+      const skill = this.skillNodeSkills[i]!
+      if (!skill.requires) continue
+
+      // Find parent node position
+      const parentIdx = this.skillNodeSkills.findIndex(s => s.id === skill.requires)
+      if (parentIdx < 0) continue
+
+      const parentZone = this.skillNodeZones[parentIdx]!
+      const childZone = this.skillNodeZones[i]!
+
+      const unlocked = skills.hasSkill(skill.id)
+      const parentUnlocked = skills.hasSkill(skill.requires)
+      const lineColor = unlocked ? 0x44ff44 : parentUnlocked ? 0x666688 : 0x333344
+      const lineAlpha = unlocked ? 0.8 : 0.4
+
+      this.skillGfx.lineStyle(2, lineColor, lineAlpha)
+      this.skillGfx.lineBetween(parentZone.x, parentZone.y, childZone.x, childZone.y)
+    }
+
+    // Draw nodes
+    for (let i = 0; i < this.skillNodeSkills.length; i++) {
+      const skill = this.skillNodeSkills[i]!
+      const zone = this.skillNodeZones[i]!
+      const nx = zone.x - SKILL_NODE_SIZE / 2
+      const ny = zone.y - SKILL_NODE_SIZE / 2
+
+      const unlocked = skills.hasSkill(skill.id)
+      const canUnlock = skills.canUnlock(skill.id)
+      const branchInfo = BRANCH_INFO[skill.branch]
+
+      // Node background
+      if (unlocked) {
+        this.skillGfx.fillStyle(branchInfo.color, 0.6)
+      } else if (canUnlock) {
+        this.skillGfx.fillStyle(branchInfo.color, 0.25)
+      } else {
+        this.skillGfx.fillStyle(0x222233, 0.7)
+      }
+      this.skillGfx.fillRect(nx, ny, SKILL_NODE_SIZE, SKILL_NODE_SIZE)
+
+      // Node border
+      if (unlocked) {
+        this.skillGfx.lineStyle(2, 0xffffff, 0.9)
+      } else if (canUnlock) {
+        this.skillGfx.lineStyle(2, branchInfo.color, 0.8)
+      } else {
+        this.skillGfx.lineStyle(1, 0x444455, 0.6)
+      }
+      this.skillGfx.strokeRect(nx, ny, SKILL_NODE_SIZE, SKILL_NODE_SIZE)
+
+      // Update node text color
+      const nodeText = this.skillNodeTexts[i]!
+      const nameText = this.skillNameTexts[i]!
+      if (unlocked) {
+        nodeText.setColor('#ffffff')
+        nameText.setColor(BRANCH_INFO[skill.branch].colorStr)
+      } else if (canUnlock) {
+        nodeText.setColor('#ffff00')
+        nameText.setColor('#aaaaaa')
+      } else {
+        nodeText.setColor('#555566')
+        nameText.setColor('#444444')
+      }
+
+      // Cost badge (top-right corner)
+      if (!unlocked) {
+        const badgeX = nx + SKILL_NODE_SIZE - 2
+        const badgeY = ny - 2
+        this.skillGfx.fillStyle(canUnlock ? 0xffff00 : 0x333344, 0.9)
+        this.skillGfx.fillCircle(badgeX, badgeY, 6)
+        // The cost number is shown on hover in the info text
+      }
+
+      // Checkmark for unlocked
+      if (unlocked) {
+        this.skillGfx.fillStyle(0x44ff44, 0.9)
+        this.skillGfx.fillCircle(nx + SKILL_NODE_SIZE - 2, ny - 2, 5)
+      }
+
+      // Hover detection
+      if (pointer.x >= nx && pointer.x < nx + SKILL_NODE_SIZE &&
+          pointer.y >= ny && pointer.y < ny + SKILL_NODE_SIZE) {
+        hoveredSkill = skill
+        this.skillGfx.lineStyle(2, 0xffffff, 0.5)
+        this.skillGfx.strokeRect(nx - 1, ny - 1, SKILL_NODE_SIZE + 2, SKILL_NODE_SIZE + 2)
+      }
+    }
+
+    // Info text at bottom
+    if (hoveredSkill) {
+      const unlocked = skills.hasSkill(hoveredSkill.id)
+      const status = unlocked ? ' [UNLOCKED]' : ` (${hoveredSkill.cost} SP)`
+      const branchName = BRANCH_INFO[hoveredSkill.branch].name
+      this.skillInfoText.setText(
+        `${hoveredSkill.name}${status} - ${hoveredSkill.description}  [${branchName}]`
+      )
+      this.skillInfoText.setColor(unlocked ? '#44ff44' : skills.canUnlock(hoveredSkill.id) ? '#ffff00' : '#666666')
+    } else {
+      this.skillInfoText.setText('Hover over a node to see details. Click to unlock.')
+      this.skillInfoText.setColor('#555555')
+    }
+  }
+
+  private onSkillNodeClick(skillId: string) {
+    if (!this.skillVisible) return
+    const worldScene = this.scene.get('WorldScene') as any
+    const player = worldScene?.getPlayer()
+    if (!player) return
+
+    const skills: SkillTreeManager = player.skills
+    if (skills.unlock(skillId)) {
+      AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+    }
   }
 
   private onArmorSlotClick(index: number) {

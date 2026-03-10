@@ -139,7 +139,7 @@ export class Player {
 
     // Mouse wheel slot cycling
     scene.input.on('wheel', (_pointer: Phaser.Input.Pointer, _dx: number[], _dy: number[], dz: number) => {
-      if (this.inventoryOpen || this.craftingOpen) return
+      if (this.inventoryOpen || this.craftingOpen || this.skillTreeOpen) return
       if (dz > 0) {
         this.inventory.selectedSlot = (this.inventory.selectedSlot + 1) % 10
       } else if (dz < 0) {
@@ -154,6 +154,7 @@ export class Player {
       this.craftingOpen = !this.craftingOpen
       if (this.craftingOpen) {
         this.inventoryOpen = false
+        this.skillTreeOpen = false
         this.inventory.returnHeldItem()
       }
     })
@@ -167,6 +168,7 @@ export class Player {
       } else {
         this.inventoryOpen = true
         this.craftingOpen = false
+        this.skillTreeOpen = false
       }
     })
 
@@ -227,7 +229,7 @@ export class Player {
     }
 
     this.handleMovement(dt, chunks)
-    if (!this.inventoryOpen) {
+    if (!this.inventoryOpen && !this.skillTreeOpen) {
       this.handleMining(dt, chunks)
       this.handleCombat(dt, chunks, combat, enemies)
     }
@@ -340,7 +342,8 @@ export class Player {
     const tileType = chunks.getTile(tx, ty)
     if (inRange && tileType !== TileType.AIR && TILE_PROPERTIES[tileType]?.mineable) return
 
-    this.attackCooldown = def.attackSpeed ?? 400
+    const mods = this.skills.getModifiers()
+    this.attackCooldown = (def.attackSpeed ?? 400) * mods.attackSpeedMult
 
     const cam = this.scene.cameras.main
     const wp = cam.getWorldPoint(pointer.x, pointer.y)
@@ -353,17 +356,24 @@ export class Player {
     // Play attack animation for melee/ranged
     this.playAttackAnim()
 
+    // Calculate damage multiplier from skills
+    const lowHpBonus = (this.hp / this.maxHp <= 0.3) ? mods.lowHpDamageMult : 1
+    const crit = Math.random() < mods.critChance ? 2 : 1
+
     switch (def.weaponStyle) {
       case 'melee':
-        combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies)
+        combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies,
+          mods.meleeDamageMult * lowHpBonus * crit)
         break
       case 'ranged':
-        combat.fireProjectile(def, this.sprite.x, this.sprite.y, worldCursorX, worldCursorY, true)
+        combat.fireProjectile(def, this.sprite.x, this.sprite.y, worldCursorX, worldCursorY, true,
+          mods.rangedDamageMult * lowHpBonus * crit)
         break
       case 'magic':
         if (this.mana >= (def.manaCost ?? 0)) {
           this.mana -= def.manaCost ?? 0
-          combat.fireProjectile(def, this.sprite.x, this.sprite.y, worldCursorX, worldCursorY, true)
+          combat.fireProjectile(def, this.sprite.x, this.sprite.y, worldCursorX, worldCursorY, true,
+            mods.magicDamageMult * lowHpBonus * crit)
         }
         break
       case 'summon':
@@ -622,12 +632,13 @@ export class Player {
     const tx = Math.floor(wp.x / TILE_SIZE)
     const ty = Math.floor(wp.y / TILE_SIZE)
 
-    // Check range (Chebyshev distance in tiles)
+    // Check range (Chebyshev distance in tiles) with skill bonus
+    const mods = this.skills.getModifiers()
     const ptx = Math.floor(this.sprite.x / TILE_SIZE)
     const pty = Math.floor(this.sprite.y / TILE_SIZE)
     const dist = Math.max(Math.abs(tx - ptx), Math.abs(ty - pty))
 
-    return { tx, ty, inRange: dist <= MINING_RANGE }
+    return { tx, ty, inRange: dist <= MINING_RANGE + mods.miningRangeBonus }
   }
 
   private handleMining(dt: number, chunks: ChunkManager) {
@@ -647,8 +658,9 @@ export class Player {
       if (isWeapon && (tileType === TileType.AIR || !props?.mineable)) return
 
       if (tileType !== TileType.AIR && props?.mineable) {
-        // Get mining speed multiplier from held tool
+        // Get mining speed multiplier from held tool + skills
         const toolSpeed = (def?.category === ItemCategory.TOOL && def.miningSpeed) ? def.miningSpeed : 1
+        const skillMineSpeed = this.skills.getModifiers().mineSpeedMult
 
         if (tx === this.miningTX && ty === this.miningTY) {
           this.miningProgress += dt * 1000
@@ -656,7 +668,7 @@ export class Player {
           this.miningTX = tx
           this.miningTY = ty
           this.miningProgress = 0
-          this.miningRequired = (props.hardness * BASE_MINE_TIME) / toolSpeed
+          this.miningRequired = (props.hardness * BASE_MINE_TIME) / (toolSpeed * skillMineSpeed)
         }
 
         // Play mining animation while actively mining
@@ -668,13 +680,14 @@ export class Player {
         if (this.miningProgress >= this.miningRequired) {
           const stations = chunks.getPlacedStations()
           const station = stations.find(s => s.tx === tx && s.ty === ty)
+          const doubleDrop = Math.random() < this.skills.getModifiers().doubleDropChance
           if (station) {
             chunks.removeStation(tx, ty)
             chunks.setTile(tx, ty, TileType.AIR)
             this.inventory.addItem(station.itemId)
           } else {
             chunks.setTile(tx, ty, TileType.AIR)
-            this.inventory.addItem(tileType)
+            this.inventory.addItem(tileType, doubleDrop ? 2 : 1)
           }
           AudioManager.get()?.play(SoundId.MINE_BREAK)
           this.miningTX = -1

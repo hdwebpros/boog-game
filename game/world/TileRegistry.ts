@@ -13,6 +13,12 @@ export enum TileType {
   SAND = 11,
   CORAL = 12,
   CARBON_FIBER = 13,
+  STATION_WORKBENCH = 14,
+  STATION_FURNACE = 15,
+  STATION_ANVIL = 16,
+  STATION_TECH_BENCH = 17,
+  STATION_FUSION = 18,
+  STATION_WORKBENCH_MK2 = 19,
 }
 
 export interface TileProperties {
@@ -42,6 +48,22 @@ export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
   [TileType.SAND]:         { name: 'Sand',         color: 0xe6d5a8, hardness: 0.5, solid: true,  mineable: true,  tier: 0 },
   [TileType.CORAL]:        { name: 'Coral',        color: 0xff6b9d, hardness: 1,   solid: true,  mineable: true,  tier: 0 },
   [TileType.CARBON_FIBER]: { name: 'Carbon Fiber', color: 0x2a2a4e, hardness: 8,   solid: true,  mineable: true,  tier: 4 },
+  [TileType.STATION_WORKBENCH]:     { name: 'Workbench',       color: 0x8b6b3a, hardness: 2, solid: true, mineable: true, tier: 0 },
+  [TileType.STATION_FURNACE]:       { name: 'Furnace',         color: 0xaa4422, hardness: 3, solid: true, mineable: true, tier: 1 },
+  [TileType.STATION_ANVIL]:         { name: 'Anvil',           color: 0x666688, hardness: 4, solid: true, mineable: true, tier: 2 },
+  [TileType.STATION_TECH_BENCH]:    { name: 'Tech Bench',      color: 0x4488aa, hardness: 5, solid: true, mineable: true, tier: 3 },
+  [TileType.STATION_FUSION]:        { name: 'Fusion Station',  color: 0x8844cc, hardness: 6, solid: true, mineable: true, tier: 4 },
+  [TileType.STATION_WORKBENCH_MK2]: { name: 'Workbench Mk2',   color: 0xa0824a, hardness: 3, solid: true, mineable: true, tier: 1 },
+}
+
+/** Map station item IDs to their tile types */
+export const STATION_TILE_TYPE: Record<number, TileType> = {
+  110: TileType.STATION_WORKBENCH,
+  111: TileType.STATION_FURNACE,
+  112: TileType.STATION_ANVIL,
+  113: TileType.STATION_TECH_BENCH,
+  114: TileType.STATION_FUSION,
+  115: TileType.STATION_WORKBENCH_MK2,
 }
 
 export const TILE_SIZE = 16

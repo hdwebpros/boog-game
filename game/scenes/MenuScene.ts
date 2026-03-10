@@ -131,7 +131,8 @@ export class MenuScene extends Phaser.Scene {
         player.inventory.selectedSlot,
         chunks.getPlacedStations(),
         player.hasJetpack,
-        player.inventory.armorSlots
+        player.inventory.armorSlots,
+        player.skills.toSaveData()
       )
       saveStatus.setText(success ? 'Game saved!' : 'Save failed!')
       saveStatus.setColor(success ? '#00ff88' : '#ff4444')

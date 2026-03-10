@@ -260,12 +260,12 @@ for (const s of SKILLS) {
 }
 
 // Branch display order and colors
-export const BRANCH_INFO: Record<SkillBranch, { name: string; color: number; colorStr: string }> = {
-  [SkillBranch.COMBAT]: { name: 'Combat', color: 0xff4444, colorStr: '#ff4444' },
-  [SkillBranch.SURVIVAL]: { name: 'Survival', color: 0x44ff44, colorStr: '#44ff44' },
-  [SkillBranch.MINING]: { name: 'Mining', color: 0xffaa44, colorStr: '#ffaa44' },
-  [SkillBranch.MAGIC]: { name: 'Magic', color: 0x4488ff, colorStr: '#4488ff' },
-  [SkillBranch.MOBILITY]: { name: 'Mobility', color: 0xffff44, colorStr: '#ffff44' },
+export const BRANCH_INFO: Record<SkillBranch, { name: string; icon: string; color: number; colorStr: string }> = {
+  [SkillBranch.COMBAT]: { name: 'Combat', icon: '/', color: 0xff4444, colorStr: '#ff4444' },
+  [SkillBranch.SURVIVAL]: { name: 'Survival', icon: '+', color: 0x44ff44, colorStr: '#44ff44' },
+  [SkillBranch.MINING]: { name: 'Mining', icon: '*', color: 0xffaa44, colorStr: '#ffaa44' },
+  [SkillBranch.MAGIC]: { name: 'Magic', icon: '~', color: 0x4488ff, colorStr: '#4488ff' },
+  [SkillBranch.MOBILITY]: { name: 'Mobility', icon: '>', color: 0xffff44, colorStr: '#ffff44' },
 }
 
 export const BRANCH_ORDER: SkillBranch[] = [

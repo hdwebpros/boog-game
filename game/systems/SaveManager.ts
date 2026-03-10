@@ -4,6 +4,13 @@ import type { PlacedStation } from '../world/ChunkManager'
 
 const SAVE_KEY = 'starfall_save'
 
+export interface SkillSaveData {
+  xp: number
+  level: number
+  skillPoints: number
+  unlockedSkills: string[]
+}
+
 export interface SaveData {
   version: 1
   seed: string
@@ -18,6 +25,7 @@ export interface SaveData {
   placedStations: PlacedStation[]
   hasJetpack: boolean
   armorSlots?: ArmorSlots
+  skills?: SkillSaveData
   timestamp: number
 }
 
@@ -31,7 +39,8 @@ export class SaveManager {
     selectedSlot: number,
     placedStations: PlacedStation[],
     hasJetpack: boolean,
-    armorSlots?: ArmorSlots
+    armorSlots?: ArmorSlots,
+    skills?: SkillSaveData
   ): boolean {
     try {
       const data: SaveData = {
@@ -48,6 +57,7 @@ export class SaveManager {
         placedStations,
         hasJetpack,
         armorSlots,
+        skills,
         timestamp: Date.now(),
       }
       localStorage.setItem(SAVE_KEY, JSON.stringify(data))
