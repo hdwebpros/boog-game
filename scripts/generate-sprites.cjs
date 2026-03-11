@@ -216,6 +216,39 @@ const PROJECTILES = [
   },
 ]
 
+// ─── ITEM / ACCESSORY DEFINITIONS ──────────────────────────
+// Small inventory icon sprites. 32x32 with transparent background.
+const ITEMS = [
+  {
+    name: 'item_250', label: 'silver_coin',
+    desc: 'single shiny silver coin for a 2D side-scrolling game inventory icon. Round coin with stamped star emblem in center, metallic silver sheen with highlights. Pixel art item sprite.',
+  },
+  {
+    name: 'item_300', label: 'cloud_boots',
+    desc: 'magical cloud boots accessory for a 2D side-scrolling game inventory icon. Pair of fluffy white cloud-shaped boots with small blue wing accents on each side, soft glowing aura. Pixel art item sprite.',
+  },
+  {
+    name: 'item_301', label: 'star_compass',
+    desc: 'star compass accessory for a 2D side-scrolling game inventory icon. Ornate golden compass with a glowing cyan star needle in the center, circular brass casing with tiny jewels around the rim. Pixel art item sprite.',
+  },
+  {
+    name: 'item_302', label: 'gravity_belt',
+    desc: 'gravity belt accessory for a 2D side-scrolling game inventory icon. Thick dark purple belt with a round glowing magenta anti-gravity buckle in the center, small metallic clasps. Pixel art item sprite.',
+  },
+  {
+    name: 'item_303', label: 'miners_lantern',
+    desc: "miner's lantern accessory for a 2D side-scrolling game inventory icon. Small brass lantern with warm yellow-orange glowing flame inside glass dome, metal handle on top, rustic mining tool. Pixel art item sprite.",
+  },
+  {
+    name: 'item_304', label: 'lucky_charm',
+    desc: 'lucky charm accessory for a 2D side-scrolling game inventory icon. Small golden four-leaf clover charm on a thin chain, sparkling green gem in the center, magical sparkle particles around it. Pixel art item sprite.',
+  },
+  {
+    name: 'item_305', label: 'celestial_cape',
+    desc: 'celestial cape accessory for a 2D side-scrolling game inventory icon. Flowing dark blue-purple cape with tiny white stars and constellations pattern, glowing cosmic energy at the edges, magical space-themed fabric. Pixel art item sprite.',
+  },
+]
+
 // ─── GENERATION FUNCTIONS ───────────────────────────────────
 
 const SKIP_EXISTING = process.argv.includes('--skip-existing')
@@ -315,8 +348,30 @@ async function generateProjectiles() {
   }
 }
 
+async function generateItems() {
+  console.log(`\n── Generating Items (${ITEMS.length}) ──`)
+  for (const item of ITEMS) {
+    if (spriteExists(`${item.name}.png`)) {
+      console.log(`  ⏭ ${item.label} (exists, skipping)`)
+      continue
+    }
+    console.log(`  Generating ${item.label}...`)
+    const data = await generate('generate-image-pixflux', {
+      description: item.desc,
+      image_size: { width: 32, height: 32 },
+      no_background: true,
+      view: 'side',
+      shading: 'medium shading',
+      detail: 'medium detail',
+      outline: 'single color black outline',
+    })
+    await saveImage(data, `${item.name}.png`)
+    await delay(300)
+  }
+}
+
 async function main() {
-  const total = TILES.length + ENEMIES.length + BOSSES.length + PROJECTILES.length
+  const total = TILES.length + ENEMIES.length + BOSSES.length + PROJECTILES.length + ITEMS.length
   console.log('PixelLab Sprite Generator for Starfall')
   console.log('Output:', OUT_DIR)
   console.log(`Total generations needed: ${total}`)
@@ -325,6 +380,7 @@ async function main() {
   await generateEnemies()
   await generateBosses()
   await generateProjectiles()
+  await generateItems()
 
   console.log(`\n✓ All ${total} sprites generated!`)
 }

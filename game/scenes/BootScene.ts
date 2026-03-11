@@ -47,6 +47,12 @@ export class BootScene extends Phaser.Scene {
     this.load.image('proj_magic', '/sprites/proj_magic.png')
     this.load.image('proj_enemy', '/sprites/proj_enemy.png')
     this.load.image('summon_minion', '/sprites/summon_minion.png')
+
+    // Load accessory & coin item PNGs
+    const itemPngs = [250, 300, 301, 302, 303, 304, 305]
+    for (const id of itemPngs) {
+      this.load.image(`item_${id}`, `/sprites/item_${id}.png`)
+    }
   }
 
   create() {

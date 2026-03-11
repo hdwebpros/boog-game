@@ -287,6 +287,11 @@ export class UIScene extends Phaser.Scene {
     })
 
     this.input.on('wheel', (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
+      if (this.shopVisible) {
+        this.shopScroll += deltaY > 0 ? 1 : -1
+        this.shopScroll = Math.max(0, this.shopScroll)
+        return
+      }
       if (this.invVisible) return
       if (!this.craftVisible) return
       this.craftScroll += deltaY > 0 ? 1 : -1
@@ -2059,7 +2064,10 @@ export class UIScene extends Phaser.Scene {
     shopW: number, rowH: number, maxRows: number,
     pointer: Phaser.Input.Pointer, coins: number
   ) {
-    for (let i = 0; i < Math.min(SHOP_INVENTORY.length, maxRows); i++) {
+    const buyMaxScroll = Math.max(0, SHOP_INVENTORY.length - maxRows)
+    this.shopScroll = Phaser.Math.Clamp(this.shopScroll, 0, buyMaxScroll)
+
+    for (let i = 0; i < Math.min(SHOP_INVENTORY.length - this.shopScroll, maxRows); i++) {
       const item = SHOP_INVENTORY[i + this.shopScroll]
       if (!item) continue
       const def = getItemDef(item.itemId)
@@ -2160,13 +2168,33 @@ export class UIScene extends Phaser.Scene {
         fontSize: '12px', color: '#666666', fontFamily: 'monospace',
       }).setOrigin(0.5, 0).setDepth(332)
       this.shopTexts.push(emptyText)
+      this.shopClickPending = null
       return
     }
+
+    // Clamp scroll
+    const maxScroll = Math.max(0, sellable.length - maxRows)
+    this.shopScroll = Phaser.Math.Clamp(this.shopScroll, 0, maxScroll)
 
     const SELL_ALL_W = 52
     const SELL_ALL_H = 20
 
-    for (let i = 0; i < Math.min(sellable.length, maxRows); i++) {
+    // Scroll indicators
+    if (this.shopScroll > 0) {
+      const upText = this.add.text(shopX + shopW / 2, listY - 12, '\u25B2 scroll up', {
+        fontSize: '9px', color: '#888888', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0.5).setDepth(332)
+      this.shopTexts.push(upText)
+    }
+    if (this.shopScroll < maxScroll) {
+      const downY = listY + maxRows * rowH + 4
+      const downText = this.add.text(shopX + shopW / 2, downY, '\u25BC scroll down', {
+        fontSize: '9px', color: '#888888', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0).setDepth(332)
+      this.shopTexts.push(downText)
+    }
+
+    for (let i = 0; i < Math.min(sellable.length - this.shopScroll, maxRows); i++) {
       const entry = sellable[i + this.shopScroll]
       if (!entry) continue
       const def = getItemDef(entry.id)
