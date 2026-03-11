@@ -132,6 +132,10 @@ const TILES = [
     name: 'tile_19', label: 'station_workbench_mk2',
     desc: 'seamless tileable upgraded workbench block texture for a 2D side-scrolling platformer. Polished tan-brown wooden workbench filling the entire square with metal reinforcements, organized tools, drawers, and a small vise on top. Terraria style.',
   },
+  {
+    name: 'tile_42', label: 'chest',
+    desc: 'wooden treasure chest block texture for a 2D side-scrolling platformer. Brown wooden chest with darker wood plank bands, gold metal latch and hinges, slightly rounded lid on top. Fills the entire square. Terraria style.',
+  },
 ]
 
 // ─── ENEMY DEFINITIONS ──────────────────────────────────────
@@ -246,6 +250,10 @@ const ITEMS = [
   {
     name: 'item_305', label: 'celestial_cape',
     desc: 'celestial cape accessory for a 2D side-scrolling game inventory icon. Flowing dark blue-purple cape with tiny white stars and constellations pattern, glowing cosmic energy at the edges, magical space-themed fabric. Pixel art item sprite.',
+  },
+  {
+    name: 'item_116', label: 'chest',
+    desc: 'wooden treasure chest inventory icon for a 2D side-scrolling game. Small brown wooden chest with darker plank bands, gold metal latch and lock on the front, slightly rounded lid on top. Pixel art item sprite.',
   },
 ]
 
