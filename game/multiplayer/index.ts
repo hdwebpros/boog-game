@@ -21,6 +21,7 @@ export {
   type JoinRejected,
   type JoinRequest,
   type ChatMessage,
+  type AttackRequest,
   MessageType,
   PROTOCOL_VERSION,
   SERVER_TICK_RATE,

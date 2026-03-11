@@ -16,6 +16,7 @@ import {
   type JoinAccepted,
   type JoinRejected,
   type ChatMessage,
+  type AttackRequest,
   MessageType,
   PROTOCOL_VERSION,
   PLAYER_SYNC_INTERVAL,
@@ -220,6 +221,15 @@ export class NetworkManager {
       type: MessageType.CHAT_MESSAGE,
       senderId: this._playerId,
       data: { text } satisfies ChatMessage,
+    })
+  }
+
+  /** Send attack request */
+  sendAttack(attack: AttackRequest) {
+    this.send({
+      type: MessageType.ATTACK_REQUEST,
+      senderId: this._playerId,
+      data: attack,
     })
   }
 

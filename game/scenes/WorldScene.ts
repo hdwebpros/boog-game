@@ -20,7 +20,7 @@ import { DayNightCycle } from '../systems/DayNightCycle'
 import { NPC } from '../entities/NPC'
 import { MultiplayerManager, RoomConnector, ChatOverlay, RemotePlayerSim, generateEntityId, encodeMessage, MessageType } from '../multiplayer'
 import type { NetworkManager } from '../multiplayer'
-import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage } from '../multiplayer'
+import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage, AttackRequest, CombatEvent } from '../multiplayer'
 
 // Y pixel thresholds for music zones
 const SKY_Y        = 80  * 16  // above Cloud City
@@ -45,6 +45,7 @@ export class WorldScene extends Phaser.Scene {
   private keyF!: Phaser.Input.Keyboard.Key
   private keyESC!: Phaser.Input.Keyboard.Key
   private autoSaveTimer = 0
+  private saveFailed = false
   private boundBeforeUnload: (() => void) | null = null
   private saveSlotId: string | null = null
   private saveSlotName: string | null = null
@@ -72,6 +73,7 @@ export class WorldScene extends Phaser.Scene {
   /** Client-side boss sprite */
   private clientBossSprite: Phaser.GameObjects.Image | null = null
   private clientBossId = 0
+  private clientAttackCooldown = 0
 
   constructor() {
     super({ key: 'WorldScene' })
@@ -558,6 +560,15 @@ export class WorldScene extends Phaser.Scene {
         this.mp.sendInput(input)
       }
 
+      // NPC interaction works locally for clients (shop is UI-only)
+      if (this.npc) {
+        this.npc.update(this.player.sprite.x, this.player.sprite.y)
+      }
+      this.checkNPCInteraction()
+
+      // Client-side attack detection — send attack requests to host
+      this.checkClientAttack(dt)
+
       // Apply pending state from host
       this.applyClientSync()
     }
@@ -576,12 +587,14 @@ export class WorldScene extends Phaser.Scene {
       this.chatOverlay?.update()
     }
 
-    // Auto-save every 60 seconds (host and offline only)
-    if (!this.mp.isClient) {
+    // Auto-save every 60 seconds (host and offline only, stop retrying after quota failure)
+    if (!this.mp.isClient && !this.saveFailed) {
       this.autoSaveTimer += dt
       if (this.autoSaveTimer >= 60) {
         this.autoSaveTimer = 0
-        this.performSave()
+        if (!this.performSave()) {
+          this.saveFailed = true
+        }
       }
     }
   }
@@ -703,6 +716,92 @@ export class WorldScene extends Phaser.Scene {
     // Close shop if player walks away
     if (this.player.shopOpen && !near) {
       this.player.shopOpen = false
+    }
+  }
+
+  // ── Client: Attack Detection ─────────────────────────────
+
+  private checkClientAttack(dt: number) {
+    this.clientAttackCooldown = Math.max(0, this.clientAttackCooldown - dt * 1000)
+    if (this.clientAttackCooldown > 0) return
+
+    if (this.player.inventoryOpen || this.player.skillTreeOpen || this.player.shopOpen || this.player.craftingOpen) return
+
+    const pointer = this.input.activePointer
+    if (!pointer.leftButtonDown()) return
+
+    const item = this.player.inventory.getSelectedItem()
+    if (!item) return
+    const def = getItemDef(item.id)
+    if (!def || def.category !== ItemCategory.WEAPON) return
+
+    // Check cursor is not on a mineable block (mining takes priority)
+    const cam = this.cameras.main
+    const wp = cam.getWorldPoint(pointer.x, pointer.y)
+    const tx = Math.floor(wp.x / 16)
+    const ty = Math.floor(wp.y / 16)
+    const tileType = this.chunkManager.getTile(tx, ty)
+    if (tileType !== TileType.AIR) return // let mining handle it
+
+    this.clientAttackCooldown = def.attackSpeed ?? 400
+    const facingRight = wp.x >= this.player.sprite.x
+
+    this.mp.sendAttack({
+      x: this.player.sprite.x,
+      y: this.player.sprite.y,
+      cursorX: wp.x,
+      cursorY: wp.y,
+      weaponStyle: def.weaponStyle as 'melee' | 'ranged' | 'magic' | 'summon',
+      damage: def.damage ?? 0,
+      color: def.color ?? 0xffffff,
+      projectileSpeed: def.projectileSpeed,
+      manaCost: def.manaCost,
+      attackSpeed: def.attackSpeed,
+      facingRight,
+    })
+  }
+
+  // ── Host: Process remote player attacks ──────────────────
+
+  private handleRemoteAttack(senderId: number, attack: AttackRequest) {
+    const sim = this.remotePlayerSims.get(senderId)
+    if (!sim) return
+
+    // Use the sim's authoritative position, not the client-reported one
+    const px = sim.x
+    const py = sim.y
+
+    const allTargets = this.activeBoss && this.activeBoss.alive
+      ? [...this.enemies, this.activeBoss as any]
+      : this.enemies
+
+    const hostSession = this.mp.getHostSession()
+
+    switch (attack.weaponStyle) {
+      case 'melee': {
+        const weaponDef = { damage: attack.damage, color: attack.color } as any
+        const dmg = this.combat.meleeAttack(weaponDef, px, py, attack.facingRight, allTargets)
+        if (dmg > 0 && hostSession) {
+          hostSession.broadcast({
+            type: MessageType.COMBAT_EVENT,
+            senderId: 0,
+            data: { type: 'damage', targetId: 0, sourceId: senderId, amount: dmg, x: px, y: py, color: 0xffff00 } as CombatEvent,
+          })
+        }
+        break
+      }
+      case 'ranged':
+      case 'magic': {
+        const weaponDef = {
+          damage: attack.damage,
+          color: attack.color,
+          projectileSpeed: attack.projectileSpeed ?? 400,
+          weaponStyle: attack.weaponStyle,
+        } as any
+        this.combat.fireProjectile(weaponDef, px, py, attack.cursorX, attack.cursorY, true)
+        break
+      }
+      // Summon not handled for remote players yet
     }
   }
 
@@ -1308,6 +1407,18 @@ export class WorldScene extends Phaser.Scene {
         }
         this.mp.getHostSession()?.removePlayer(playerId)
       }
+      return
+    }
+
+    if (msg.type === MessageType.CHAT_MESSAGE) {
+      const rp = this.mp.remotePlayers.get(msg.senderId)
+      const name = rp?.name ?? 'Unknown'
+      this.mp.addChatMessage(msg.senderId, name, (msg.data as { text: string }).text)
+      return
+    }
+
+    if (msg.type === MessageType.ATTACK_REQUEST) {
+      this.handleRemoteAttack(msg.senderId, msg.data as AttackRequest)
       return
     }
 

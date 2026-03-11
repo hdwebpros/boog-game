@@ -258,11 +258,11 @@ export class MenuScene extends Phaser.Scene {
       startBtn.on('pointerover', () => startBtn.setColor('#ffffff'))
       startBtn.on('pointerout', () => startBtn.setColor('#8888ff'))
       startBtn.on('pointerdown', () => {
-        const name = window.prompt('Enter your name:', 'Host') ?? 'Host'
+        const name = (window.prompt('Enter your name:', 'Host') ?? 'Host').trim().slice(0, 16) || 'Host'
         statusText.setText('Creating room...')
         // Set multiplayer mode and start game
         this.registry.set('mpMode', 'host')
-        this.registry.set('mpPlayerName', name.trim() || 'Host')
+        this.registry.set('mpPlayerName', name)
         AudioManager.get()?.stopMusic()
         this.scene.start('BootScene')
       })
@@ -285,12 +285,12 @@ export class MenuScene extends Phaser.Scene {
       joinGameBtn.on('pointerdown', () => {
         const code = window.prompt('Room code:')
         if (!code) return
-        const name = window.prompt('Your name:', 'Player') ?? 'Player'
+        const name = (window.prompt('Your name:', 'Player') ?? 'Player').trim().slice(0, 16) || 'Player'
         statusText.setText('Connecting...')
         // Set join params and start
         this.registry.set('mpMode', 'client')
         this.registry.set('mpRoomCode', code.trim().toUpperCase())
-        this.registry.set('mpPlayerName', name.trim() || 'Player')
+        this.registry.set('mpPlayerName', name)
         AudioManager.get()?.stopMusic()
         this.scene.start('BootScene')
       })

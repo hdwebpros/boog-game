@@ -38,6 +38,7 @@ export enum MessageType {
   ITEM_DROP        = 13,
   BOSS_SUMMON      = 14,
   CHAT_MESSAGE     = 15,
+  ATTACK_REQUEST   = 16,
 
   // State (host → clients)
   WORLD_SEED       = 20,
@@ -103,6 +104,23 @@ export interface BossSummonRequest {
 
 export interface ChatMessage {
   text: string
+}
+
+export interface AttackRequest {
+  /** Attacker position (from RemotePlayerSim on host) */
+  x: number
+  y: number
+  /** World-space cursor target */
+  cursorX: number
+  cursorY: number
+  /** Weapon info */
+  weaponStyle: 'melee' | 'ranged' | 'magic' | 'summon'
+  damage: number
+  color: number
+  projectileSpeed?: number
+  manaCost?: number
+  attackSpeed?: number
+  facingRight: boolean
 }
 
 // ── State Snapshots ───────────────────────────────────────

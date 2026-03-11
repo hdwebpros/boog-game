@@ -1029,8 +1029,10 @@ export class UIScene extends Phaser.Scene {
     cutout.fillCircle(cx + 3, cy - 2, 4)
     rt.erase(cutout)
     cutout.destroy()
-    // Save as reusable texture
-    rt.saveTexture('moon_icon')
+    // Save as reusable texture (guard against re-creation on scene restart)
+    if (!this.textures.exists('moon_icon')) {
+      rt.saveTexture('moon_icon')
+    }
     rt.destroy()
   }
 
@@ -1221,27 +1223,27 @@ export class UIScene extends Phaser.Scene {
 
     if (!this.invVisible) {
       for (let i = 0; i < INV_TOTAL_SLOTS; i++) {
-        this.invSlotIcons[i]!.setVisible(false)
-        this.invSlotTexts[i]!.setVisible(false)
-        this.invSlotZones[i]!.disableInteractive()
+        this.invSlotIcons[i]?.setVisible(false)
+        this.invSlotTexts[i]?.setVisible(false)
+        this.invSlotZones[i]?.disableInteractive()
         if (this.invSlotImages[i]) {
           this.invSlotImages[i]!.setVisible(false)
         }
       }
       for (let i = 0; i < 4; i++) {
-        this.armorSlotIcons[i]!.setVisible(false)
-        this.armorSlotLabels[i]!.setVisible(false)
-        this.armorSlotZones[i]!.disableInteractive()
+        this.armorSlotIcons[i]?.setVisible(false)
+        this.armorSlotLabels[i]?.setVisible(false)
+        this.armorSlotZones[i]?.disableInteractive()
         if (this.armorSlotImages[i]) {
           this.armorSlotImages[i]!.setVisible(false)
         }
       }
-      this.armorDefenseText.setVisible(false)
-      this.heldIcon.setVisible(false)
-      this.heldText.setVisible(false)
+      this.armorDefenseText?.setVisible(false)
+      this.heldIcon?.setVisible(false)
+      this.heldText?.setVisible(false)
       if (this.heldImage) this.heldImage.setVisible(false)
-      this.trashLabel.setVisible(false)
-      this.trashZone.disableInteractive()
+      this.trashLabel?.setVisible(false)
+      this.trashZone?.disableInteractive()
       return
     }
 

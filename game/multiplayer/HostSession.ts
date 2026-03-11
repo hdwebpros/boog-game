@@ -95,16 +95,21 @@ export class HostSession {
         return null
 
       case MessageType.CHAT_MESSAGE:
-        // Relay chat to all
+        // Relay chat to all clients
         this.broadcast({
           type: MessageType.CHAT_MESSAGE,
           senderId: msg.senderId,
           data: msg.data,
         })
-        return null
+        // Return to host so it can display the message locally
+        return msg
 
       case MessageType.BOSS_SUMMON:
         // Forward to WorldScene for validation
+        return msg
+
+      case MessageType.ATTACK_REQUEST:
+        // Forward to WorldScene for combat processing
         return msg
 
       default:
@@ -118,6 +123,8 @@ export class HostSession {
     sendFn: (response: string) => void
   ): NetworkMessage | null {
     const req = msg.data as { playerName: string; protocolVersion: number }
+    // Cap player name length
+    req.playerName = (req.playerName || 'Player').slice(0, 16)
 
     // Version check
     if (req.protocolVersion !== PROTOCOL_VERSION) {

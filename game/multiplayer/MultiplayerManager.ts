@@ -22,6 +22,7 @@ import {
   type TileChangeRequest,
   type JoinAccepted,
   type CombatEvent,
+  type AttackRequest,
   MessageType,
   PLAYER_SYNC_INTERVAL,
   generateEntityId,
@@ -187,6 +188,8 @@ export class MultiplayerManager {
   /** Send chat message */
   sendChat(text: string) {
     if (this._mode === 'client' && this.network) {
+      // Add locally so sender sees their own message immediately
+      this.addChatMessage(this._localPlayerId, 'You', text)
       this.network.sendChat(text)
     } else if (this._mode === 'host' && this.host) {
       this.addChatMessage(this._localPlayerId, 'Host', text)
@@ -195,6 +198,13 @@ export class MultiplayerManager {
         senderId: this._localPlayerId,
         data: { text },
       })
+    }
+  }
+
+  /** Send attack request to host (client mode only) */
+  sendAttack(attack: AttackRequest) {
+    if (this._mode === 'client' && this.network) {
+      this.network.sendAttack(attack)
     }
   }
 
@@ -314,7 +324,7 @@ export class MultiplayerManager {
   }
 
   /** Add a chat message to the buffer */
-  private addChatMessage(senderId: number, name: string, text: string) {
+  addChatMessage(senderId: number, name: string, text: string) {
     this.chatMessages.push({ senderId, name, text, time: Date.now() })
     if (this.chatMessages.length > 50) {
       this.chatMessages.shift()
@@ -415,10 +425,11 @@ export class MultiplayerManager {
       }
     })
 
-    // Chat
+    // Chat (skip own messages — already added locally in sendChat)
     this.network.on(MessageType.CHAT_MESSAGE, (msg) => {
+      if (msg.senderId === this._localPlayerId) return
       const rp = this._remotePlayers.get(msg.senderId)
-      const name = rp?.name ?? (msg.senderId === this._localPlayerId ? 'You' : 'Unknown')
+      const name = rp?.name ?? 'Unknown'
       this.addChatMessage(msg.senderId, name, msg.data.text)
     })
 
