@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { TileType, TILE_PROPERTIES } from '../world/TileRegistry'
+import { TileType, TILE_PROPERTIES, TILE_SIZE, WORLD_WIDTH } from '../world/TileRegistry'
 import { InventoryManager, ARMOR_SLOT_ORDER } from '../systems/InventoryManager'
 import type { ItemStack } from '../systems/InventoryManager'
 import type { ArmorSlot } from '../data/items'
@@ -12,6 +12,7 @@ import { SKILLS, SKILL_MAP, BRANCH_INFO, BRANCH_ORDER, SUPER_TREES, SUPER_TREE_M
 import type { SkillDef } from '../data/skills'
 import type { SkillTreeManager } from '../systems/SkillTreeManager'
 import { MiniMap } from '../systems/MiniMap'
+import { SurfaceBiome } from '../world/WorldGenerator'
 import type { WorldData } from '../world/WorldGenerator'
 import { SHOP_INVENTORY, SELL_PRICES } from '../data/shop'
 import { ACCESSORY_EFFECTS } from '../data/accessories'
@@ -149,6 +150,11 @@ export class UIScene extends Phaser.Scene {
   private chestTexts: Phaser.GameObjects.Text[] = []
   private chestTitle!: Phaser.GameObjects.Text
   private chestVisible = false
+
+  // Biome banner
+  private biomeBannerText!: Phaser.GameObjects.Text
+  private visitedZones = new Set<string>()
+  private currentZoneName = ''
 
   constructor() {
     super({ key: 'UIScene' })
@@ -316,6 +322,12 @@ export class UIScene extends Phaser.Scene {
         this.registry.remove('exploredMap')
       }
     }
+
+    // ── Biome banner ─────────────────────────────────
+    this.biomeBannerText = this.add.text(width / 2, 80, '', {
+      fontSize: '24px', color: '#ffffff', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5, 0.5).setDepth(210).setAlpha(0)
 
     // Map toggle (N) and zoom ([ / ])
     const keyN = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.N)
@@ -486,6 +498,57 @@ export class UIScene extends Phaser.Scene {
     if (this.miniMap) {
       this.miniMap.update(player.sprite.x, player.sprite.y)
     }
+    this.updateBiomeBanner(player)
+  }
+
+  private getZoneName(px: number, py: number): string {
+    const tileX = Math.floor(px / TILE_SIZE)
+    const tileY = Math.floor(py / TILE_SIZE)
+
+    // Sky / Cloud City
+    if (py < 80 * 16) return 'Cloud City'
+    // Deep underground / Core
+    if (py >= 640 * 16) return 'The Core'
+    // Underground
+    if (py >= 130 * 16) return 'Underground'
+    // Ocean edges
+    if (tileX < 80 || tileX > WORLD_WIDTH - 80) return 'Ocean'
+
+    // Surface biomes
+    const worldData = this.registry.get('worldData') as WorldData | undefined
+    const biome = worldData?.surfaceBiomes?.[tileX] ?? SurfaceBiome.PLAINS
+    switch (biome) {
+      case SurfaceBiome.FOREST:    return 'Forest'
+      case SurfaceBiome.DESERT:    return 'Desert'
+      case SurfaceBiome.MOUNTAINS: return 'Mountains'
+      case SurfaceBiome.LAKE:      return 'Lake'
+      case SurfaceBiome.SNOW:      return 'Snowfields'
+      case SurfaceBiome.JUNGLE:    return 'Jungle'
+      case SurfaceBiome.MUSHROOM:  return 'Mushroom Grotto'
+      default:                     return 'Plains'
+    }
+  }
+
+  private updateBiomeBanner(player: any) {
+    const zoneName = this.getZoneName(player.sprite.x, player.sprite.y)
+    if (zoneName === this.currentZoneName) return
+    this.currentZoneName = zoneName
+
+    if (this.visitedZones.has(zoneName)) return
+    this.visitedZones.add(zoneName)
+
+    // Fade in, hold, fade out
+    this.biomeBannerText.setText(zoneName)
+    this.tweens.killTweensOf(this.biomeBannerText)
+    this.biomeBannerText.setAlpha(0)
+    this.tweens.add({
+      targets: this.biomeBannerText,
+      alpha: 1,
+      duration: 800,
+      ease: 'Sine.easeIn',
+      hold: 1500,
+      yoyo: true,
+    })
   }
 
   getExploredMap(): number[] | null {

@@ -873,7 +873,7 @@ export class WorldScene extends Phaser.Scene {
       ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
 
       this.time.delayedCall(3000, () => text.destroy())
-      AudioManager.get()?.play(SoundId.CRAFT_SUCCESS) // reuse jingle
+      AudioManager.get()?.play(SoundId.LEVEL_UP)
     }
   }
 
