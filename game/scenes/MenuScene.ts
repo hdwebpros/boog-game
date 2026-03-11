@@ -316,6 +316,15 @@ export class MenuScene extends Phaser.Scene {
       fontSize: '32px', color: '#ffffff', fontFamily: 'monospace',
     }).setOrigin(0.5)
 
+    // Show room code if hosting multiplayer
+    const mpMode = this.registry.get('mpMode') as string | undefined
+    const roomCode = this.registry.get('mpRoomCode') as string | undefined
+    if (mpMode === 'host' && roomCode) {
+      this.add.text(width / 2, height / 3 + 35, `Room Code: ${roomCode}`, {
+        fontSize: '16px', color: '#8888ff', fontFamily: 'monospace',
+      }).setOrigin(0.5)
+    }
+
     // Resume
     const resumeBtn = this.add.text(width / 2, height / 2, '[ RESUME ]', {
       fontSize: '18px', color: '#00ff88', fontFamily: 'monospace',
