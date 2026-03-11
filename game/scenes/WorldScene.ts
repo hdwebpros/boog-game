@@ -722,9 +722,9 @@ export class WorldScene extends Phaser.Scene {
       this.autoSaveTimer += dt
       if (this.autoSaveTimer >= 60) {
         this.autoSaveTimer = 0
-        if (!this.performSave()) {
-          this.saveFailed = true
-        }
+        this.performSave().then(ok => {
+          if (!ok) this.saveFailed = true
+        })
       }
     }
   }
@@ -1351,10 +1351,10 @@ export class WorldScene extends Phaser.Scene {
     return this.mp
   }
 
-  performSave(overrideSlotId?: string, overrideName?: string): boolean {
-    if (this.player.dead) return false
+  performSave(overrideSlotId?: string, overrideName?: string): Promise<boolean> {
+    if (this.player.dead) return Promise.resolve(false)
     const worldData = this.registry.get('worldData') as WorldData
-    if (!worldData) return false
+    if (!worldData) return Promise.resolve(false)
 
     const slotId = overrideSlotId ?? this.saveSlotId ?? SaveManager.generateSlotId()
     const slotName = overrideName ?? this.saveSlotName ?? 'World'

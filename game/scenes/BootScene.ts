@@ -174,29 +174,28 @@ export class BootScene extends Phaser.Scene {
         },
       })
     } else if (loadSlotId) {
-      const saveData = SaveManager.load(loadSlotId)
-      if (saveData) {
-        steps.push({
-          label: 'Loading saved world...',
-          weight: 60,
-          fn: () => {
-            const worldData = {
-              tiles: parseSaveTiles(saveData.tiles),
-              width: WORLD_WIDTH,
-              height: WORLD_HEIGHT,
-              seed: saveData.seed,
-              spawnX: Math.floor(saveData.playerX / 16),
-              spawnY: Math.floor(saveData.playerY / 16),
-              surfaceBiomes: WorldGenerator.computeSurfaceBiomes(saveData.seed),
-            }
-            this.registry.set('worldData', worldData)
-            this.registry.set('saveData', saveData)
-            // Pass slot info so WorldScene knows which slot to auto-save to
-            this.registry.set('loadSlotId', loadSlotId)
-            this.registry.set('loadSlotName', saveData.name)
-          },
-        })
-      }
+      steps.push({
+        label: 'Loading saved world...',
+        weight: 60,
+        fn: async () => {
+          const saveData = await SaveManager.load(loadSlotId)
+          if (!saveData) return
+          const worldData = {
+            tiles: parseSaveTiles(saveData.tiles),
+            width: WORLD_WIDTH,
+            height: WORLD_HEIGHT,
+            seed: saveData.seed,
+            spawnX: Math.floor(saveData.playerX / 16),
+            spawnY: Math.floor(saveData.playerY / 16),
+            surfaceBiomes: WorldGenerator.computeSurfaceBiomes(saveData.seed),
+          }
+          this.registry.set('worldData', worldData)
+          this.registry.set('saveData', saveData)
+          // Pass slot info so WorldScene knows which slot to auto-save to
+          this.registry.set('loadSlotId', loadSlotId)
+          this.registry.set('loadSlotName', saveData.name)
+        },
+      })
     } else {
       steps.push({
         label: 'Generating terrain...',

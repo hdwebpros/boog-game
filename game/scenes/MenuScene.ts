@@ -18,13 +18,13 @@ export class MenuScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale
 
-    // Migrate old single-slot save on first visit
-    SaveManager.migrateOldSave()
-
     if (this.isPause) {
       this.createPauseMenu(width, height)
     } else {
-      this.createTitleScreen(width, height)
+      // Migrate old saves to IndexedDB before showing title
+      SaveManager.migrateOldSave().then(() => {
+        this.createTitleScreen(width, height)
+      })
     }
   }
 
@@ -217,10 +217,11 @@ export class MenuScene extends Phaser.Scene {
     delBtn.on('pointerout', () => delBtn.setColor('#ff4444'))
     delBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       pointer.event.stopPropagation()
-      SaveManager.deleteSave(save.id)
-      AudioManager.get()?.play(SoundId.MENU_SELECT)
-      const { width: w, height: h } = this.scale
-      this.showLoadScreen(w, h)
+      SaveManager.deleteSave(save.id).then(() => {
+        AudioManager.get()?.play(SoundId.MENU_SELECT)
+        const { width: w, height: h } = this.scale
+        this.showLoadScreen(w, h)
+      })
     })
   }
 
@@ -353,9 +354,13 @@ export class MenuScene extends Phaser.Scene {
       if (name === null) return // cancelled
 
       const trimmed = name.trim() || 'My World'
-      const success = worldScene?.performSave?.(undefined, trimmed) ?? false
-      saveStatus.setText(success ? `Saved as "${trimmed}"!` : 'Save failed!')
-      saveStatus.setColor(success ? '#00ff88' : '#ff4444')
+      saveStatus.setText('Saving...')
+      saveStatus.setColor('#888888')
+      const result = worldScene?.performSave?.(undefined, trimmed) as Promise<boolean> | undefined
+      ;(result ?? Promise.resolve(false)).then((success: boolean) => {
+        saveStatus.setText(success ? `Saved as "${trimmed}"!` : 'Save failed!')
+        saveStatus.setColor(success ? '#00ff88' : '#ff4444')
+      })
     })
 
     // Quit to menu

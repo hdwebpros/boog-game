@@ -6,7 +6,52 @@ import { WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 type NpcPosition = { tx: number; ty: number }
 
 const INDEX_KEY = 'starfall_save_index'
-const SLOT_PREFIX = 'starfall_save_'
+const DB_NAME = 'starfall'
+const DB_STORE = 'saves'
+const DB_VERSION = 1
+
+// ── IndexedDB helper ─────────────────────────────────────
+let dbPromise: Promise<IDBDatabase> | null = null
+
+function openDB(): Promise<IDBDatabase> {
+  if (dbPromise) return dbPromise
+  dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION)
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(DB_STORE)
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+  return dbPromise
+}
+
+function idbGet<T>(key: string): Promise<T | undefined> {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, 'readonly')
+    const req = tx.objectStore(DB_STORE).get(key)
+    req.onsuccess = () => resolve(req.result as T | undefined)
+    req.onerror = () => reject(req.error)
+  }))
+}
+
+function idbPut(key: string, value: unknown): Promise<void> {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, 'readwrite')
+    const req = tx.objectStore(DB_STORE).put(value, key)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+  }))
+}
+
+function idbDelete(key: string): Promise<void> {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, 'readwrite')
+    const req = tx.objectStore(DB_STORE).delete(key)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+  }))
+}
 
 // ── Tile compression (RLE + base64) ─────────────────────
 // Format: [value, countHigh, countLow] triplets, base64-encoded
@@ -98,7 +143,7 @@ export interface SaveData {
 }
 
 export class SaveManager {
-  static save(
+  static async save(
     slotId: string,
     name: string,
     worldData: WorldData,
@@ -119,7 +164,7 @@ export class SaveManager {
     accessorySlots?: (ItemStack | null)[],
     npcShopPosition?: NpcPosition,
     chestInventories?: ChestData[]
-  ): boolean {
+  ): Promise<boolean> {
     try {
       const timestamp = Date.now()
       const data: SaveData = {
@@ -148,9 +193,9 @@ export class SaveManager {
         chestInventories,
         timestamp,
       }
-      localStorage.setItem(SLOT_PREFIX + slotId, JSON.stringify(data))
+      await idbPut(slotId, data)
 
-      // Update index
+      // Update index (small — stays in localStorage)
       const index = this.getIndex()
       const existing = index.findIndex(s => s.id === slotId)
       const info: SaveSlotInfo = { id: slotId, name, timestamp }
@@ -167,13 +212,17 @@ export class SaveManager {
     }
   }
 
-  static load(slotId: string): SaveData | null {
+  static async load(slotId: string): Promise<SaveData | null> {
     try {
-      const raw = localStorage.getItem(SLOT_PREFIX + slotId)
+      // Try IndexedDB first, fall back to localStorage for old saves
+      const data = await idbGet<SaveData>(slotId)
+      if (data && data.version === 1) return data
+
+      const raw = localStorage.getItem('starfall_save_' + slotId)
       if (!raw) return null
-      const data = JSON.parse(raw) as SaveData
-      if (data.version !== 1) return null
-      return data
+      const parsed = JSON.parse(raw) as SaveData
+      if (parsed.version !== 1) return null
+      return parsed
     } catch {
       return null
     }
@@ -193,8 +242,9 @@ export class SaveManager {
     return this.getIndex().length > 0
   }
 
-  static deleteSave(slotId: string) {
-    localStorage.removeItem(SLOT_PREFIX + slotId)
+  static async deleteSave(slotId: string) {
+    await idbDelete(slotId).catch(() => {})
+    localStorage.removeItem('starfall_save_' + slotId)
     const index = this.getIndex().filter(s => s.id !== slotId)
     localStorage.setItem(INDEX_KEY, JSON.stringify(index))
   }
@@ -203,24 +253,43 @@ export class SaveManager {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
   }
 
-  // Migrate old single-save format to new multi-slot format
-  static migrateOldSave() {
+  // Migrate old saves (localStorage → IndexedDB)
+  static async migrateOldSave() {
+    // Migrate single-slot legacy save
     const OLD_KEY = 'starfall_save'
     const raw = localStorage.getItem(OLD_KEY)
-    if (!raw) return
-    try {
-      const data = JSON.parse(raw) as SaveData
-      if (data.version !== 1) return
-      const slotId = this.generateSlotId()
-      const name = 'Migrated Save'
-      data.name = name
-      localStorage.setItem(SLOT_PREFIX + slotId, JSON.stringify(data))
-      const index = this.getIndex()
-      index.push({ id: slotId, name, timestamp: data.timestamp })
-      localStorage.setItem(INDEX_KEY, JSON.stringify(index))
-      localStorage.removeItem(OLD_KEY)
-    } catch {
-      // ignore migration errors
+    if (raw) {
+      try {
+        const data = JSON.parse(raw) as SaveData
+        if (data.version === 1) {
+          const slotId = this.generateSlotId()
+          const name = 'Migrated Save'
+          data.name = name
+          await idbPut(slotId, data)
+          const index = this.getIndex()
+          index.push({ id: slotId, name, timestamp: data.timestamp })
+          localStorage.setItem(INDEX_KEY, JSON.stringify(index))
+          localStorage.removeItem(OLD_KEY)
+        }
+      } catch {
+        // ignore migration errors
+      }
+    }
+
+    // Migrate multi-slot localStorage saves to IndexedDB
+    const index = this.getIndex()
+    for (const slot of index) {
+      const key = 'starfall_save_' + slot.id
+      const slotRaw = localStorage.getItem(key)
+      if (slotRaw) {
+        try {
+          const data = JSON.parse(slotRaw) as SaveData
+          await idbPut(slot.id, data)
+          localStorage.removeItem(key)
+        } catch {
+          // ignore per-slot migration errors
+        }
+      }
     }
   }
 }
