@@ -1062,7 +1062,7 @@ export class WorldScene extends Phaser.Scene {
           // Show discovery message
           const text = this.add.text(
             this.cameras.main.centerX, this.cameras.main.centerY - 80,
-            `${bossDef.name}'s altar location revealed!\nFollow the arrow to find it.`,
+            `${bossDef.name}'s altar location revealed!\nOpen the minimap (N) to see it.`,
             {
               fontSize: '16px', color: '#88ccff', fontFamily: 'monospace',
               align: 'center', stroke: '#000000', strokeThickness: 4,
