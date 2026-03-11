@@ -1661,6 +1661,39 @@ function makeTileStationArcaneAnvil(): PixelGrid {
   return g
 }
 
+function makeTileChest(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const wood = 0x8b5a2b
+  const dark = darken(wood, 0.25)
+  const light = lighten(wood, 0.15)
+  const metal = 0xccaa44
+  const metalDk = darken(metal, 0.2)
+  // Body (rows 4-15)
+  for (let y = 4; y <= 15; y++)
+    for (let x = 1; x <= 14; x++)
+      g[y]![x] = wood
+  // Top rim
+  for (let x = 1; x <= 14; x++) { g[3]![x] = light; g[4]![x] = light }
+  // Bottom rim
+  for (let x = 1; x <= 14; x++) g[15]![x] = dark
+  // Side edges
+  for (let y = 3; y <= 15; y++) { g[y]![0] = dark; g[y]![15] = dark }
+  // Lid line (horizontal dark strip)
+  for (let x = 1; x <= 14; x++) g[7]![x] = dark
+  // Metal clasp (center)
+  g[7]![7] = metal; g[7]![8] = metal
+  g[8]![7] = metal; g[8]![8] = metal
+  g[6]![7] = metalDk; g[6]![8] = metalDk
+  // Metal corners
+  g[4]![1] = metalDk; g[4]![14] = metalDk
+  g[15]![1] = metalDk; g[15]![14] = metalDk
+  // Wood grain
+  for (let y = 9; y <= 14; y += 2)
+    for (let x = 2; x <= 13; x++)
+      g[y]![x] = darken(wood, 0.08)
+  return g
+}
+
 // ─── BOSS TEXTURES ─────────────────────────────────────────
 
 function makeBossVineGuardian(): PixelGrid {
@@ -3011,6 +3044,7 @@ export function generateAllSprites(scene: Phaser.Scene) {
     [TileType.STATION_FUSION]: makeTileStationFusion,
     [TileType.STATION_WORKBENCH_MK2]: makeTileStationWorkbenchMk2,
     [TileType.STATION_ARCANE_ANVIL]: makeTileStationArcaneAnvil,
+    [TileType.CHEST]: makeTileChest,
   }
 
   for (const [type, maker] of Object.entries(tileMakers)) {

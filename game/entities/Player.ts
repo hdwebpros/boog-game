@@ -92,6 +92,9 @@ export class Player {
   inventoryOpen = false
   skillTreeOpen = false
   shopOpen = false
+  chestOpen = false
+  openChestPos: { tx: number; ty: number } | null = null
+  private lastChunks: ChunkManager | null = null
 
   // Combat
   private iFrames = 0
@@ -185,7 +188,7 @@ export class Player {
 
     // Mouse wheel slot cycling
     scene.input.on('wheel', (_pointer: Phaser.Input.Pointer, _dx: number[], _dy: number[], dz: number) => {
-      if (this.inventoryOpen || this.craftingOpen || this.skillTreeOpen) return
+      if (this.inventoryOpen || this.craftingOpen || this.skillTreeOpen || this.chestOpen) return
       if (dz > 0) {
         this.inventory.selectedSlot = (this.inventory.selectedSlot + 1) % 10
       } else if (dz < 0) {
@@ -205,9 +208,38 @@ export class Player {
       }
     })
 
-    // E key toggles inventory
+    // E key toggles inventory (or chest if nearby)
     const keyE = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E)
     keyE.on('down', () => {
+      // Close chest if open
+      if (this.chestOpen) {
+        this.chestOpen = false
+        this.openChestPos = null
+        this.inventory.returnHeldItem()
+        return
+      }
+
+      // Check for nearby chest to open
+      if (this.lastChunks) {
+        const ptx = Math.floor(this.sprite.x / TILE_SIZE)
+        const pty = Math.floor(this.sprite.y / TILE_SIZE)
+        for (const station of this.lastChunks.getPlacedStations()) {
+          if (station.itemId !== 116) continue
+          const dx = Math.abs(station.tx - ptx)
+          const dy = Math.abs(station.ty - pty)
+          if (dx <= 3 && dy <= 3) {
+            this.chestOpen = true
+            this.openChestPos = { tx: station.tx, ty: station.ty }
+            this.inventoryOpen = false
+            this.craftingOpen = false
+            this.skillTreeOpen = false
+            this.shopOpen = false
+            return
+          }
+        }
+      }
+
+      // Normal inventory toggle
       if (this.inventoryOpen) {
         this.inventoryOpen = false
         this.inventory.returnHeldItem()
@@ -241,12 +273,27 @@ export class Player {
   }
 
   update(dt: number, chunks: ChunkManager, combat?: CombatSystem, enemies?: Enemy[]) {
+    this.lastChunks = chunks
+
     if (this.dead) {
       this.respawnTimer -= dt * 1000
       if (this.respawnTimer <= 0) {
         this.respawn()
       }
       return
+    }
+
+    // Close chest if player walks away
+    if (this.chestOpen && this.openChestPos) {
+      const ptx = Math.floor(this.sprite.x / TILE_SIZE)
+      const pty = Math.floor(this.sprite.y / TILE_SIZE)
+      const dx = Math.abs(this.openChestPos.tx - ptx)
+      const dy = Math.abs(this.openChestPos.ty - pty)
+      if (dx > 4 || dy > 4) {
+        this.chestOpen = false
+        this.openChestPos = null
+        this.inventory.returnHeldItem()
+      }
     }
 
     // Apply skill-based max HP/mana bonuses + armor enchantments
@@ -296,7 +343,7 @@ export class Player {
     }
 
     this.handleMovement(dt, chunks)
-    if (!this.inventoryOpen && !this.skillTreeOpen && !this.shopOpen) {
+    if (!this.inventoryOpen && !this.skillTreeOpen && !this.shopOpen && !this.chestOpen) {
       this.handleMining(dt, chunks)
       this.handleCombat(dt, chunks, combat, enemies)
     }
@@ -1218,6 +1265,20 @@ export class Player {
             if (!bp?.mineable) continue
             const bStation = chunks.getPlacedStations().find(s => s.tx === bx && s.ty === by)
             if (bStation) {
+              // If it's a chest, retrieve stored items
+              if (bStation.itemId === 116) {
+                const chestInv = chunks.getChestInventory(bx, by)
+                for (const slot of chestInv) {
+                  if (slot) this.inventory.addItem(slot.id, slot.count)
+                }
+                chunks.removeChestInventory(bx, by)
+                // Close chest UI if this chest was open
+                if (this.chestOpen && this.openChestPos?.tx === bx && this.openChestPos?.ty === by) {
+                  this.chestOpen = false
+                  this.openChestPos = null
+                  this.inventory.returnHeldItem()
+                }
+              }
               chunks.removeStation(bx, by)
               chunks.setTile(bx, by, TileType.AIR)
               this.inventory.addItem(bStation.itemId)

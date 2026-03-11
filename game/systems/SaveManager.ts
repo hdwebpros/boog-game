@@ -1,6 +1,6 @@
 import type { WorldData } from '../world/WorldGenerator'
 import type { ItemStack, ArmorSlots } from './InventoryManager'
-import type { PlacedStation } from '../world/ChunkManager'
+import type { PlacedStation, ChestData } from '../world/ChunkManager'
 import { WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 
 type NpcPosition = { tx: number; ty: number }
@@ -93,6 +93,7 @@ export interface SaveData {
   usedRunestones?: string[]
   accessorySlots?: (ItemStack | null)[]
   npcShopPosition?: NpcPosition
+  chestInventories?: ChestData[]
   timestamp: number
 }
 
@@ -116,7 +117,8 @@ export class SaveManager {
     discoveredAltars?: string[],
     usedRunestones?: string[],
     accessorySlots?: (ItemStack | null)[],
-    npcShopPosition?: NpcPosition
+    npcShopPosition?: NpcPosition,
+    chestInventories?: ChestData[]
   ): boolean {
     try {
       const timestamp = Date.now()
@@ -143,6 +145,7 @@ export class SaveManager {
         usedRunestones,
         accessorySlots,
         npcShopPosition,
+        chestInventories,
         timestamp,
       }
       localStorage.setItem(SLOT_PREFIX + slotId, JSON.stringify(data))

@@ -35,6 +35,7 @@ export const RECIPES: Recipe[] = [
   { id: 'wood_chest',   station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 12 }], output: { itemId: 201, count: 1 } },
   { id: 'wood_legs',    station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 10 }], output: { itemId: 202, count: 1 } },
   { id: 'wood_boots',   station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 6 }], output: { itemId: 203, count: 1 } },
+  { id: 'chest',        station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 15 }], output: { itemId: 116, count: 1 } },
 
   // ── Workbench Mk2 ────────────────────────────────────────
   { id: 'workbench_2',  station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 15 }, { itemId: TileType.STONE, count: 10 }], output: { itemId: 115, count: 1 } },

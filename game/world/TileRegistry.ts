@@ -41,6 +41,7 @@ export enum TileType {
   CLOUD_BRICK = 39,
   CLOUD_PILLAR = 40,
   SEAWEED = 41,
+  CHEST = 42,
 }
 
 export interface TileProperties {
@@ -99,6 +100,7 @@ export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
   [TileType.CLOUD_BRICK]:        { name: 'Cloud Brick', color: 0x8899bb, hardness: 2, solid: true, mineable: true, tier: 0 },
   [TileType.CLOUD_PILLAR]:       { name: 'Cloud Pillar', color: 0xddaa44, hardness: 0, solid: true, mineable: false, tier: 0 },
   [TileType.SEAWEED]:            { name: 'Seaweed', color: 0x1a7a30, hardness: 0.2, solid: false, mineable: true, tier: 0, transparent: true },
+  [TileType.CHEST]:              { name: 'Chest', color: 0x8b5a2b, hardness: 2, solid: true, mineable: true, tier: 0 },
 }
 
 /** Map station item IDs to their tile types */
@@ -110,6 +112,7 @@ export const STATION_TILE_TYPE: Record<number, TileType> = {
   114: TileType.STATION_FUSION,
   115: TileType.STATION_WORKBENCH_MK2,
   236: TileType.STATION_ARCANE_ANVIL,
+  116: TileType.CHEST,
 }
 
 export const TILE_SIZE = 16

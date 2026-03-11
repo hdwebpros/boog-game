@@ -152,6 +152,12 @@ export class WorldScene extends Phaser.Scene {
       if (saveData.npcShopPosition) {
         this.npcShopPosition = saveData.npcShopPosition
       }
+      // Restore chest inventories
+      if (saveData.chestInventories) {
+        for (const chest of saveData.chestInventories) {
+          this.chunkManager.setChestInventory(chest.tx, chest.ty, chest.items)
+        }
+      }
       this.registry.remove('saveData')
     }
 
@@ -250,6 +256,10 @@ export class WorldScene extends Phaser.Scene {
         this.player.inventory.returnHeldItem()
       } else if (this.player.skillTreeOpen) {
         this.player.skillTreeOpen = false
+      } else if (this.player.chestOpen) {
+        this.player.chestOpen = false
+        this.player.openChestPos = null
+        this.player.inventory.returnHeldItem()
       } else if (this.player.shopOpen) {
         this.player.shopOpen = false
       } else {
@@ -902,7 +912,8 @@ export class WorldScene extends Phaser.Scene {
       Array.from(this.discoveredAltars),
       Array.from(this.usedRunestones),
       this.player.inventory.accessorySlots,
-      this.npcShopPosition ?? undefined
+      this.npcShopPosition ?? undefined,
+      this.chunkManager.getChestInventories()
     )
   }
 

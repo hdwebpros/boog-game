@@ -15,6 +15,7 @@ import { MiniMap } from '../systems/MiniMap'
 import type { WorldData } from '../world/WorldGenerator'
 import { SHOP_INVENTORY, SELL_PRICES } from '../data/shop'
 import { ACCESSORY_EFFECTS } from '../data/accessories'
+import { CHEST_SLOTS } from '../world/ChunkManager'
 
 const SLOT_SIZE = 40
 const SLOT_GAP = 4
@@ -105,6 +106,10 @@ export class UIScene extends Phaser.Scene {
   private heldImage: Phaser.GameObjects.Image | null = null
   private heldText!: Phaser.GameObjects.Text
 
+  // Trash slot
+  private trashZone!: Phaser.GameObjects.Zone
+  private trashLabel!: Phaser.GameObjects.Text
+
   // Day/night indicator (sun & moon icons)
   private sunIcon!: Phaser.GameObjects.Graphics
   private moonIcon!: Phaser.GameObjects.Image
@@ -137,6 +142,13 @@ export class UIScene extends Phaser.Scene {
   private shopClickCooldown = 0  // prevent rapid clicks
   private prevPointerDown = false // for justDown detection
   private pointerJustDown = false
+  private shopClickPending: { x: number; y: number } | null = null
+
+  // Chest panel
+  private chestGfx!: Phaser.GameObjects.Graphics
+  private chestTexts: Phaser.GameObjects.Text[] = []
+  private chestTitle!: Phaser.GameObjects.Text
+  private chestVisible = false
 
   constructor() {
     super({ key: 'UIScene' })
@@ -258,6 +270,11 @@ export class UIScene extends Phaser.Scene {
 
     // Craft click & scroll via scene-level input (avoids depth/hit-area issues)
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      // Shop click tracking (event-based, more reliable than polling)
+      if (this.shopVisible) {
+        this.shopClickPending = { x: pointer.x, y: pointer.y }
+      }
+
       if (!this.craftVisible || this.invVisible) return
       const cx = (this.scale.width - CRAFT_W) / 2
       const cy = (this.scale.height - CRAFT_H) / 2 - 20
@@ -410,12 +427,29 @@ export class UIScene extends Phaser.Scene {
       stroke: '#000000', strokeThickness: 2,
     }).setOrigin(1, 1).setDepth(421).setVisible(false)
 
+    // Trash slot (below inventory, right-aligned)
+    const trashX = invX + INV_W - SLOT_SIZE - INV_PAD
+    const trashY = invY + INV_H + 4
+    this.trashZone = this.add.zone(trashX + SLOT_SIZE / 2, trashY + SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE)
+      .setInteractive().setDepth(313)
+    this.trashZone.on('pointerdown', () => this.onTrashClick())
+    this.trashLabel = this.add.text(trashX + SLOT_SIZE / 2, trashY + SLOT_SIZE / 2, 'X', {
+      fontSize: '16px', color: '#ff4444', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5, 0.5).setDepth(312).setVisible(false)
+
     // Shop panel
     this.shopGfx = this.add.graphics().setDepth(330)
     this.shopTitle = this.add.text(0, 0, '', {
       fontSize: '14px', color: '#ffdd44', fontFamily: 'monospace', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0.5, 0).setDepth(332).setVisible(false)
+
+    // Chest panel
+    this.chestGfx = this.add.graphics().setDepth(340)
+    this.chestTitle = this.add.text(0, 0, '', {
+      fontSize: '14px', color: '#ddaa55', fontFamily: 'monospace', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5, 0).setDepth(342).setVisible(false)
   }
 
   override update() {
@@ -443,6 +477,7 @@ export class UIScene extends Phaser.Scene {
     this.updateInventoryPanel(player, inv)
     this.updateSkillTree(player)
     this.updateShopPanel(player, inv)
+    this.updateChestPanel(player, inv)
     if (this.miniMap) {
       this.miniMap.update(player.sprite.x, player.sprite.y)
     }
@@ -1196,6 +1231,8 @@ export class UIScene extends Phaser.Scene {
       this.heldIcon.setVisible(false)
       this.heldText.setVisible(false)
       if (this.heldImage) this.heldImage.setVisible(false)
+      this.trashLabel.setVisible(false)
+      this.trashZone.disableInteractive()
       return
     }
 
@@ -1483,6 +1520,28 @@ export class UIScene extends Phaser.Scene {
     this.armorGfx.fillRect(armorPanelX, invY + armorPanelH, armorPanelW, extendedH - armorPanelH)
     this.armorGfx.lineStyle(2, 0x444466)
     this.armorGfx.strokeRect(armorPanelX, invY, armorPanelW, extendedH)
+
+    // ── Trash slot (below inventory, right-aligned) ──
+    const trashX = invX + INV_W - SLOT_SIZE - INV_PAD
+    const trashY = invY + INV_H + 4
+    this.invGfx.fillStyle(0x1a0a0a, 0.95)
+    this.invGfx.fillRect(trashX, trashY, SLOT_SIZE, SLOT_SIZE)
+    this.invGfx.lineStyle(1, 0x884444, 0.9)
+    this.invGfx.strokeRect(trashX, trashY, SLOT_SIZE, SLOT_SIZE)
+    // Hover highlight
+    if (pointer.x >= trashX && pointer.x < trashX + SLOT_SIZE &&
+        pointer.y >= trashY && pointer.y < trashY + SLOT_SIZE) {
+      this.invGfx.fillStyle(0xff4444, 0.15)
+      this.invGfx.fillRect(trashX, trashY, SLOT_SIZE, SLOT_SIZE)
+      if (inv.heldItem) {
+        this.invTooltipText.setText('Trash item')
+        this.invTooltipText.setVisible(true)
+      }
+    }
+    this.trashZone.setPosition(trashX + SLOT_SIZE / 2, trashY + SLOT_SIZE / 2)
+    this.trashZone.setInteractive()
+    this.trashLabel.setPosition(trashX + SLOT_SIZE / 2, trashY + SLOT_SIZE / 2)
+    this.trashLabel.setVisible(true)
   }
 
   private updateHeldItem(inv: InventoryManager) {
@@ -1736,12 +1795,18 @@ export class UIScene extends Phaser.Scene {
       const nodeColor = superTreeDef ? superTreeDef.color : BRANCH_INFO[skill.branch].color
       const nodeColorStr = superTreeDef ? superTreeDef.colorStr : BRANCH_INFO[skill.branch].colorStr
       const superAvailable = superTreeDef ? skills.isSuperTreeUnlocked(skill.superTree!) : true
+      // Check if prereq is met but just needs more SP
+      const prereqMet = !skill.requires || skills.hasSkill(skill.requires)
+      const needsMoreSP = !unlocked && prereqMet && skills.skillPoints < skill.cost
 
       // Node background
       if (unlocked) {
         this.skillGfx.fillStyle(nodeColor, 0.7)
       } else if (canUnlockSkill) {
         this.skillGfx.fillStyle(nodeColor, 0.3)
+      } else if (needsMoreSP && (!isSuper || superAvailable)) {
+        // Prereq met but not enough SP — show dimmed branch color
+        this.skillGfx.fillStyle(nodeColor, 0.15)
       } else if (isSuper && !superAvailable) {
         // Super tree locked — very dark with a hint of color
         this.skillGfx.fillStyle(nodeColor, 0.08)
@@ -1755,6 +1820,8 @@ export class UIScene extends Phaser.Scene {
         this.skillGfx.lineStyle(2, isSuper ? nodeColor : 0xffffff, 0.9)
       } else if (canUnlockSkill) {
         this.skillGfx.lineStyle(2, nodeColor, 0.8)
+      } else if (needsMoreSP && (!isSuper || superAvailable)) {
+        this.skillGfx.lineStyle(1, nodeColor, 0.4)
       } else {
         this.skillGfx.lineStyle(1, 0x444455, 0.6)
       }
@@ -1769,6 +1836,9 @@ export class UIScene extends Phaser.Scene {
       } else if (canUnlockSkill) {
         nodeText.setColor('#ffff00')
         nameText.setColor('#aaaaaa')
+      } else if (needsMoreSP && (!isSuper || superAvailable)) {
+        nodeText.setColor('#888899')
+        nameText.setColor('#666666')
       } else {
         nodeText.setColor('#555566')
         nameText.setColor('#444444')
@@ -1778,7 +1848,7 @@ export class UIScene extends Phaser.Scene {
       if (!unlocked) {
         const badgeX = nx + SKILL_NODE_SIZE - 2
         const badgeY = ny - 2
-        this.skillGfx.fillStyle(canUnlockSkill ? 0xffff00 : 0x333344, 0.9)
+        this.skillGfx.fillStyle(canUnlockSkill ? 0xffff00 : needsMoreSP ? 0x886622 : 0x333344, 0.9)
         this.skillGfx.fillCircle(badgeX, badgeY, 6)
       }
 
@@ -1808,6 +1878,7 @@ export class UIScene extends Phaser.Scene {
     if (hoveredSkill) {
       const unlocked = skills.hasSkill(hoveredSkill.id)
       const isSuper = !!hoveredSkill.superTree
+      const canUnlockIt = skills.canUnlock(hoveredSkill.id)
       const status = unlocked ? ' [UNLOCKED]' : ` (${hoveredSkill.cost} SP)`
       let label: string
       if (isSuper) {
@@ -1821,8 +1892,20 @@ export class UIScene extends Phaser.Scene {
         const branchName = BRANCH_INFO[hoveredSkill.branch].name
         label = `${hoveredSkill.name}${status} - ${hoveredSkill.description}  [${branchName}]`
       }
+      // Show specific lock reason
+      if (!unlocked && !canUnlockIt) {
+        const reasons: string[] = []
+        if (hoveredSkill.requires && !skills.hasSkill(hoveredSkill.requires)) {
+          const reqSkill = SKILL_MAP[hoveredSkill.requires]
+          reasons.push(`Requires: ${reqSkill ? reqSkill.name : hoveredSkill.requires}`)
+        }
+        if (skills.skillPoints < hoveredSkill.cost) {
+          reasons.push(`Need ${hoveredSkill.cost - skills.skillPoints} more SP`)
+        }
+        if (reasons.length > 0) label += `  [${reasons.join(' | ')}]`
+      }
       this.skillInfoText.setText(label)
-      this.skillInfoText.setColor(unlocked ? '#44ff44' : skills.canUnlock(hoveredSkill.id) ? '#ffff00' : '#666666')
+      this.skillInfoText.setColor(unlocked ? '#44ff44' : canUnlockIt ? '#ffff00' : '#666666')
     } else {
       this.skillInfoText.setText('Hover over a node to see details. Click to unlock.')
       this.skillInfoText.setColor('#555555')
@@ -1873,6 +1956,18 @@ export class UIScene extends Phaser.Scene {
     AudioManager.get()?.play(SoundId.SLOT_CHANGE)
   }
 
+  private onTrashClick() {
+    if (!this.invVisible) return
+    const worldScene = this.scene.get('WorldScene') as any
+    const player = worldScene?.getPlayer()
+    if (!player) return
+    const inv: InventoryManager = player.inventory
+    if (inv.heldItem) {
+      inv.heldItem = null
+      AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+    }
+  }
+
   // ── Shop Panel ───────────────────────────────────────
 
   private updateShopPanel(player: any, inv: InventoryManager) {
@@ -1889,7 +1984,10 @@ export class UIScene extends Phaser.Scene {
     for (const t of this.shopTexts) t.destroy()
     this.shopTexts = []
 
-    if (!this.shopVisible) return
+    if (!this.shopVisible) {
+      this.shopClickPending = null
+      return
+    }
 
     const { width, height } = this.scale
     const SHOP_W = 360
@@ -1933,9 +2031,12 @@ export class UIScene extends Phaser.Scene {
       }).setOrigin(0.5, 0.5).setDepth(332)
       this.shopTexts.push(tabLabel)
 
-      // Tab click detection
-      if (this.pointerJustDown && pointer.x >= tx - 60 && pointer.x < tx + 60 &&
-          pointer.y >= tabY && pointer.y < tabY + 22) {
+      // Tab click detection (poll-based + event-based)
+      const tabClicked = this.pointerJustDown || this.shopClickPending !== null
+      const tabClickX = this.shopClickPending?.x ?? pointer.x
+      const tabClickY = this.shopClickPending?.y ?? pointer.y
+      if (tabClicked && tabClickX >= tx - 60 && tabClickX < tx + 60 &&
+          tabClickY >= tabY && tabClickY < tabY + 22) {
         this.shopTab = tab
         this.shopScroll = 0
       }
@@ -1947,6 +2048,7 @@ export class UIScene extends Phaser.Scene {
 
     if (this.shopTab === 'buy') {
       this.renderBuyTab(inv, shopX, listY, SHOP_W, ROW_H, maxRows, pointer, coins)
+      this.shopClickPending = null
     } else {
       this.renderSellTab(inv, shopX, listY, SHOP_W, ROW_H, maxRows, pointer, coins)
     }
@@ -2008,13 +2110,31 @@ export class UIScene extends Phaser.Scene {
       }).setOrigin(1, 0).setDepth(332)
       this.shopTexts.push(priceText)
 
-      // Buy on click
-      if (hovered && this.pointerJustDown && canAfford && !alreadyOwned) {
+      // Buy on click (poll-based + event-based)
+      const buyClicked = this.pointerJustDown || this.shopClickPending !== null
+      const buyClickX = this.shopClickPending?.x ?? pointer.x
+      const buyClickY = this.shopClickPending?.y ?? pointer.y
+      const clickedBuyRow = buyClicked && canAfford && !alreadyOwned &&
+        buyClickX >= shopX + 4 && buyClickX < shopX + shopW - 4 &&
+        buyClickY >= ry && buyClickY < ry + rowH
+      if (clickedBuyRow) {
         inv.removeItem(250, item.price)
         inv.addItem(item.itemId, 1)
         AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
       }
     }
+  }
+
+  private sellItem(inv: InventoryManager, itemId: number, count: number): number {
+    const price = SELL_PRICES[itemId]
+    if (!price || price <= 0) return 0
+    let sold = 0
+    for (let i = 0; i < count; i++) {
+      if (!inv.removeItem(itemId, 1)) break
+      inv.addItem(250, price)
+      sold++
+    }
+    return sold
   }
 
   private renderSellTab(
@@ -2043,6 +2163,9 @@ export class UIScene extends Phaser.Scene {
       return
     }
 
+    const SELL_ALL_W = 52
+    const SELL_ALL_H = 20
+
     for (let i = 0; i < Math.min(sellable.length, maxRows); i++) {
       const entry = sellable[i + this.shopScroll]
       if (!entry) continue
@@ -2056,9 +2179,18 @@ export class UIScene extends Phaser.Scene {
         this.shopGfx.fillRect(shopX + 4, ry, shopW - 8, rowH)
       }
 
-      const hovered = pointer.x >= shopX + 4 && pointer.x < shopX + shopW - 4 &&
-                       pointer.y >= ry && pointer.y < ry + rowH
-      if (hovered) {
+      // "Sell All" button area (right side)
+      const sellAllX = shopX + shopW - SELL_ALL_W - 8
+      const sellAllY = ry + (rowH - SELL_ALL_H) / 2
+
+      const hoveredSellAll = pointer.x >= sellAllX && pointer.x < sellAllX + SELL_ALL_W &&
+                             pointer.y >= sellAllY && pointer.y < sellAllY + SELL_ALL_H
+
+      // Row hover (excluding sell-all button area)
+      const hoveredRow = pointer.x >= shopX + 4 && pointer.x < sellAllX - 4 &&
+                         pointer.y >= ry && pointer.y < ry + rowH
+
+      if (hoveredRow || hoveredSellAll) {
         this.shopGfx.fillStyle(0xffffff, 0.08)
         this.shopGfx.fillRect(shopX + 4, ry, shopW - 8, rowH)
       }
@@ -2073,18 +2205,233 @@ export class UIScene extends Phaser.Scene {
       }).setDepth(332)
       this.shopTexts.push(nameText)
 
-      const priceText = this.add.text(shopX + shopW - 10, ry + 6, `${entry.price}c each`, {
+      const priceText = this.add.text(sellAllX - 6, ry + 6, `${entry.price}c`, {
         fontSize: '10px', color: '#ccccdd', fontFamily: 'monospace',
       }).setOrigin(1, 0).setDepth(332)
       this.shopTexts.push(priceText)
 
-      // Sell on click
-      if (hovered && this.pointerJustDown) {
-        if (inv.removeItem(entry.id, 1)) {
-          inv.addItem(250, entry.price)
-          AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
-        }
+      // "Sell All" button
+      const sellAllBtnColor = hoveredSellAll ? 0x446644 : 0x223322
+      this.shopGfx.fillStyle(sellAllBtnColor, 0.9)
+      this.shopGfx.fillRect(sellAllX, sellAllY, SELL_ALL_W, SELL_ALL_H)
+      this.shopGfx.lineStyle(1, hoveredSellAll ? 0x88cc88 : 0x446644)
+      this.shopGfx.strokeRect(sellAllX, sellAllY, SELL_ALL_W, SELL_ALL_H)
+
+      const sellAllLabel = this.add.text(sellAllX + SELL_ALL_W / 2, sellAllY + SELL_ALL_H / 2, 'Sell All', {
+        fontSize: '9px', color: hoveredSellAll ? '#88ff88' : '#66aa66', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0.5).setDepth(332)
+      this.shopTexts.push(sellAllLabel)
+
+      // Use both poll-based and event-based click detection
+      const clicked = this.pointerJustDown || this.shopClickPending !== null
+      const clickX = this.shopClickPending?.x ?? pointer.x
+      const clickY = this.shopClickPending?.y ?? pointer.y
+
+      const clickedSellAll = clicked &&
+        clickX >= sellAllX && clickX < sellAllX + SELL_ALL_W &&
+        clickY >= sellAllY && clickY < sellAllY + SELL_ALL_H
+
+      const clickedRow = clicked && !clickedSellAll &&
+        clickX >= shopX + 4 && clickX < sellAllX - 4 &&
+        clickY >= ry && clickY < ry + rowH
+
+      // Sell on click — sell one
+      if (clickedRow) {
+        const sold = this.sellItem(inv, entry.id, 1)
+        if (sold > 0) AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
       }
+
+      // Sell all on click
+      if (clickedSellAll) {
+        const sold = this.sellItem(inv, entry.id, entry.count)
+        if (sold > 0) AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+      }
+    }
+
+    // Clear pending click after processing all rows
+    this.shopClickPending = null
+  }
+
+  // ── Chest Panel ───────────────────────────────────────
+
+  private updateChestPanel(player: any, inv: InventoryManager) {
+    const shouldShow = player.chestOpen === true
+    if (shouldShow !== this.chestVisible) {
+      this.chestVisible = shouldShow
+    }
+
+    this.chestGfx.clear()
+    this.chestTitle.setVisible(false)
+    for (const t of this.chestTexts) t.destroy()
+    this.chestTexts = []
+
+    if (!this.chestVisible) return
+
+    const worldScene = this.scene.get('WorldScene') as any
+    const chunks = worldScene?.getChunkManager?.()
+    if (!chunks || !player.openChestPos) return
+
+    const chestInv: (ItemStack | null)[] = chunks.getChestInventory(
+      player.openChestPos.tx, player.openChestPos.ty
+    )
+
+    const { width, height } = this.scale
+    const CHEST_COLS = 10
+    const CHEST_ROWS = Math.ceil(CHEST_SLOTS / CHEST_COLS)
+    const S = 36 // slightly smaller slot size for compact panel
+    const G = 3  // gap
+    const PAD = 10
+    const COL_W = CHEST_COLS * (S + G) - G // 387
+    const PANEL_W = COL_W + PAD * 2 // 407
+
+    // Heights
+    const TITLE_H = 24
+    const SEP = 8
+    const chestRowsH = CHEST_ROWS * (S + G) - G
+    const invRowsH = 3 * (S + G) - G // main inventory
+    const hotbarH = S
+    const PANEL_H = PAD + TITLE_H + chestRowsH + SEP + 18 + invRowsH + SEP + 18 + hotbarH + PAD
+
+    const px = (width - PANEL_W) / 2
+    const py = (height - PANEL_H) / 2
+
+    // Background
+    this.chestGfx.fillStyle(0x0a0a1a, 0.95)
+    this.chestGfx.fillRect(px, py, PANEL_W, PANEL_H)
+    this.chestGfx.lineStyle(2, 0xddaa55)
+    this.chestGfx.strokeRect(px, py, PANEL_W, PANEL_H)
+
+    // Title
+    this.chestTitle.setText('Chest')
+    this.chestTitle.setPosition(px + PANEL_W / 2, py + PAD)
+    this.chestTitle.setVisible(true)
+
+    const pointer = this.input.activePointer
+    let curY = py + PAD + TITLE_H
+
+    // ── Chest slots ──
+    for (let row = 0; row < CHEST_ROWS; row++) {
+      for (let col = 0; col < CHEST_COLS; col++) {
+        const idx = row * CHEST_COLS + col
+        if (idx >= CHEST_SLOTS) break
+        const sx = px + PAD + col * (S + G)
+        const sy = curY + row * (S + G)
+        const slot = chestInv[idx] ?? null
+        this.drawChestSlot(sx, sy, S, slot, pointer, () => {
+          inv.clickExternalSlot(chestInv, idx)
+          AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+        })
+      }
+    }
+
+    curY += chestRowsH + SEP
+
+    // ── "Inventory" label ──
+    const invLabel = this.add.text(px + PANEL_W / 2, curY, 'Inventory', {
+      fontSize: '11px', color: '#888888', fontFamily: 'monospace',
+    }).setOrigin(0.5, 0).setDepth(342)
+    this.chestTexts.push(invLabel)
+    curY += 18
+
+    // ── Main inventory slots (3 rows × 10 cols) ──
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 10; col++) {
+        const idx = row * 10 + col
+        const sx = px + PAD + col * (S + G)
+        const sy = curY + row * (S + G)
+        const slot = inv.mainInventory[idx] ?? null
+        this.drawChestSlot(sx, sy, S, slot, pointer, () => {
+          inv.clickSlot('main', idx)
+          AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+        })
+      }
+    }
+
+    curY += invRowsH + SEP
+
+    // ── "Hotbar" label ──
+    const hotLabel = this.add.text(px + PANEL_W / 2, curY, 'Hotbar', {
+      fontSize: '11px', color: '#888888', fontFamily: 'monospace',
+    }).setOrigin(0.5, 0).setDepth(342)
+    this.chestTexts.push(hotLabel)
+    curY += 18
+
+    // ── Hotbar slots ──
+    for (let col = 0; col < 10; col++) {
+      const sx = px + PAD + col * (S + G)
+      const sy = curY
+      const slot = inv.hotbar[col] ?? null
+      this.drawChestSlot(sx, sy, S, slot, pointer, () => {
+        inv.clickSlot('hotbar', col)
+        AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+      })
+    }
+
+    // ── Render held item cursor ──
+    this.updateHeldItem(inv)
+  }
+
+  private drawChestSlot(
+    x: number, y: number, size: number,
+    slot: ItemStack | null,
+    pointer: Phaser.Input.Pointer,
+    onClick: () => void
+  ) {
+    // Background
+    this.chestGfx.fillStyle(0x111122, 0.85)
+    this.chestGfx.fillRect(x, y, size, size)
+    this.chestGfx.lineStyle(1, 0x333344)
+    this.chestGfx.strokeRect(x, y, size, size)
+
+    // Hover highlight
+    const hovered = pointer.x >= x && pointer.x < x + size &&
+                    pointer.y >= y && pointer.y < y + size
+    if (hovered) {
+      this.chestGfx.fillStyle(0xffffff, 0.1)
+      this.chestGfx.fillRect(x, y, size, size)
+    }
+
+    // Click
+    if (hovered && this.pointerJustDown) {
+      onClick()
+    }
+
+    if (!slot) return
+
+    // Item icon
+    const def = getItemDef(slot.id)
+    const texKey = this.getItemTexKey(slot.id)
+    const cx = x + size / 2
+    const cy = y + size / 2
+
+    if (this.textures.exists(texKey)) {
+      const img = this.add.image(cx, cy, texKey)
+        .setDisplaySize(size - 8, size - 8)
+        .setDepth(342)
+      this.chestTexts.push(img as any)
+    } else {
+      const color = def?.color ?? TILE_PROPERTIES[slot.id as TileType]?.color ?? 0xffffff
+      this.chestGfx.fillStyle(color, 0.9)
+      this.chestGfx.fillRect(x + 4, y + 4, size - 8, size - 8)
+    }
+
+    // Count
+    if (slot.count > 1) {
+      const txt = this.add.text(x + size - 2, y + size - 2, `${slot.count}`, {
+        fontSize: '9px', color: '#ffffff', fontFamily: 'monospace',
+        stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(1, 1).setDepth(343)
+      this.chestTexts.push(txt)
+    }
+
+    // Tooltip on hover
+    if (hovered && def) {
+      const tip = this.add.text(pointer.x, pointer.y - 16, def.name, {
+        fontSize: '10px', color: '#ffffff', fontFamily: 'monospace',
+        stroke: '#000000', strokeThickness: 2,
+        backgroundColor: '#000000aa', padding: { x: 4, y: 2 },
+      }).setOrigin(0.5, 1).setDepth(350)
+      this.chestTexts.push(tip)
     }
   }
 }

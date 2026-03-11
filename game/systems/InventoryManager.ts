@@ -238,6 +238,32 @@ export class InventoryManager {
     return total
   }
 
+  /** Click an external slot array (e.g. chest): pick up / place / swap / stack */
+  clickExternalSlot(slots: (ItemStack | null)[], idx: number): void {
+    const slot = slots[idx]
+    if (!this.heldItem) {
+      if (slot) {
+        this.heldItem = { id: slot.id, count: slot.count }
+        slots[idx] = null
+      }
+    } else {
+      if (!slot) {
+        slots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
+        this.heldItem = null
+      } else if (slot.id === this.heldItem.id) {
+        const cap = maxStackFor(slot.id)
+        const canAdd = Math.min(this.heldItem.count, cap - slot.count)
+        slot.count += canAdd
+        this.heldItem.count -= canAdd
+        if (this.heldItem.count <= 0) this.heldItem = null
+      } else {
+        const temp = { id: slot.id, count: slot.count }
+        slots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
+        this.heldItem = temp
+      }
+    }
+  }
+
   /** Right-click a slot: pick up half / place one */
   rightClickSlot(area: 'hotbar' | 'main', idx: number): void {
     const slots = area === 'hotbar' ? this.hotbar : this.mainInventory

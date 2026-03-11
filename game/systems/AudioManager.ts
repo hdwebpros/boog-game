@@ -71,6 +71,8 @@ export class AudioManager {
   private fadingOut: HTMLAudioElement | null = null
   private fadeInTimer: number | null = null
   private fadeOutTimer: number | null = null
+  private pendingMusic: MusicTrack | null = null
+  private interactionBound = false
 
   static init(): AudioManager {
     if (!AudioManager.instance) {
@@ -159,22 +161,31 @@ export class AudioManager {
       this.fadeInTimer = null
     }
 
+    // Kill any previously fading-out track immediately
+    if (this.fadingOut) {
+      this.fadingOut.pause()
+      this.fadingOut.currentTime = 0
+      this.fadingOut.volume = 0
+      this.fadingOut = null
+    }
+
     // Fade out current track
     const prev = this.currentMusic ? this.musicElements.get(this.currentMusic) : null
     if (prev) {
       this.fadeOut(prev)
-    }
-    if (this.fadingOut && this.fadingOut !== prev) {
-      this.fadingOut.pause()
-      this.fadingOut.currentTime = 0
-      this.fadingOut.volume = 0
     }
 
     // Fade in new track
     this.currentMusic = track
     const targetVol = this.muted ? 0 : this.musicVolume
     next.volume = 0
-    next.play().catch(() => {})
+    next.play().then(() => {
+      this.pendingMusic = null
+    }).catch(() => {
+      // Autoplay blocked — retry on first user interaction
+      this.pendingMusic = track
+      this.listenForInteraction()
+    })
     this.fadeIn(next, targetVol)
   }
 
@@ -266,5 +277,27 @@ export class AudioManager {
 
   isMuted(): boolean {
     return this.muted
+  }
+
+  private listenForInteraction() {
+    if (this.interactionBound) return
+    this.interactionBound = true
+
+    const resume = () => {
+      document.removeEventListener('pointerdown', resume)
+      document.removeEventListener('keydown', resume)
+      this.interactionBound = false
+
+      if (this.pendingMusic && this.pendingMusic === this.currentMusic) {
+        const el = this.musicElements.get(this.pendingMusic)
+        if (el) {
+          el.play().catch(() => {})
+        }
+        this.pendingMusic = null
+      }
+    }
+
+    document.addEventListener('pointerdown', resume, { once: true })
+    document.addEventListener('keydown', resume, { once: true })
   }
 }

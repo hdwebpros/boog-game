@@ -3,6 +3,7 @@ import type { WorldData, AltarPlacement, RunestonePlacement } from './WorldGener
 import { TileType, TILE_PROPERTIES, TILE_SIZE } from './TileRegistry'
 import { ALTAR_DEFS, BOSS_DEFS } from '../data/bosses'
 import type { BossType } from '../data/bosses'
+import type { ItemStack } from '../systems/InventoryManager'
 
 const CHUNK_SIZE = 32 // tiles per chunk edge
 const CHUNK_PX = CHUNK_SIZE * TILE_SIZE // 512 pixels
@@ -14,10 +15,18 @@ interface Chunk {
   dirty: boolean
 }
 
+export const CHEST_SLOTS = 20
+
 export interface PlacedStation {
   tx: number
   ty: number
   itemId: number
+}
+
+export interface ChestData {
+  tx: number
+  ty: number
+  items: (ItemStack | null)[]
 }
 
 export class ChunkManager {
@@ -27,6 +36,7 @@ export class ChunkManager {
   private chunksX: number
   private chunksY: number
   private placedStations: PlacedStation[] = []
+  private chestInventories = new Map<string, (ItemStack | null)[]>()
   private stamp: Phaser.GameObjects.Image | null = null
   private eraser: Phaser.GameObjects.Image | null = null
 
@@ -340,6 +350,40 @@ export class ChunkManager {
   /** Get all placed stations */
   getPlacedStations(): PlacedStation[] {
     return this.placedStations
+  }
+
+  /** Get chest inventory at tile coords (creates if missing) */
+  getChestInventory(tx: number, ty: number): (ItemStack | null)[] {
+    const key = `${tx},${ty}`
+    let inv = this.chestInventories.get(key)
+    if (!inv) {
+      inv = new Array(CHEST_SLOTS).fill(null)
+      this.chestInventories.set(key, inv)
+    }
+    return inv
+  }
+
+  /** Remove chest inventory when chest is mined */
+  removeChestInventory(tx: number, ty: number) {
+    this.chestInventories.delete(`${tx},${ty}`)
+  }
+
+  /** Get all chest inventories for save */
+  getChestInventories(): ChestData[] {
+    const result: ChestData[] = []
+    for (const [key, items] of this.chestInventories) {
+      // Only save non-empty chests
+      if (items.some(s => s !== null)) {
+        const [txStr, tyStr] = key.split(',')
+        result.push({ tx: Number(txStr), ty: Number(tyStr), items })
+      }
+    }
+    return result
+  }
+
+  /** Restore chest inventories from save */
+  setChestInventory(tx: number, ty: number, items: (ItemStack | null)[]) {
+    this.chestInventories.set(`${tx},${ty}`, items)
   }
 
   /** Get altars from world data */

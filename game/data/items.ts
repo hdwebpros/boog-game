@@ -107,6 +107,7 @@ export const ITEMS: Record<number, ItemDef> = {
   113: { id: 113, name: 'Tech Bench',     category: ItemCategory.STATION, stackSize: 1, tier: 3, color: 0x4488aa },
   114: { id: 114, name: 'Fusion Station', category: ItemCategory.STATION, stackSize: 1, tier: 4, color: 0x8844cc },
   115: { id: 115, name: 'Workbench Mk2', category: ItemCategory.STATION, stackSize: 1, tier: 1, color: 0xa0824a },
+  116: { id: 116, name: 'Chest', category: ItemCategory.STATION, stackSize: 1, tier: 0, color: 0x8b5a2b },
 
   // ── Tools ───────────────────────────────────────────────
   120: { id: 120, name: 'Wood Pickaxe',     category: ItemCategory.TOOL, stackSize: 1, tier: 0, color: 0x8b6b3a, miningSpeed: 1.5, miningTier: 0 },
