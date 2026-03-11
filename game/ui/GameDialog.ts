@@ -96,9 +96,10 @@ export function gamePrompt(title: string, defaultValue = ''): Promise<string | n
     dialog.appendChild(btnRow)
     overlay.appendChild(dialog)
 
+    let resolved = false
     const cleanup = () => { overlay.remove() }
-    const submit = () => { cleanup(); resolve(input.value) }
-    const cancel = () => { cleanup(); resolve(null) }
+    const submit = () => { if (resolved) return; resolved = true; cleanup(); resolve(input.value) }
+    const cancel = () => { if (resolved) return; resolved = true; cleanup(); resolve(null) }
 
     okBtn.addEventListener('click', submit)
     cancelBtn.addEventListener('click', cancel)
@@ -109,9 +110,13 @@ export function gamePrompt(title: string, defaultValue = ''): Promise<string | n
       if (e.key === 'Escape') cancel()
     })
 
-    // Prevent game keys from firing while dialog is open
+    // Prevent game input from firing while dialog is open
     overlay.addEventListener('keydown', (e) => e.stopPropagation())
     overlay.addEventListener('keyup', (e) => e.stopPropagation())
+    overlay.addEventListener('mousedown', (e) => e.stopPropagation())
+    overlay.addEventListener('mouseup', (e) => e.stopPropagation())
+    overlay.addEventListener('pointerdown', (e) => e.stopPropagation())
+    overlay.addEventListener('pointerup', (e) => e.stopPropagation())
 
     parent.style.position = 'relative'
     parent.appendChild(overlay)

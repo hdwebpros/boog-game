@@ -397,8 +397,12 @@ export class MenuScene extends Phaser.Scene {
     // M to mute in pause menu
     this.addMuteToggle(width)
 
-    // ESC to resume
+    // ESC to resume — reset WorldScene's ESC key so its update() won't immediately reopen
     this.input.keyboard!.on('keydown-ESC', () => {
+      const ws = this.scene.get('WorldScene')
+      if (ws?.input?.keyboard) {
+        ws.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC, false, false).reset()
+      }
       this.resumeGame()
     })
   }
