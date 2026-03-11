@@ -54,6 +54,10 @@ export class Player {
   sprite: Phaser.GameObjects.Image
   inventory: InventoryManager
   skills: SkillTreeManager
+  entityId = 0 // unique ID for multiplayer entity tracking
+
+  /** Callback for tile changes (mining/placement) — used for multiplayer broadcasting */
+  onTileChange: ((tx: number, ty: number, newType: number, oldType: number) => void) | null = null
 
   vx = 0
   vy = 0
@@ -1280,9 +1284,11 @@ export class Player {
                 }
               }
               chunks.removeStation(bx, by)
+              this.onTileChange?.(bx, by, TileType.AIR, bt)
               chunks.setTile(bx, by, TileType.AIR)
               this.inventory.addItem(bStation.itemId)
             } else {
+              this.onTileChange?.(bx, by, TileType.AIR, bt)
               chunks.setTile(bx, by, TileType.AIR)
               // Crystal tiles drop shards + arcane dust instead of the block
               const crystalShardMap: Partial<Record<TileType, number>> = {
@@ -1357,6 +1363,7 @@ export class Player {
 
     const stationTile = STATION_TILE_TYPE[item.id]
     if (itemDef && stationTile) {
+      this.onTileChange?.(tx, ty, stationTile, TileType.AIR)
       chunks.setTile(tx, ty, stationTile)
       chunks.placeStation(tx, ty, item.id)
       this.inventory.consumeSelected()
@@ -1367,6 +1374,7 @@ export class Player {
     const props = TILE_PROPERTIES[item.id as TileType]
     if (!props || !props.mineable) return
 
+    this.onTileChange?.(tx, ty, item.id, TileType.AIR)
     chunks.setTile(tx, ty, item.id as TileType)
     this.inventory.consumeSelected()
     AudioManager.get()?.play(SoundId.PLACE_BLOCK)

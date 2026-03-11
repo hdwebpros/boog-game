@@ -21,6 +21,7 @@ export class Projectile {
   damage: number
   fromPlayer: boolean
   alive = true
+  entityId = 0 // unique ID for multiplayer entity tracking
   private lifetime: number
   private elapsed = 0
 

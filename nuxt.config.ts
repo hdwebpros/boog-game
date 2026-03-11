@@ -5,4 +5,9 @@ export default defineNuxtConfig({
   alias: {
     '@game': new URL('./game', import.meta.url).pathname,
   },
+  nitro: {
+    experimental: {
+      websocket: true,
+    },
+  },
 })

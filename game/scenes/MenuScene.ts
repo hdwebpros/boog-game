@@ -85,6 +85,29 @@ export class MenuScene extends Phaser.Scene {
       })
     }
 
+    // Multiplayer buttons
+    const hostBtn = this.add.text(width / 2, height / 2 + 120, '[ HOST GAME ]', {
+      fontSize: '18px', color: '#8888ff', fontFamily: 'monospace',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    hostBtn.on('pointerover', () => hostBtn.setColor('#ffffff'))
+    hostBtn.on('pointerout', () => hostBtn.setColor('#8888ff'))
+    hostBtn.on('pointerdown', () => {
+      AudioManager.get()?.play(SoundId.MENU_SELECT)
+      this.showMultiplayerLobby(width, height, true)
+    })
+
+    const joinBtn = this.add.text(width / 2, height / 2 + 155, '[ JOIN GAME ]', {
+      fontSize: '18px', color: '#88ff88', fontFamily: 'monospace',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    joinBtn.on('pointerover', () => joinBtn.setColor('#ffffff'))
+    joinBtn.on('pointerout', () => joinBtn.setColor('#88ff88'))
+    joinBtn.on('pointerdown', () => {
+      AudioManager.get()?.play(SoundId.MENU_SELECT)
+      this.showMultiplayerLobby(width, height, false)
+    })
+
     // M to mute on title screen
     this.addMuteToggle(width)
 
@@ -201,6 +224,91 @@ export class MenuScene extends Phaser.Scene {
     })
   }
 
+  private showMultiplayerLobby(width: number, height: number, isHost: boolean) {
+    this.children.removeAll(true)
+    this.cameras.main.setBackgroundColor(0x0a0a1a)
+
+    // Stars
+    for (let i = 0; i < 30; i++) {
+      const x = Math.random() * width
+      const y = Math.random() * height
+      const alpha = Math.random() * 0.3 + 0.1
+      this.add.rectangle(x, y, Math.random() < 0.3 ? 2 : 1, Math.random() < 0.3 ? 2 : 1, 0xffffff, alpha)
+    }
+
+    this.add.text(width / 2, 30, isHost ? 'HOST GAME' : 'JOIN GAME', {
+      fontSize: '24px', color: '#00ffff', fontFamily: 'monospace', fontStyle: 'bold',
+      stroke: '#003333', strokeThickness: 3,
+    }).setOrigin(0.5)
+
+    const statusText = this.add.text(width / 2, height - 80, '', {
+      fontSize: '14px', color: '#888888', fontFamily: 'monospace', align: 'center',
+    }).setOrigin(0.5)
+
+    if (isHost) {
+      // Host: prompt for player name, then create room
+      this.add.text(width / 2, height / 2 - 40, 'Your name:', {
+        fontSize: '14px', color: '#aaaaaa', fontFamily: 'monospace',
+      }).setOrigin(0.5)
+
+      const startBtn = this.add.text(width / 2, height / 2 + 20, '[ START HOSTING ]', {
+        fontSize: '20px', color: '#8888ff', fontFamily: 'monospace',
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+      startBtn.on('pointerover', () => startBtn.setColor('#ffffff'))
+      startBtn.on('pointerout', () => startBtn.setColor('#8888ff'))
+      startBtn.on('pointerdown', () => {
+        const name = window.prompt('Enter your name:', 'Host') ?? 'Host'
+        statusText.setText('Creating room...')
+        // Set multiplayer mode and start game
+        this.registry.set('mpMode', 'host')
+        this.registry.set('mpPlayerName', name.trim() || 'Host')
+        AudioManager.get()?.stopMusic()
+        this.scene.start('BootScene')
+      })
+
+      this.add.text(width / 2, height / 2 + 70, 'Other players will join using your room code.\nThe code appears after the world loads.', {
+        fontSize: '11px', color: '#666666', fontFamily: 'monospace', align: 'center',
+      }).setOrigin(0.5)
+    } else {
+      // Join: prompt for room code and name
+      this.add.text(width / 2, height / 2 - 40, 'Enter room code and your name:', {
+        fontSize: '14px', color: '#aaaaaa', fontFamily: 'monospace',
+      }).setOrigin(0.5)
+
+      const joinGameBtn = this.add.text(width / 2, height / 2 + 20, '[ CONNECT ]', {
+        fontSize: '20px', color: '#88ff88', fontFamily: 'monospace',
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+      joinGameBtn.on('pointerover', () => joinGameBtn.setColor('#ffffff'))
+      joinGameBtn.on('pointerout', () => joinGameBtn.setColor('#88ff88'))
+      joinGameBtn.on('pointerdown', () => {
+        const code = window.prompt('Room code:')
+        if (!code) return
+        const name = window.prompt('Your name:', 'Player') ?? 'Player'
+        statusText.setText('Connecting...')
+        // Set join params and start
+        this.registry.set('mpMode', 'client')
+        this.registry.set('mpRoomCode', code.trim().toUpperCase())
+        this.registry.set('mpPlayerName', name.trim() || 'Player')
+        AudioManager.get()?.stopMusic()
+        this.scene.start('BootScene')
+      })
+    }
+
+    // Back button
+    const backBtn = this.add.text(width / 2, height - 40, '[ BACK ]', {
+      fontSize: '18px', color: '#888888', fontFamily: 'monospace',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    backBtn.on('pointerover', () => backBtn.setColor('#ffffff'))
+    backBtn.on('pointerout', () => backBtn.setColor('#888888'))
+    backBtn.on('pointerdown', () => {
+      AudioManager.get()?.play(SoundId.MENU_SELECT)
+      this.scene.restart({ pause: false })
+    })
+  }
+
   private createPauseMenu(width: number, height: number) {
     this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7)
 
@@ -250,6 +358,10 @@ export class MenuScene extends Phaser.Scene {
     quitBtn.on('pointerout', () => quitBtn.setColor('#ff4444'))
     quitBtn.on('pointerdown', () => {
       AudioManager.get()?.stopMusic()
+      // Clean up multiplayer mode flag
+      this.registry.remove('mpMode')
+      this.registry.remove('mpRoomCode')
+      this.registry.remove('mpPlayerName')
       this.scene.stop('WorldScene')
       this.scene.stop('UIScene')
       this.scene.start('MenuScene', { pause: false })

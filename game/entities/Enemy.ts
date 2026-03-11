@@ -17,6 +17,7 @@ export class Enemy {
   facingRight = true
   intangible = false // when true, immune to damage and can't deal contact damage
   speedMult = 1 // modified by frost enchantment slow
+  entityId = 0 // unique ID for multiplayer entity tracking
 
   private scene: Phaser.Scene
   private iFrames = 0

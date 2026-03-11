@@ -6,6 +6,7 @@ export class Summon {
   sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle
   damage: number
   alive = true
+  entityId = 0 // unique ID for multiplayer entity tracking
   private scene: Phaser.Scene
   private lifetime: number
   private elapsed = 0

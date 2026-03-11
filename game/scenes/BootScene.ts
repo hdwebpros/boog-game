@@ -4,6 +4,7 @@ import { SaveManager, parseSaveTiles } from '../systems/SaveManager'
 import { generateAllSprites } from '../assets/SpriteGenerator'
 import { AudioManager } from '../systems/AudioManager'
 import { WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
+import { NetworkManager } from '../multiplayer'
 
 export class BootScene extends Phaser.Scene {
   private barFill!: Phaser.GameObjects.Rectangle
@@ -116,7 +117,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   private async runLoadingPipeline() {
-    const steps: { label: string; weight: number; fn: () => void }[] = []
+    const steps: { label: string; weight: number; fn: () => void | Promise<void> }[] = []
 
     // Step 1: Generate tile/enemy/boss sprites
     steps.push({
@@ -129,7 +130,7 @@ export class BootScene extends Phaser.Scene {
     steps.push({
       label: 'Generating sounds...',
       weight: 5,
-      fn: () => AudioManager.init(),
+      fn: () => { AudioManager.init() },
     })
 
     // Step 3: Create fallback placeholder if PNGs failed to load
@@ -139,10 +140,40 @@ export class BootScene extends Phaser.Scene {
       fn: () => this.createPlaceholderTextures(),
     })
 
-    // Step 3: Load or generate world (the heavy part)
+    // Step 4: Load/generate world (or connect as client)
+    const mpMode = this.registry.get('mpMode') as string | undefined
     const loadSlotId = this.registry.get('loadSlotId') as string | undefined
 
-    if (loadSlotId) {
+    if (mpMode === 'client') {
+      // Client path: connect to host, receive world seed, generate terrain, apply deltas
+      steps.push({
+        label: 'Connecting to host...',
+        weight: 60,
+        fn: async () => {
+          const roomCode = this.registry.get('mpRoomCode') as string
+          const playerName = (this.registry.get('mpPlayerName') as string | undefined) ?? 'Player'
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+          const url = `${protocol}//${window.location.host}/_ws`
+
+          const network = new NetworkManager()
+          const joinData = await network.connect(url, playerName, roomCode)
+
+          // Generate world from the host's seed
+          const generator = new WorldGenerator(joinData.seed)
+          const worldData = generator.generate()
+
+          // Apply tile deltas from host
+          for (const tc of joinData.tileChanges) {
+            worldData.tiles[tc.ty * worldData.width + tc.tx] = tc.newType
+          }
+
+          this.registry.set('worldData', worldData)
+          this.registry.set('mpNetwork', network)
+          this.registry.set('mpJoinData', joinData)
+          this.registry.remove('saveData')
+        },
+      })
+    } else if (loadSlotId) {
       const saveData = SaveManager.load(loadSlotId)
       if (saveData) {
         steps.push({
@@ -188,7 +219,7 @@ export class BootScene extends Phaser.Scene {
       this.statusText.setText(step.label)
       // Let the UI repaint before doing work
       await this.yieldFrame()
-      step.fn()
+      await step.fn()
       completedWeight += step.weight
       this.setProgress(completedWeight / totalWeight)
       await this.yieldFrame()

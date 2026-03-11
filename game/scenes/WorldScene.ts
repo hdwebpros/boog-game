@@ -4,7 +4,7 @@ import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
 import { Boss } from '../entities/Boss'
 import type { WorldData, AltarPlacement, RunestonePlacement } from '../world/WorldGenerator'
-import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
+import { TileType, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 import { CombatSystem } from '../systems/CombatSystem'
 import { EnemySpawner } from '../systems/EnemySpawner'
 import { BOSS_DEFS, ALTAR_DEFS, BossType } from '../data/bosses'
@@ -18,6 +18,9 @@ import { SoundId } from '../data/sounds'
 import { SurfaceBiome } from '../world/WorldGenerator'
 import { DayNightCycle } from '../systems/DayNightCycle'
 import { NPC } from '../entities/NPC'
+import { MultiplayerManager, RoomConnector, ChatOverlay, RemotePlayerSim, generateEntityId, encodeMessage, MessageType } from '../multiplayer'
+import type { NetworkManager } from '../multiplayer'
+import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage } from '../multiplayer'
 
 // Y pixel thresholds for music zones
 const SKY_Y        = 80  * 16  // above Cloud City
@@ -58,6 +61,17 @@ export class WorldScene extends Phaser.Scene {
   private usedRunestones: Set<string> = new Set() // "tx,ty" keys
   private altarPromptText: Phaser.GameObjects.Text | null = null
   private runestonePromptText: Phaser.GameObjects.Text | null = null
+
+  // Multiplayer
+  mp = new MultiplayerManager()
+  private roomConnector: RoomConnector | null = null
+  private chatOverlay: ChatOverlay | null = null
+  private remotePlayerSims = new Map<number, RemotePlayerSim>()
+  /** Client-side enemy sprites (rendered from host sync data) */
+  private clientEnemySprites = new Map<number, Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle>()
+  /** Client-side boss sprite */
+  private clientBossSprite: Phaser.GameObjects.Image | null = null
+  private clientBossId = 0
 
   constructor() {
     super({ key: 'WorldScene' })
@@ -168,6 +182,29 @@ export class WorldScene extends Phaser.Scene {
       this.npc = new NPC(this, npcPos.tx, npcPos.ty)
     }
 
+    // Initialize multiplayer (default: offline/single-player)
+    const mpMode = this.registry.get('mpMode') as string | undefined
+    if (mpMode === 'host') {
+      this.mp.initHost(this, this.worldData.seed, this.worldData.width, this.worldData.height)
+    } else if (mpMode === 'client') {
+      const network = this.registry.get('mpNetwork') as NetworkManager
+      const joinData = this.registry.get('mpJoinData') as JoinAccepted
+      this.mp.initClientFromExisting(this, network, joinData)
+      this.registry.remove('mpNetwork')
+      this.registry.remove('mpJoinData')
+
+      // Apply stations from host
+      for (const s of joinData.stations) {
+        this.chunkManager.placeStation(s.tx, s.ty, s.itemId)
+      }
+      // Sync day/night time
+      this.dayNight.time = joinData.dayNightTime
+    } else {
+      this.mp.initOffline()
+    }
+    // Register player entity
+    this.player.entityId = this.mp.entities.register('player', this.player)
+
     // Camera follows player — 2x zoom so tiles feel substantial
     this.cameras.main.setZoom(2)
     this.cameras.main.startFollow(this.player.sprite, true, 0.1, 0.1)
@@ -228,6 +265,46 @@ export class WorldScene extends Phaser.Scene {
     // Launch UI overlay
     this.scene.launch('UIScene')
 
+    // Multiplayer HUD (room code, player count)
+    if (this.mp.isHost) {
+      this.createMultiplayerHUD()
+      // Wire up tile change broadcasting from host player
+      this.player.onTileChange = (tx, ty, newType, oldType) => {
+        const change: TileChangeRequest = { tx, ty, newType, oldType }
+        this.mp.getHostSession()!.recordLocalTileChange(change)
+        this.mp.sendTileChange(change)
+      }
+      // Connect to relay server and create room
+      const hostSession = this.mp.getHostSession()!
+      this.roomConnector = new RoomConnector(hostSession)
+      this.roomConnector.onGameMessage = (msg) => this.handleHostMessage(msg)
+      this.chatOverlay = new ChatOverlay(this, this.mp)
+      this.roomConnector.createRoom().then((code) => {
+        this.registry.set('mpRoomCode', code)
+        this.showNotification(`Room created: ${code}\nShare this code with friends!`, 0x8888ff)
+      }).catch((err) => {
+        this.showNotification(`Failed to create room: ${err.message}`, 0xff4444)
+      })
+    }
+
+    // Client-mode HUD, chat, and disconnect handling
+    if (this.mp.isClient) {
+      this.createMultiplayerHUD()
+      this.chatOverlay = new ChatOverlay(this, this.mp)
+      this.mp.onDisconnected = (reason) => {
+        this.showNotification(`Disconnected: ${reason}`, 0xff4444)
+        // Return to menu after a short delay
+        this.time.delayedCall(2000, () => {
+          AudioManager.get()?.stopMusic()
+          this.registry.remove('mpMode')
+          this.registry.remove('mpRoomCode')
+          this.registry.remove('mpPlayerName')
+          this.scene.stop('UIScene')
+          this.scene.start('MenuScene', { pause: false })
+        })
+      }
+    }
+
     // Auto-save: on page unload (refresh/close)
     this.boundBeforeUnload = () => this.performSave()
     window.addEventListener('beforeunload', this.boundBeforeUnload)
@@ -238,6 +315,21 @@ export class WorldScene extends Phaser.Scene {
         window.removeEventListener('beforeunload', this.boundBeforeUnload)
         this.boundBeforeUnload = null
       }
+      // Clean up multiplayer
+      if (this.chatOverlay) {
+        this.chatOverlay.destroy()
+        this.chatOverlay = null
+      }
+      if (this.roomConnector) {
+        this.roomConnector.disconnect()
+        this.roomConnector = null
+      }
+      // Clean up client-side sprites
+      for (const [, sprite] of this.clientEnemySprites) sprite.destroy()
+      this.clientEnemySprites.clear()
+      if (this.clientBossSprite) { this.clientBossSprite.destroy(); this.clientBossSprite = null }
+      this.remotePlayerSims.clear()
+      this.mp.destroy()
     })
 
     // Reset auto-save timer
@@ -308,154 +400,189 @@ export class WorldScene extends Phaser.Scene {
     this.darknessOverlay.fillColor = this.dayNight.tintColor
     this.darknessOverlay.fillAlpha = effectiveDarkness
 
-    // Combine enemies + boss for player combat
-    const allTargets = this.activeBoss && this.activeBoss.alive
-      ? [...this.enemies, this.activeBoss as any]
-      : this.enemies
+    // Local player always updates (client-predicted movement)
+    if (!this.mp.isClient) {
+      // Host/offline: full authoritative update
+      const allTargets = this.activeBoss && this.activeBoss.alive
+        ? [...this.enemies, this.activeBoss as any]
+        : this.enemies
 
-    this.player.update(dt, this.chunkManager, this.combat, allTargets)
+      this.player.update(dt, this.chunkManager, this.combat, allTargets)
 
-    // Check altar/runestone/NPC interactions
-    this.checkAltarInteraction()
-    this.checkRunestoneInteraction()
-    this.checkNPCInteraction()
+      // Check altar/runestone/NPC interactions
+      this.checkAltarInteraction()
+      this.checkRunestoneInteraction()
+      this.checkNPCInteraction()
 
-    // Spawn enemies (not during boss fight)
-    if (!this.activeBoss || !this.activeBoss.alive) {
-      this.enemySpawner.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y, this.enemies, this.dayNight.isNight)
-    }
-
-    // Update enemies
-    for (const enemy of this.enemies) {
-      if (!enemy.alive) continue
-      const result = enemy.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y, this.dayNight.isNight, effectiveDarkness)
-
-      if (result.shootAtPlayer) {
-        this.combat.fireEnemyProjectile(
-          enemy.sprite.x, enemy.sprite.y,
-          this.player.sprite.x, this.player.sprite.y,
-          enemy.def.damage, enemy.def.color
-        )
-      }
-    }
-
-    // Update boss
-    if (this.activeBoss && this.activeBoss.alive) {
-      const result = this.activeBoss.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y)
-
-      // Handle boss projectiles
-      for (const proj of result.projectiles) {
-        this.combat.fireEnemyProjectile(proj.x, proj.y, proj.tx, proj.ty, proj.damage, this.activeBoss.def.color)
-      }
-
-      // Spawn minions from boss
-      if (result.spawnMinions) {
-        this.spawnBossMinions()
-      }
-
-      // Boss collision damage
-      if (!this.player.dead) {
-        const bb = this.activeBoss.getBounds()
-        const px = this.player.sprite.x - 6
-        const py = this.player.sprite.y - 14
-        if (px < bb.x + bb.w && px + 12 > bb.x && py < bb.y + bb.h && py + 28 > bb.y) {
-          const kbx = (this.player.sprite.x - this.activeBoss.sprite.x) > 0 ? 200 : -200
-          this.player.takeDamage(this.activeBoss.def.damage, kbx, -150, this.combat)
+      // Spawn enemies (not during boss fight)
+      if (!this.activeBoss || !this.activeBoss.alive) {
+        const prevCount = this.enemies.length
+        this.enemySpawner.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y, this.enemies, this.dayNight.isNight)
+        // Register any newly spawned enemies
+        for (let i = prevCount; i < this.enemies.length; i++) {
+          this.registerEnemy(this.enemies[i]!)
         }
       }
 
-      // Check boss death
-      if (!this.activeBoss.alive) {
-        this.onBossDefeated()
-      }
-    }
-
-    // Update combat (include boss in targets so projectiles can hit it)
-    const playerHit = this.combat.update(
-      dt, this.chunkManager, allTargets,
-      this.player.sprite.x, this.player.sprite.y,
-      12, 28
-    )
-
-    if (playerHit) {
-      this.player.takeDamage(playerHit.damage, playerHit.kbx, playerHit.kby, this.combat)
-    }
-
-    // Check boss death after combat (killing blow may come from combat.update)
-    if (this.activeBoss && !this.activeBoss.alive) {
-      this.onBossDefeated()
-    }
-
-    // Kill night-only enemies when day arrives
-    if (!this.dayNight.isNight) {
+      // Update enemies
       for (const enemy of this.enemies) {
-        if (enemy.alive && enemy.def.nightOnly) {
-          enemy.alive = false
-          // Burn-up effect
-          this.tweens.add({
-            targets: enemy.sprite,
-            alpha: 0, scaleX: 0.3, scaleY: 0.3,
-            duration: 400,
-            onComplete: () => { if (enemy.sprite.active) enemy.sprite.destroy() }
-          })
+        if (!enemy.alive) continue
+        const result = enemy.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y, this.dayNight.isNight, effectiveDarkness)
+
+        if (result.shootAtPlayer) {
+          this.combat.fireEnemyProjectile(
+            enemy.sprite.x, enemy.sprite.y,
+            this.player.sprite.x, this.player.sprite.y,
+            enemy.def.damage, enemy.def.color
+          )
         }
       }
-    }
 
-    // Clean up dead enemies
-    for (let i = this.enemies.length - 1; i >= 0; i--) {
-      const enemy = this.enemies[i]
-      if (enemy && !enemy.alive) {
-        const loot = enemy.getLoot()
-        for (const drop of loot) {
-          this.spawnDrop(enemy.sprite.x, enemy.sprite.y, drop.itemId, drop.count)
+      // Update boss
+      if (this.activeBoss && this.activeBoss.alive) {
+        const result = this.activeBoss.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y)
+
+        // Handle boss projectiles
+        for (const proj of result.projectiles) {
+          this.combat.fireEnemyProjectile(proj.x, proj.y, proj.tx, proj.ty, proj.damage, this.activeBoss.def.color)
         }
-        // Grant XP
-        this.grantXP(enemy.def.xp, enemy.sprite.x, enemy.sprite.y)
-        // Heal on kill (skill)
-        const healPct = this.player.skills.getModifiers().healOnKillPct
-        if (healPct > 0) {
-          this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * healPct)
+
+        // Spawn minions from boss
+        if (result.spawnMinions) {
+          this.spawnBossMinions()
         }
-        // Split on death quirk: spawn child enemies
-        if (enemy.def.splitsInto) {
-          const splitDef = ENEMY_DEFS[enemy.def.splitsInto]
-          const count = enemy.def.splitCount ?? 2
-          for (let s = 0; s < count; s++) {
-            const sx = enemy.sprite.x + (Math.random() - 0.5) * 40
-            const sy = enemy.sprite.y - 8
-            const child = new Enemy(this, sx, sy, splitDef)
-            this.enemies.push(child)
+
+        // Boss collision damage
+        if (!this.player.dead) {
+          const bb = this.activeBoss.getBounds()
+          const px = this.player.sprite.x - 6
+          const py = this.player.sprite.y - 14
+          if (px < bb.x + bb.w && px + 12 > bb.x && py < bb.y + bb.h && py + 28 > bb.y) {
+            const kbx = (this.player.sprite.x - this.activeBoss.sprite.x) > 0 ? 200 : -200
+            this.player.takeDamage(this.activeBoss.def.damage, kbx, -150, this.combat)
           }
         }
-        AudioManager.get()?.play(SoundId.ENEMY_DIE)
-        if (enemy.sprite.active) enemy.sprite.destroy()
-        this.enemies.splice(i, 1)
+
+        // Check boss death
+        if (!this.activeBoss.alive) {
+          this.onBossDefeated()
+        }
       }
+
+      // Update combat (include boss in targets so projectiles can hit it)
+      const playerHit = this.combat.update(
+        dt, this.chunkManager, allTargets,
+        this.player.sprite.x, this.player.sprite.y,
+        12, 28
+      )
+
+      if (playerHit) {
+        this.player.takeDamage(playerHit.damage, playerHit.kbx, playerHit.kby, this.combat)
+      }
+
+      // Check boss death after combat (killing blow may come from combat.update)
+      if (this.activeBoss && !this.activeBoss.alive) {
+        this.onBossDefeated()
+      }
+
+      // Kill night-only enemies when day arrives
+      if (!this.dayNight.isNight) {
+        for (const enemy of this.enemies) {
+          if (enemy.alive && enemy.def.nightOnly) {
+            enemy.alive = false
+            // Burn-up effect
+            this.tweens.add({
+              targets: enemy.sprite,
+              alpha: 0, scaleX: 0.3, scaleY: 0.3,
+              duration: 400,
+              onComplete: () => { if (enemy.sprite.active) enemy.sprite.destroy() }
+            })
+          }
+        }
+      }
+
+      // Clean up dead enemies
+      for (let i = this.enemies.length - 1; i >= 0; i--) {
+        const enemy = this.enemies[i]
+        if (enemy && !enemy.alive) {
+          const loot = enemy.getLoot()
+          for (const drop of loot) {
+            this.spawnDrop(enemy.sprite.x, enemy.sprite.y, drop.itemId, drop.count)
+          }
+          // Grant XP
+          this.grantXP(enemy.def.xp, enemy.sprite.x, enemy.sprite.y)
+          // Heal on kill (skill)
+          const healPct = this.player.skills.getModifiers().healOnKillPct
+          if (healPct > 0) {
+            this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * healPct)
+          }
+          // Split on death quirk: spawn child enemies
+          if (enemy.def.splitsInto) {
+            const splitDef = ENEMY_DEFS[enemy.def.splitsInto]
+            const count = enemy.def.splitCount ?? 2
+            for (let s = 0; s < count; s++) {
+              const sx = enemy.sprite.x + (Math.random() - 0.5) * 40
+              const sy = enemy.sprite.y - 8
+              const child = new Enemy(this, sx, sy, splitDef)
+              this.registerEnemy(child)
+              this.enemies.push(child)
+            }
+          }
+          AudioManager.get()?.play(SoundId.ENEMY_DIE)
+          this.mp.entities.unregister(enemy.entityId)
+          if (enemy.sprite.active) enemy.sprite.destroy()
+          this.enemies.splice(i, 1)
+        }
+      }
+
+      // Update NPC
+      if (this.npc) {
+        this.npc.update(this.player.sprite.x, this.player.sprite.y)
+      }
+
+      // Update dropped items & pickup
+      this.updateDroppedItems(dt)
+
+      // Check if player has assembled the jetpack
+      this.checkJetpack()
+
+      // Check if player has crafted the rebreather
+      this.checkRebreather()
+    } else {
+      // Client mode: local player moves with client-side prediction
+      this.player.update(dt, this.chunkManager)
+
+      // Send input to host
+      const input = this.mp.collectInput(dt)
+      if (input) {
+        this.mp.sendInput(input)
+      }
+
+      // Apply pending state from host
+      this.applyClientSync()
     }
-
-    // Update NPC
-    if (this.npc) {
-      this.npc.update(this.player.sprite.x, this.player.sprite.y)
-    }
-
-    // Update dropped items & pickup
-    this.updateDroppedItems(dt)
-
-    // Check if player has assembled the jetpack
-    this.checkJetpack()
-
-    // Check if player has crafted the rebreather
-    this.checkRebreather()
 
     this.chunkManager.update()
     this.updateMusic()
 
-    // Auto-save every 60 seconds
-    this.autoSaveTimer += dt
-    if (this.autoSaveTimer >= 60) {
-      this.autoSaveTimer = 0
-      this.performSave()
+    // Host: simulate remote players and broadcast state
+    if (this.mp.isHost) {
+      this.updateHostRemotePlayers(dt)
+      this.broadcastMultiplayerState(dt)
+    }
+    if (this.mp.isOnline) {
+      this.mp.update(dt)
+      this.updateMultiplayerHUD()
+      this.chatOverlay?.update()
+    }
+
+    // Auto-save every 60 seconds (host and offline only)
+    if (!this.mp.isClient) {
+      this.autoSaveTimer += dt
+      if (this.autoSaveTimer >= 60) {
+        this.autoSaveTimer = 0
+        this.performSave()
+      }
     }
   }
 
@@ -659,6 +786,7 @@ export class WorldScene extends Phaser.Scene {
     const bx = altar.tx * TILE_SIZE + TILE_SIZE / 2
     const by = altar.ty * TILE_SIZE - TILE_SIZE
     this.activeBoss = new Boss(this, bx, by, bossDef)
+    this.registerBoss(this.activeBoss)
     AudioManager.get()?.play(SoundId.BOSS_APPEAR)
 
     // Hide prompt
@@ -753,6 +881,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.time.delayedCall(4000, () => text.destroy())
 
+    this.mp.entities.unregister(this.activeBoss.entityId)
     this.activeBoss.destroy()
     this.activeBoss = null
   }
@@ -769,6 +898,7 @@ export class WorldScene extends Phaser.Scene {
       const mx = bx + (Math.random() - 0.5) * 100
       const my = by
       const enemy = new Enemy(this, mx, my, def)
+      this.registerEnemy(enemy)
       this.enemies.push(enemy)
     }
   }
@@ -821,6 +951,7 @@ export class WorldScene extends Phaser.Scene {
   spawnDrop(x: number, y: number, itemId: number, count: number) {
     const spread = (Math.random() - 0.5) * 120
     const drop = new DroppedItem(this, x, y, itemId, count, spread)
+    drop.entityId = this.mp.entities.register('droppedItem', drop)
     this.droppedItems.push(drop)
   }
 
@@ -834,6 +965,7 @@ export class WorldScene extends Phaser.Scene {
       drop.update(dt, getTile)
 
       if (!drop.alive) {
+        this.mp.entities.unregister(drop.entityId)
         this.droppedItems.splice(i, 1)
         continue
       }
@@ -849,6 +981,7 @@ export class WorldScene extends Phaser.Scene {
       if (drop.canPickup() && isNear) {
         if (this.player.inventory.addItem(drop.itemId, drop.count)) {
           AudioManager.get()?.play(SoundId.PICKUP)
+          this.mp.entities.unregister(drop.entityId)
           drop.destroy()
           this.droppedItems.splice(i, 1)
         }
@@ -875,6 +1008,118 @@ export class WorldScene extends Phaser.Scene {
       this.time.delayedCall(3000, () => text.destroy())
       AudioManager.get()?.play(SoundId.LEVEL_UP)
     }
+  }
+
+  // ── Multiplayer ──────────────────────────────────────────
+
+  private broadcastMultiplayerState(dt: number) {
+    const hostSession = this.mp.getHostSession()!
+    const hostName = (this.registry.get('mpPlayerName') as string | undefined) ?? 'Host'
+
+    // Build player snapshots (host + all remote players)
+    const playerSnapshots: PlayerSnapshot[] = [{
+      id: this.player.entityId,
+      name: hostName,
+      x: this.player.sprite.x,
+      y: this.player.sprite.y,
+      vx: this.player.vx,
+      vy: this.player.vy,
+      hp: this.player.hp,
+      maxHp: this.player.maxHp,
+      mana: this.player.mana,
+      maxMana: this.player.maxMana,
+      facingRight: this.player.facingRight,
+      dead: this.player.dead,
+      isInWater: this.player.isInWater,
+      hasJetpack: this.player.hasJetpack,
+      lastInputSeq: 0,
+    }]
+    // Add remote player snapshots
+    for (const rp of hostSession.remotePlayers) {
+      playerSnapshots.push(rp.snapshot)
+    }
+
+    // Build enemy snapshots
+    const enemySnapshots: EnemySnapshot[] = this.enemies
+      .filter(e => e.alive)
+      .map(e => ({
+        id: e.entityId,
+        type: e.def.type,
+        x: e.sprite.x,
+        y: e.sprite.y,
+        vx: e.vx,
+        vy: e.vy,
+        hp: e.hp,
+        alive: e.alive,
+        facingRight: e.facingRight,
+        intangible: e.intangible,
+      }))
+
+    // Build boss snapshot
+    let bossSnapshot: BossSnapshot | null = null
+    if (this.activeBoss && this.activeBoss.alive) {
+      bossSnapshot = {
+        id: this.activeBoss.entityId,
+        type: this.activeBoss.def.type,
+        x: this.activeBoss.sprite.x,
+        y: this.activeBoss.sprite.y,
+        vx: this.activeBoss.vx,
+        vy: this.activeBoss.vy,
+        hp: this.activeBoss.hp,
+        maxHp: this.activeBoss.def.maxHp,
+        alive: this.activeBoss.alive,
+        phaseIndex: 0,
+        shieldActive: false,
+      }
+    }
+
+    // Build dropped item snapshots
+    const droppedItems: DroppedItemSnapshot[] = this.droppedItems.map(d => ({
+      id: d.entityId,
+      x: d.x,
+      y: d.y,
+      itemId: d.itemId,
+      count: d.count,
+    }))
+
+    this.mp.broadcastState(dt, playerSnapshots, enemySnapshots, bossSnapshot, droppedItems, this.dayNight.time)
+  }
+
+  /** Register a newly spawned enemy with the entity system */
+  private registerEnemy(enemy: Enemy) {
+    enemy.entityId = this.mp.entities.register('enemy', enemy)
+  }
+
+  /** Register a newly spawned boss with the entity system */
+  private registerBoss(boss: Boss) {
+    boss.entityId = this.mp.entities.register('boss', boss)
+  }
+
+  private mpHudText: Phaser.GameObjects.Text | null = null
+
+  private createMultiplayerHUD() {
+    this.mpHudText = this.add.text(790, 8, '', {
+      fontSize: '11px',
+      color: '#8888ff',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 2,
+      align: 'right',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(200)
+  }
+
+  private updateMultiplayerHUD() {
+    if (!this.mpHudText) return
+    const roomCode = this.registry.get('mpRoomCode') as string | undefined
+    const lines: string[] = []
+    if (roomCode) lines.push(`Room: ${roomCode}`)
+    lines.push(`Players: ${this.mp.playerCount}`)
+    if (this.mp.isClient) lines.push(`Ping: ${this.mp.ping}ms`)
+    this.mpHudText.setText(lines.join('\n'))
+  }
+
+  getMultiplayer(): MultiplayerManager {
+    return this.mp
   }
 
   performSave(overrideSlotId?: string, overrideName?: string): boolean {
@@ -958,6 +1203,311 @@ export class WorldScene extends Phaser.Scene {
       }
     }
     return null
+  }
+
+  // ── Host: Handle messages from remote players ──────────
+
+  private handleHostMessage(msg: NetworkMessage) {
+    if (msg.type === MessageType.JOIN_REQUEST) {
+      const sendFn = msg.data._sendFn as (data: string) => void
+      const playerId = msg.data._playerId as number
+      const playerName = msg.data.playerName as string
+
+      const hostSession = this.mp.getHostSession()!
+      const hostName = (this.registry.get('mpPlayerName') as string | undefined) ?? 'Host'
+
+      // Spawn position near the host's spawn
+      const spawnX = this.worldData.spawnX * TILE_SIZE + TILE_SIZE / 2
+      const spawnY = this.worldData.spawnY * TILE_SIZE + TILE_SIZE / 2
+
+      // Update remote player snapshot BEFORE building JoinAccepted
+      hostSession.updatePlayerSnapshot(playerId, {
+        x: spawnX,
+        y: spawnY,
+        name: playerName,
+      })
+
+      // Build JoinAccepted with full world state
+      const joinAccepted: JoinAccepted = {
+        playerId,
+        hostName,
+        seed: this.worldData.seed,
+        worldWidth: this.worldData.width,
+        worldHeight: this.worldData.height,
+        dayNightTime: this.dayNight.time,
+        tileChanges: hostSession.getAllTileChanges(),
+        players: this.buildPlayerSnapshots(),
+        enemies: this.buildEnemySnapshots(),
+        boss: this.buildBossSnapshot(),
+        stations: this.chunkManager.getPlacedStations().map(s => ({ tx: s.tx, ty: s.ty, itemId: s.itemId })),
+      }
+
+      sendFn(encodeMessage({
+        type: MessageType.JOIN_ACCEPTED,
+        senderId: 0,
+        data: joinAccepted,
+      }))
+
+      // Create physics simulation for remote player
+      const sim = new RemotePlayerSim(spawnX, spawnY)
+      this.remotePlayerSims.set(playerId, sim)
+
+      // Create visual sprite for remote player on host's screen
+      this.mp.remotePlayers.set(playerId, {
+        id: playerId,
+        name: playerName,
+        x: spawnX, y: spawnY,
+        prevX: spawnX, prevY: spawnY,
+        targetX: spawnX, targetY: spawnY,
+        vx: 0, vy: 0,
+        hp: 100, maxHp: 100,
+        facingRight: true,
+        dead: false,
+        interpT: 1,
+        sprite: null,
+        nameText: null,
+      })
+      this.mp.createRemotePlayerSprite(playerId, this)
+
+      // Broadcast join to other clients
+      hostSession.broadcast({
+        type: MessageType.PLAYER_JOINED,
+        senderId: 0,
+        data: { id: playerId, name: playerName, x: spawnX, y: spawnY },
+      })
+
+      this.showNotification(`${playerName} joined!`, 0x88ff88)
+      return
+    }
+
+    if (msg.type === MessageType.TILE_CHANGE) {
+      const change = msg.data as TileChangeRequest
+      // Validate: tile matches what client expects
+      if (this.chunkManager.getTile(change.tx, change.ty) === change.oldType) {
+        this.chunkManager.setTile(change.tx, change.ty, change.newType as TileType)
+        const hostSession = this.mp.getHostSession()!
+        hostSession.recordLocalTileChange(change)
+        hostSession.broadcast({
+          type: MessageType.TILE_UPDATE,
+          senderId: 0,
+          data: change,
+        })
+      }
+      return
+    }
+
+    if (msg.type === MessageType.PLAYER_LEFT) {
+      const playerId = msg.data?.playerId as number | undefined
+      if (playerId) {
+        this.remotePlayerSims.delete(playerId)
+        this.mp.removeRemotePlayerSprite(playerId)
+        this.mp.remotePlayers.delete(playerId)
+        const rp = this.mp.getHostSession()?.remotePlayers.find(p => p.id === playerId)
+        if (rp) {
+          this.showNotification(`${rp.name} left`, 0xff8888)
+        }
+        this.mp.getHostSession()?.removePlayer(playerId)
+      }
+      return
+    }
+
+    // PLAYER_INPUT is already stored by HostSession.handleMessage()
+    // Other messages forwarded to WorldScene via onHostMessage
+  }
+
+  /** Build player snapshots for JoinAccepted */
+  private buildPlayerSnapshots(): PlayerSnapshot[] {
+    const hostName = (this.registry.get('mpPlayerName') as string | undefined) ?? 'Host'
+    const snaps: PlayerSnapshot[] = [{
+      id: this.player.entityId,
+      name: hostName,
+      x: this.player.sprite.x,
+      y: this.player.sprite.y,
+      vx: this.player.vx,
+      vy: this.player.vy,
+      hp: this.player.hp,
+      maxHp: this.player.maxHp,
+      mana: this.player.mana,
+      maxMana: this.player.maxMana,
+      facingRight: this.player.facingRight,
+      dead: this.player.dead,
+      isInWater: this.player.isInWater,
+      hasJetpack: this.player.hasJetpack,
+      lastInputSeq: 0,
+    }]
+    const hostSession = this.mp.getHostSession()
+    if (hostSession) {
+      for (const rp of hostSession.remotePlayers) {
+        snaps.push(rp.snapshot)
+      }
+    }
+    return snaps
+  }
+
+  private buildEnemySnapshots(): EnemySnapshot[] {
+    return this.enemies
+      .filter(e => e.alive)
+      .map(e => ({
+        id: e.entityId,
+        type: e.def.type,
+        x: e.sprite.x,
+        y: e.sprite.y,
+        vx: e.vx,
+        vy: e.vy,
+        hp: e.hp,
+        alive: e.alive,
+        facingRight: e.facingRight,
+        intangible: e.intangible,
+      }))
+  }
+
+  private buildBossSnapshot(): BossSnapshot | null {
+    if (!this.activeBoss || !this.activeBoss.alive) return null
+    return {
+      id: this.activeBoss.entityId,
+      type: this.activeBoss.def.type,
+      x: this.activeBoss.sprite.x,
+      y: this.activeBoss.sprite.y,
+      vx: this.activeBoss.vx,
+      vy: this.activeBoss.vy,
+      hp: this.activeBoss.hp,
+      maxHp: this.activeBoss.def.maxHp,
+      alive: this.activeBoss.alive,
+      phaseIndex: 0,
+      shieldActive: false,
+    }
+  }
+
+  // ── Host: Simulate remote player physics ──────────────
+
+  private updateHostRemotePlayers(dt: number) {
+    const hostSession = this.mp.getHostSession()
+    if (!hostSession) return
+
+    for (const rp of hostSession.remotePlayers) {
+      const sim = this.remotePlayerSims.get(rp.id)
+      if (!sim) continue
+
+      // Apply latest input from this player
+      const input = rp.lastInput
+      if (input) {
+        sim.simulate(input, dt, this.chunkManager)
+      }
+
+      // Update the snapshot that gets broadcast
+      hostSession.updatePlayerSnapshot(rp.id, {
+        x: sim.x,
+        y: sim.y,
+        vx: sim.vx,
+        vy: sim.vy,
+        facingRight: sim.facingRight,
+      })
+
+      // Update the visual sprite on host's screen
+      const rpState = this.mp.remotePlayers.get(rp.id)
+      if (rpState) {
+        rpState.x = sim.x
+        rpState.y = sim.y
+        rpState.prevX = sim.x
+        rpState.prevY = sim.y
+        rpState.targetX = sim.x
+        rpState.targetY = sim.y
+        rpState.facingRight = sim.facingRight
+        rpState.interpT = 1 // no interpolation needed for host
+        if (rpState.sprite) {
+          rpState.sprite.setPosition(sim.x, sim.y)
+          rpState.sprite.setFlipX(!sim.facingRight)
+        }
+        if (rpState.nameText) {
+          rpState.nameText.setPosition(sim.x, sim.y - 24)
+        }
+      }
+    }
+  }
+
+  // ── Client: Apply state synced from host ──────────────
+
+  private applyClientSync() {
+    // Apply pending tile changes
+    for (const tc of this.mp.consumeTileChanges()) {
+      this.chunkManager.setTile(tc.tx, tc.ty, tc.newType as TileType)
+    }
+
+    // Apply enemy sync
+    const enemySync = this.mp.consumeEnemySync()
+    if (enemySync) {
+      this.applyClientEnemySync(enemySync)
+    }
+
+    // Apply boss sync (null = no new data received)
+    const bossSync = this.mp.consumeBossSync()
+    if (bossSync) {
+      this.applyClientBossSync(bossSync)
+    }
+
+    // Apply combat events (damage numbers)
+    for (const evt of this.mp.consumeCombatEvents()) {
+      this.combat.spawnDamageNumber(evt.x, evt.y, evt.amount, evt.color ?? 0xff4444)
+    }
+  }
+
+  private applyClientEnemySync(snapshots: EnemySnapshot[]) {
+    const seen = new Set<number>()
+    for (const snap of snapshots) {
+      seen.add(snap.id)
+      let sprite = this.clientEnemySprites.get(snap.id)
+      if (!sprite) {
+        // Create sprite from enemy type
+        const texKey = `enemy_${snap.type}`
+        if (this.textures.exists(texKey)) {
+          sprite = this.add.image(snap.x, snap.y, texKey).setDepth(9)
+        } else {
+          sprite = this.add.rectangle(snap.x, snap.y, 20, 16, 0xff0000).setDepth(9) as any
+        }
+        this.clientEnemySprites.set(snap.id, sprite!)
+      }
+      sprite!.setPosition(snap.x, snap.y)
+      if ('setFlipX' in sprite!) {
+        (sprite as Phaser.GameObjects.Image).setFlipX(!snap.facingRight)
+      }
+      sprite!.setAlpha(snap.alive ? 1 : 0.3)
+    }
+    // Remove sprites for enemies no longer present
+    for (const [id, sprite] of this.clientEnemySprites) {
+      if (!seen.has(id)) {
+        sprite.destroy()
+        this.clientEnemySprites.delete(id)
+      }
+    }
+  }
+
+  private applyClientBossSync(snap: BossSnapshot) {
+    if (snap.alive) {
+      if (!this.clientBossSprite || this.clientBossId !== snap.id) {
+        // Create boss sprite
+        if (this.clientBossSprite) this.clientBossSprite.destroy()
+        const texKey = `boss_${snap.type}`
+        if (this.textures.exists(texKey)) {
+          this.clientBossSprite = this.add.image(snap.x, snap.y, texKey).setDepth(9)
+        } else {
+          const gfx = this.add.graphics()
+          gfx.fillStyle(0xff0000)
+          gfx.fillRect(0, 0, 40, 40)
+          gfx.generateTexture(`boss_fallback_${snap.id}`, 40, 40)
+          gfx.destroy()
+          this.clientBossSprite = this.add.image(snap.x, snap.y, `boss_fallback_${snap.id}`).setDepth(9)
+        }
+        this.clientBossId = snap.id
+      }
+      this.clientBossSprite.setPosition(snap.x, snap.y)
+    } else {
+      // Boss died
+      if (this.clientBossSprite) {
+        this.clientBossSprite.destroy()
+        this.clientBossSprite = null
+        this.clientBossId = 0
+      }
+    }
   }
 
   /** Show a temporary notification message */

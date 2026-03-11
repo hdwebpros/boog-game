@@ -18,6 +18,7 @@ export class DroppedItem {
   y: number
   vx: number
   vy: number
+  entityId = 0 // unique ID for multiplayer entity tracking
   alive = true
   private age = 0
   private pickupDelay: number

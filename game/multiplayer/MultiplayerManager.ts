@@ -1,0 +1,456 @@
+/**
+ * Main multiplayer manager — orchestrates networking for WorldScene.
+ *
+ * Modes:
+ * - 'offline': Single-player (no networking, backward-compatible)
+ * - 'host': This player hosts the session and runs authoritative simulation
+ * - 'client': This player is a remote client connected to a host
+ */
+
+import Phaser from 'phaser'
+import { NetworkManager } from './NetworkManager'
+import { HostSession } from './HostSession'
+import { EntityRegistry } from './EntityRegistry'
+import { InputCollector } from './InputCollector'
+import {
+  type NetworkMessage,
+  type InputState,
+  type PlayerSnapshot,
+  type EnemySnapshot,
+  type BossSnapshot,
+  type DroppedItemSnapshot,
+  type TileChangeRequest,
+  type JoinAccepted,
+  type CombatEvent,
+  MessageType,
+  PLAYER_SYNC_INTERVAL,
+  generateEntityId,
+} from './protocol'
+
+export type MultiplayerMode = 'offline' | 'host' | 'client'
+
+/** Interpolation state for rendering remote players */
+export interface RemotePlayerState {
+  id: number
+  name: string
+  x: number
+  y: number
+  prevX: number
+  prevY: number
+  targetX: number
+  targetY: number
+  vx: number
+  vy: number
+  hp: number
+  maxHp: number
+  facingRight: boolean
+  dead: boolean
+  interpT: number
+  sprite: Phaser.GameObjects.Image | null
+  nameText: Phaser.GameObjects.Text | null
+}
+
+export class MultiplayerManager {
+  private _mode: MultiplayerMode = 'offline'
+  private network: NetworkManager | null = null
+  private host: HostSession | null = null
+  private scene: Phaser.Scene | null = null
+
+  /** Entity registry — used in all modes for consistent ID tracking */
+  readonly entities = new EntityRegistry()
+
+  /** Input collector for local player */
+  private inputCollector: InputCollector | null = null
+
+  /** Remote players visible in the world */
+  private _remotePlayers = new Map<number, RemotePlayerState>()
+
+  /** Local player ID */
+  private _localPlayerId = 0
+
+  /** Pending tile changes from remote (for client mode) */
+  private pendingTileChanges: TileChangeRequest[] = []
+
+  /** Pending enemy snapshots from host (for client mode) */
+  private pendingEnemySync: EnemySnapshot[] | null = null
+
+  /** Pending boss snapshot from host (for client mode) */
+  private pendingBossSync: BossSnapshot | null = null
+
+  /** Pending combat events from host (for client mode) */
+  private pendingCombatEvents: CombatEvent[] = []
+
+  /** Chat messages (ring buffer, last 50) */
+  private chatMessages: { senderId: number; name: string; text: string; time: number }[] = []
+
+  /** Callback to WorldScene for handling host messages */
+  onHostMessage: ((msg: NetworkMessage) => void) | null = null
+  /** Callback when disconnected from host (client mode) */
+  onDisconnected: ((reason: string) => void) | null = null
+
+  get mode(): MultiplayerMode { return this._mode }
+  get isOnline(): boolean { return this._mode !== 'offline' }
+  get isHost(): boolean { return this._mode === 'host' }
+  get isClient(): boolean { return this._mode === 'client' }
+  get localPlayerId(): number { return this._localPlayerId }
+  get remotePlayers(): Map<number, RemotePlayerState> { return this._remotePlayers }
+  get ping(): number { return this.network?.ping ?? 0 }
+  get playerCount(): number {
+    if (this._mode === 'host') return (this.host?.playerCount ?? 1)
+    if (this._mode === 'client') return this._remotePlayers.size + 1
+    return 1
+  }
+  get chat(): typeof this.chatMessages { return this.chatMessages }
+
+  /** Initialize for single-player (default) */
+  initOffline() {
+    this._mode = 'offline'
+    this._localPlayerId = 1
+    this.entities.clear()
+  }
+
+  /** Initialize as host */
+  initHost(scene: Phaser.Scene, seed: string, worldWidth: number, worldHeight: number) {
+    this._mode = 'host'
+    this.scene = scene
+    this.host = new HostSession()
+    this._localPlayerId = this.host.init(seed, worldWidth, worldHeight)
+    this.entities.clear()
+    this.inputCollector = new InputCollector(scene)
+  }
+
+  /** Initialize as client and connect to host */
+  async initClient(scene: Phaser.Scene, url: string, playerName: string, roomCode: string): Promise<JoinAccepted> {
+    this._mode = 'client'
+    this.scene = scene
+    this.network = new NetworkManager()
+    this.entities.clear()
+    this.inputCollector = new InputCollector(scene)
+
+    // Set up message handlers before connecting
+    this.setupClientHandlers()
+
+    const joinData = await this.network.connect(url, playerName, roomCode)
+    this._localPlayerId = joinData.playerId
+
+    return joinData
+  }
+
+  /** Initialize as client from an already-connected NetworkManager (used when BootScene handles connection) */
+  initClientFromExisting(scene: Phaser.Scene, network: NetworkManager, joinData: JoinAccepted) {
+    this._mode = 'client'
+    this.scene = scene
+    this.network = network
+    this._localPlayerId = joinData.playerId
+    this.entities.clear()
+    this.inputCollector = new InputCollector(scene)
+    this.setupClientHandlers()
+  }
+
+  /** Get the host session (only valid in host mode) */
+  getHostSession(): HostSession | null {
+    return this.host
+  }
+
+  /** Get the network manager (only valid in client mode) */
+  getNetwork(): NetworkManager | null {
+    return this.network
+  }
+
+  /** Collect local input this frame */
+  collectInput(dt: number): InputState | null {
+    if (!this.inputCollector) return null
+    return this.inputCollector.sample(dt)
+  }
+
+  /** Send local input to host (client mode only) */
+  sendInput(input: InputState) {
+    if (this._mode === 'client' && this.network) {
+      this.network.queueInput(input)
+    }
+  }
+
+  /** Send a tile change (client mode: request to host; host mode: broadcast to clients) */
+  sendTileChange(change: TileChangeRequest) {
+    if (this._mode === 'client' && this.network) {
+      this.network.sendTileChange(change)
+    } else if (this._mode === 'host' && this.host) {
+      // Host applies immediately and broadcasts
+      this.host.broadcast({
+        type: MessageType.TILE_UPDATE,
+        senderId: 0,
+        data: change,
+      })
+    }
+  }
+
+  /** Send chat message */
+  sendChat(text: string) {
+    if (this._mode === 'client' && this.network) {
+      this.network.sendChat(text)
+    } else if (this._mode === 'host' && this.host) {
+      this.addChatMessage(this._localPlayerId, 'Host', text)
+      this.host.broadcast({
+        type: MessageType.CHAT_MESSAGE,
+        senderId: this._localPlayerId,
+        data: { text },
+      })
+    }
+  }
+
+  /** Broadcast state to clients (host mode only) */
+  broadcastState(
+    dt: number,
+    playerSnapshots: PlayerSnapshot[],
+    enemySnapshots: EnemySnapshot[],
+    bossSnapshot: BossSnapshot | null,
+    droppedItems: DroppedItemSnapshot[],
+    dayNightTime: number,
+  ) {
+    if (this._mode !== 'host' || !this.host) return
+    this.host.syncTick(dt, playerSnapshots, enemySnapshots, bossSnapshot, droppedItems, dayNightTime)
+  }
+
+  /** Broadcast a combat event (host → clients) */
+  broadcastCombatEvent(event: CombatEvent) {
+    if (this._mode !== 'host' || !this.host) return
+    this.host.broadcast({
+      type: MessageType.COMBAT_EVENT,
+      senderId: 0,
+      data: event,
+    })
+  }
+
+  /** Consume pending tile changes (client mode) */
+  consumeTileChanges(): TileChangeRequest[] {
+    const changes = this.pendingTileChanges
+    this.pendingTileChanges = []
+    return changes
+  }
+
+  /** Consume pending enemy sync data (client mode) */
+  consumeEnemySync(): EnemySnapshot[] | null {
+    const data = this.pendingEnemySync
+    this.pendingEnemySync = null
+    return data
+  }
+
+  /** Consume pending boss sync data (client mode) */
+  consumeBossSync(): BossSnapshot | null {
+    const data = this.pendingBossSync
+    this.pendingBossSync = null
+    return data
+  }
+
+  /** Consume pending combat events (client mode) */
+  consumeCombatEvents(): CombatEvent[] {
+    const events = this.pendingCombatEvents
+    this.pendingCombatEvents = []
+    return events
+  }
+
+  /** Update remote player interpolation (call each frame) */
+  updateRemotePlayers(dt: number) {
+    for (const [, rp] of this._remotePlayers) {
+      // Interpolate toward target position
+      rp.interpT += dt * (1000 / PLAYER_SYNC_INTERVAL)
+      const t = Math.min(1, rp.interpT)
+      rp.x = rp.prevX + (rp.targetX - rp.prevX) * t
+      rp.y = rp.prevY + (rp.targetY - rp.prevY) * t
+
+      // Update sprite position
+      if (rp.sprite) {
+        rp.sprite.x = rp.x
+        rp.sprite.y = rp.y
+        rp.sprite.setFlipX(!rp.facingRight)
+        rp.sprite.setAlpha(rp.dead ? 0.3 : 1)
+      }
+      if (rp.nameText) {
+        rp.nameText.setPosition(rp.x, rp.y - 24)
+      }
+    }
+  }
+
+  /** Create sprite for a remote player */
+  createRemotePlayerSprite(id: number, scene: Phaser.Scene) {
+    const rp = this._remotePlayers.get(id)
+    if (!rp || rp.sprite) return
+
+    const texKey = scene.textures.exists('player_idle1') ? 'player_idle1' : 'player'
+    rp.sprite = scene.add.image(rp.x, rp.y, texKey)
+    rp.sprite.setOrigin(0.5, 0.5)
+    rp.sprite.setDepth(10)
+    // Scale to match local player (16x32 display)
+    const frame = scene.textures.getFrame(texKey)
+    if (frame) {
+      rp.sprite.setScale(16 / frame.width, 32 / frame.height)
+    }
+    // Tint slightly to differentiate
+    rp.sprite.setTint(0xaaddff)
+
+    rp.nameText = scene.add.text(rp.x, rp.y - 24, rp.name, {
+      fontSize: '10px',
+      color: '#aaddff',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(100)
+  }
+
+  /** Remove sprite for a remote player */
+  removeRemotePlayerSprite(id: number) {
+    const rp = this._remotePlayers.get(id)
+    if (!rp) return
+    if (rp.sprite) { rp.sprite.destroy(); rp.sprite = null }
+    if (rp.nameText) { rp.nameText.destroy(); rp.nameText = null }
+  }
+
+  /** Per-frame update */
+  update(dt: number) {
+    if (this._mode === 'client' && this.network) {
+      this.network.update(dt)
+    }
+    this.updateRemotePlayers(dt)
+  }
+
+  /** Add a chat message to the buffer */
+  private addChatMessage(senderId: number, name: string, text: string) {
+    this.chatMessages.push({ senderId, name, text, time: Date.now() })
+    if (this.chatMessages.length > 50) {
+      this.chatMessages.shift()
+    }
+  }
+
+  /** Set up client-side message handlers */
+  private setupClientHandlers() {
+    if (!this.network) return
+
+    // Player state updates
+    this.network.on(MessageType.PLAYER_STATE, (msg) => {
+      const snapshots = msg.data as PlayerSnapshot[]
+      for (const snap of snapshots) {
+        if (snap.id === this._localPlayerId) continue // skip local player
+
+        let rp = this._remotePlayers.get(snap.id)
+        if (!rp) {
+          rp = {
+            id: snap.id,
+            name: snap.name,
+            x: snap.x, y: snap.y,
+            prevX: snap.x, prevY: snap.y,
+            targetX: snap.x, targetY: snap.y,
+            vx: snap.vx, vy: snap.vy,
+            hp: snap.hp, maxHp: snap.maxHp,
+            facingRight: snap.facingRight,
+            dead: snap.dead,
+            interpT: 0,
+            sprite: null,
+            nameText: null,
+          }
+          this._remotePlayers.set(snap.id, rp)
+          if (this.scene) {
+            this.createRemotePlayerSprite(snap.id, this.scene)
+          }
+        } else {
+          rp.prevX = rp.x
+          rp.prevY = rp.y
+          rp.targetX = snap.x
+          rp.targetY = snap.y
+          rp.vx = snap.vx
+          rp.vy = snap.vy
+          rp.hp = snap.hp
+          rp.maxHp = snap.maxHp
+          rp.facingRight = snap.facingRight
+          rp.dead = snap.dead
+          rp.interpT = 0
+        }
+      }
+    })
+
+    // Tile updates
+    this.network.on(MessageType.TILE_UPDATE, (msg) => {
+      this.pendingTileChanges.push(msg.data as TileChangeRequest)
+    })
+
+    // Enemy sync
+    this.network.on(MessageType.ENEMY_SYNC, (msg) => {
+      this.pendingEnemySync = msg.data as EnemySnapshot[]
+    })
+
+    // Boss sync
+    this.network.on(MessageType.BOSS_SYNC, (msg) => {
+      this.pendingBossSync = msg.data as BossSnapshot
+    })
+
+    // Combat events
+    this.network.on(MessageType.COMBAT_EVENT, (msg) => {
+      this.pendingCombatEvents.push(msg.data as CombatEvent)
+    })
+
+    // Day/night sync
+    this.network.on(MessageType.DAY_NIGHT_SYNC, (msg) => {
+      // Forward to WorldScene callback
+      this.onHostMessage?.(msg)
+    })
+
+    // Player join notification
+    this.network.on(MessageType.PLAYER_JOINED, (msg) => {
+      const data = msg.data as PlayerSnapshot
+      this.addChatMessage(0, 'System', `${data.name} joined the game`)
+    })
+
+    // Player leave notification
+    this.network.on(MessageType.PLAYER_LEFT, (msg) => {
+      const { playerId, reason } = msg.data
+      if (playerId === this._localPlayerId) {
+        // We were disconnected (host left)
+        this.onDisconnected?.(reason ?? 'Disconnected')
+        return
+      }
+      const rp = this._remotePlayers.get(playerId)
+      if (rp) {
+        this.addChatMessage(0, 'System', `${rp.name} left the game`)
+        this.removeRemotePlayerSprite(playerId)
+        this._remotePlayers.delete(playerId)
+      }
+    })
+
+    // Chat
+    this.network.on(MessageType.CHAT_MESSAGE, (msg) => {
+      const rp = this._remotePlayers.get(msg.senderId)
+      const name = rp?.name ?? (msg.senderId === this._localPlayerId ? 'You' : 'Unknown')
+      this.addChatMessage(msg.senderId, name, msg.data.text)
+    })
+
+    // Entity spawn/despawn
+    this.network.on(MessageType.ENTITY_SPAWN, (msg) => {
+      this.onHostMessage?.(msg)
+    })
+    this.network.on(MessageType.ENTITY_DESPAWN, (msg) => {
+      this.onHostMessage?.(msg)
+    })
+  }
+
+  /** Clean up everything */
+  destroy() {
+    if (this.network) {
+      this.network.disconnect()
+      this.network = null
+    }
+    if (this.host) {
+      this.host.destroy()
+      this.host = null
+    }
+    for (const [id] of this._remotePlayers) {
+      this.removeRemotePlayerSprite(id)
+    }
+    this._remotePlayers.clear()
+    this.entities.clear()
+    this.pendingTileChanges = []
+    this.pendingEnemySync = null
+    this.pendingBossSync = null
+    this.pendingCombatEvents = []
+    this.chatMessages = []
+    this._mode = 'offline'
+  }
+}

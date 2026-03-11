@@ -13,6 +13,7 @@ export class Boss {
   hp: number
   vx = 0
   vy = 0
+  entityId = 0 // unique ID for multiplayer entity tracking
 
   private scene: Phaser.Scene
   private phase: BossPhase
