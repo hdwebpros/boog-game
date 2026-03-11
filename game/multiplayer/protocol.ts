@@ -193,6 +193,7 @@ export interface DroppedItemSnapshot {
 
 export interface CombatEvent {
   type: 'damage' | 'heal' | 'death' | 'knockback'
+  targetType?: 'player' | 'enemy'
   targetId: number
   sourceId: number
   amount: number

@@ -18,6 +18,7 @@ import type { WorldData } from '../world/WorldGenerator'
 import { SHOP_INVENTORY, SELL_PRICES } from '../data/shop'
 import { ACCESSORY_EFFECTS } from '../data/accessories'
 import { CHEST_SLOTS } from '../world/ChunkManager'
+import { ChatOverlay } from '../multiplayer/ChatOverlay'
 
 const SLOT_SIZE = 40
 const SLOT_GAP = 4
@@ -157,11 +158,40 @@ export class UIScene extends Phaser.Scene {
   private visitedZones = new Set<string>()
   private currentZoneName = ''
 
+  // Chat overlay (multiplayer)
+  private chatOverlay: ChatOverlay | null = null
+
   constructor() {
     super({ key: 'UIScene' })
   }
 
   create() {
+    // Reset arrays to prevent stale references after scene restart
+    this.slotTexts = []
+    this.slotIcons = []
+    this.slotImages = []
+    this.invSlotIcons = []
+    this.invSlotImages = []
+    this.invSlotTexts = []
+    this.invSlotZones = []
+    this.armorSlotIcons = []
+    this.armorSlotImages = []
+    this.armorSlotLabels = []
+    this.armorSlotZones = []
+    this.craftTexts = []
+    this.skillNodeZones = []
+    this.skillNodeTexts = []
+    this.skillNameTexts = []
+    this.skillBranchLabels = []
+    this.skillNodeSkills = []
+    this.shopTexts = []
+    this.chestTexts = []
+    this.invVisible = false
+    this.craftVisible = false
+    this.skillVisible = false
+    this.shopVisible = false
+    this.chestVisible = false
+
     const { width, height } = this.scale
     const hotbarX = (width - HOTBAR_WIDTH) / 2
     const hotbarY = height - SLOT_SIZE - 12
@@ -338,10 +368,21 @@ export class UIScene extends Phaser.Scene {
     const keyBracketClose = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.CLOSED_BRACKET)
     keyBracketClose.on('down', () => { if (this.miniMap) this.miniMap.zoomIn() })
 
-    // Clean up minimap texture on scene shutdown
+    // ── Chat overlay (multiplayer) ──────────────────
+    const worldScene = this.scene.get('WorldScene') as any
+    const mp = worldScene?.getMultiplayer?.()
+    if (mp && mp.isOnline) {
+      this.chatOverlay = new ChatOverlay(this, mp)
+    }
+
+    // Clean up on scene shutdown
     this.events.on('shutdown', () => {
       if (this.miniMap) {
         this.miniMap.destroy()
+      }
+      if (this.chatOverlay) {
+        this.chatOverlay.destroy()
+        this.chatOverlay = null
       }
     })
   }
@@ -502,6 +543,7 @@ export class UIScene extends Phaser.Scene {
       this.updateMinimapBossMarkers(worldScene)
     }
     this.updateBiomeBanner(player)
+    this.chatOverlay?.update()
   }
 
   private getZoneName(px: number, py: number): string {

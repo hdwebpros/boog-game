@@ -18,7 +18,7 @@ import { SoundId } from '../data/sounds'
 import { SurfaceBiome } from '../world/WorldGenerator'
 import { DayNightCycle } from '../systems/DayNightCycle'
 import { NPC } from '../entities/NPC'
-import { MultiplayerManager, RoomConnector, ChatOverlay, RemotePlayerSim, generateEntityId, encodeMessage, MessageType } from '../multiplayer'
+import { MultiplayerManager, RoomConnector, RemotePlayerSim, REMOTE_COL_W, REMOTE_COL_H, generateEntityId, encodeMessage, MessageType } from '../multiplayer'
 import type { NetworkManager } from '../multiplayer'
 import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage, AttackRequest, CombatEvent } from '../multiplayer'
 
@@ -66,7 +66,6 @@ export class WorldScene extends Phaser.Scene {
   // Multiplayer
   mp = new MultiplayerManager()
   private roomConnector: RoomConnector | null = null
-  private chatOverlay: ChatOverlay | null = null
   private remotePlayerSims = new Map<number, RemotePlayerSim>()
   /** Client-side enemy sprites (rendered from host sync data) */
   private clientEnemySprites = new Map<number, Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle>()
@@ -280,7 +279,6 @@ export class WorldScene extends Phaser.Scene {
       const hostSession = this.mp.getHostSession()!
       this.roomConnector = new RoomConnector(hostSession)
       this.roomConnector.onGameMessage = (msg) => this.handleHostMessage(msg)
-      this.chatOverlay = new ChatOverlay(this, this.mp)
       this.roomConnector.createRoom().then((code) => {
         this.registry.set('mpRoomCode', code)
         this.showNotification(`Room created: ${code}\nShare this code with friends!`, 0x8888ff)
@@ -292,7 +290,6 @@ export class WorldScene extends Phaser.Scene {
     // Client-mode HUD, chat, and disconnect handling
     if (this.mp.isClient) {
       this.createMultiplayerHUD()
-      this.chatOverlay = new ChatOverlay(this, this.mp)
       this.mp.onDisconnected = (reason) => {
         this.showNotification(`Disconnected: ${reason}`, 0xff4444)
         // Return to menu after a short delay
@@ -318,10 +315,6 @@ export class WorldScene extends Phaser.Scene {
         this.boundBeforeUnload = null
       }
       // Clean up multiplayer
-      if (this.chatOverlay) {
-        this.chatOverlay.destroy()
-        this.chatOverlay = null
-      }
       if (this.roomConnector) {
         this.roomConnector.disconnect()
         this.roomConnector = null
@@ -426,25 +419,98 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
-      // Update enemies
+      // Build list of all player positions for enemy/boss AI targeting
+      const allPlayerPositions: { x: number; y: number; id: number }[] = [
+        { x: this.player.sprite.x, y: this.player.sprite.y, id: this.mp.localPlayerId },
+      ]
+      for (const [id, sim] of this.remotePlayerSims) {
+        if (!sim.dead) {
+          allPlayerPositions.push({ x: sim.x, y: sim.y, id })
+        }
+      }
+
+      // Update enemies — target nearest player (host + all remotes)
       for (const enemy of this.enemies) {
         if (!enemy.alive) continue
-        const result = enemy.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y, this.dayNight.isNight, effectiveDarkness)
+
+        // Find the nearest player to this enemy
+        let nearestX = this.player.sprite.x
+        let nearestY = this.player.sprite.y
+        let nearestDistSq = Infinity
+        for (const p of allPlayerPositions) {
+          const edx = p.x - enemy.sprite.x
+          const edy = p.y - enemy.sprite.y
+          const distSq = edx * edx + edy * edy
+          if (distSq < nearestDistSq) {
+            nearestDistSq = distSq
+            nearestX = p.x
+            nearestY = p.y
+          }
+        }
+
+        const result = enemy.update(dt, this.chunkManager, nearestX, nearestY, this.dayNight.isNight, effectiveDarkness)
 
         if (result.shootAtPlayer) {
           this.combat.fireEnemyProjectile(
             enemy.sprite.x, enemy.sprite.y,
-            this.player.sprite.x, this.player.sprite.y,
+            nearestX, nearestY,
             enemy.def.damage, enemy.def.color
           )
         }
       }
 
-      // Update boss
-      if (this.activeBoss && this.activeBoss.alive) {
-        const result = this.activeBoss.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y)
+      // Check enemy contact damage against remote players (host side)
+      for (const [rpId, sim] of this.remotePlayerSims) {
+        if (sim.dead || sim.iFrames > 0) continue
+        for (const enemy of this.enemies) {
+          if (!enemy.alive || enemy.intangible) continue
+          const eb = enemy.getBounds()
+          const rpHW = REMOTE_COL_W / 2
+          const rpHH = REMOTE_COL_H / 2
+          const rpLeft = sim.x - rpHW
+          const rpTop = sim.y - rpHH
+          if (rpLeft < eb.x + eb.w && rpLeft + REMOTE_COL_W > eb.x &&
+              rpTop < eb.y + eb.h && rpTop + REMOTE_COL_H > eb.y) {
+            const kbx = (sim.x - enemy.sprite.x) > 0 ? 180 : -180
+            const kby = -120
+            if (sim.takeDamage(enemy.def.damage, kbx, kby)) {
+              this.mp.broadcastCombatEvent({
+                type: 'damage',
+                targetType: 'player',
+                targetId: rpId,
+                sourceId: enemy.entityId,
+                amount: enemy.def.damage,
+                x: sim.x,
+                y: sim.y,
+                kbx,
+                kby,
+                color: 0xff4444,
+              })
+            }
+            break
+          }
+        }
+      }
 
-        // Handle boss projectiles
+      // Update boss — target nearest player
+      if (this.activeBoss && this.activeBoss.alive) {
+        let bossTargetX = this.player.sprite.x
+        let bossTargetY = this.player.sprite.y
+        let bossDistSq = Infinity
+        for (const p of allPlayerPositions) {
+          const bdx = p.x - this.activeBoss.sprite.x
+          const bdy = p.y - this.activeBoss.sprite.y
+          const distSq = bdx * bdx + bdy * bdy
+          if (distSq < bossDistSq) {
+            bossDistSq = distSq
+            bossTargetX = p.x
+            bossTargetY = p.y
+          }
+        }
+
+        const result = this.activeBoss.update(dt, this.chunkManager, bossTargetX, bossTargetY)
+
+        // Handle boss projectiles — fire at nearest player
         for (const proj of result.projectiles) {
           this.combat.fireEnemyProjectile(proj.x, proj.y, proj.tx, proj.ty, proj.damage, this.activeBoss.def.color)
         }
@@ -454,7 +520,7 @@ export class WorldScene extends Phaser.Scene {
           this.spawnBossMinions()
         }
 
-        // Boss collision damage
+        // Boss collision damage — host player
         if (!this.player.dead) {
           const bb = this.activeBoss.getBounds()
           const px = this.player.sprite.x - 6
@@ -462,6 +528,35 @@ export class WorldScene extends Phaser.Scene {
           if (px < bb.x + bb.w && px + 12 > bb.x && py < bb.y + bb.h && py + 28 > bb.y) {
             const kbx = (this.player.sprite.x - this.activeBoss.sprite.x) > 0 ? 200 : -200
             this.player.takeDamage(this.activeBoss.def.damage, kbx, -150, this.combat)
+          }
+        }
+
+        // Boss collision damage — remote players
+        {
+          const bb = this.activeBoss.getBounds()
+          for (const [rpId, sim] of this.remotePlayerSims) {
+            if (sim.dead || sim.iFrames > 0) continue
+            const rpLeft = sim.x - REMOTE_COL_W / 2
+            const rpTop = sim.y - REMOTE_COL_H / 2
+            if (rpLeft < bb.x + bb.w && rpLeft + REMOTE_COL_W > bb.x &&
+                rpTop < bb.y + bb.h && rpTop + REMOTE_COL_H > bb.y) {
+              const kbx = (sim.x - this.activeBoss.sprite.x) > 0 ? 200 : -200
+              const kby = -150
+              if (sim.takeDamage(this.activeBoss.def.damage, kbx, kby)) {
+                this.mp.broadcastCombatEvent({
+                  type: 'damage',
+                  targetType: 'player',
+                  targetId: rpId,
+                  sourceId: 0,
+                  amount: this.activeBoss.def.damage,
+                  x: sim.x,
+                  y: sim.y,
+                  kbx,
+                  kby,
+                  color: 0xff4444,
+                })
+              }
+            }
           }
         }
 
@@ -480,6 +575,42 @@ export class WorldScene extends Phaser.Scene {
 
       if (playerHit) {
         this.player.takeDamage(playerHit.damage, playerHit.kbx, playerHit.kby, this.combat)
+      }
+
+      // Check enemy projectile hits against remote players
+      for (const [rpId, sim] of this.remotePlayerSims) {
+        if (sim.dead || sim.iFrames > 0) continue
+        const rpBounds = {
+          x: sim.x - REMOTE_COL_W / 2,
+          y: sim.y - REMOTE_COL_H / 2,
+          w: REMOTE_COL_W,
+          h: REMOTE_COL_H,
+        }
+        for (const p of this.combat.projectiles) {
+          if (p.fromPlayer || !p.alive) continue
+          const pb = p.getBounds()
+          if (pb.x < rpBounds.x + rpBounds.w && pb.x + pb.w > rpBounds.x &&
+              pb.y < rpBounds.y + rpBounds.h && pb.y + pb.h > rpBounds.y) {
+            const kbx = p.vx > 0 ? 100 : -100
+            const kby = -80
+            if (sim.takeDamage(p.damage, kbx, kby)) {
+              this.mp.broadcastCombatEvent({
+                type: 'damage',
+                targetType: 'player',
+                targetId: rpId,
+                sourceId: 0,
+                amount: p.damage,
+                x: sim.x,
+                y: sim.y,
+                kbx,
+                kby,
+                color: 0xff4444,
+              })
+            }
+            p.destroy()
+            break
+          }
+        }
       }
 
       // Check boss death after combat (killing blow may come from combat.update)
@@ -584,7 +715,6 @@ export class WorldScene extends Phaser.Scene {
     if (this.mp.isOnline) {
       this.mp.update(dt)
       this.updateMultiplayerHUD()
-      this.chatOverlay?.update()
     }
 
     // Auto-save every 60 seconds (host and offline only, stop retrying after quota failure)
@@ -1512,6 +1642,9 @@ export class WorldScene extends Phaser.Scene {
         vx: sim.vx,
         vy: sim.vy,
         facingRight: sim.facingRight,
+        hp: sim.hp,
+        maxHp: sim.maxHp,
+        dead: sim.dead,
       })
 
       // Update the visual sprite on host's screen
@@ -1524,6 +1657,9 @@ export class WorldScene extends Phaser.Scene {
         rpState.targetX = sim.x
         rpState.targetY = sim.y
         rpState.facingRight = sim.facingRight
+        rpState.hp = sim.hp
+        rpState.maxHp = sim.maxHp
+        rpState.dead = sim.dead
         rpState.interpT = 1 // no interpolation needed for host
         if (rpState.sprite) {
           rpState.sprite.setPosition(sim.x, sim.y)
@@ -1556,9 +1692,15 @@ export class WorldScene extends Phaser.Scene {
       this.applyClientBossSync(bossSync)
     }
 
-    // Apply combat events (damage numbers)
+    // Apply combat events
     for (const evt of this.mp.consumeCombatEvents()) {
-      this.combat.spawnDamageNumber(evt.x, evt.y, evt.amount, evt.color ?? 0xff4444)
+      if (evt.targetType === 'player' && evt.targetId === this.mp.localPlayerId) {
+        // This client's player got hit — apply damage locally
+        this.player.takeDamage(evt.amount, evt.kbx ?? 0, evt.kby ?? 0, this.combat)
+      } else {
+        // Visual-only damage number (enemy hit or other player hit)
+        this.combat.spawnDamageNumber(evt.x, evt.y, evt.amount, evt.color ?? 0xff4444)
+      }
     }
   }
 
