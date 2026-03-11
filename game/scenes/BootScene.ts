@@ -149,6 +149,7 @@ export class BootScene extends Phaser.Scene {
               seed: saveData.seed,
               spawnX: Math.floor(saveData.playerX / 16),
               spawnY: Math.floor(saveData.playerY / 16),
+              surfaceBiomes: WorldGenerator.computeSurfaceBiomes(saveData.seed),
             }
             this.registry.set('worldData', worldData)
             this.registry.set('saveData', saveData)

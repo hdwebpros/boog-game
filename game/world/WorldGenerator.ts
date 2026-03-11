@@ -57,6 +57,40 @@ export class WorldGenerator {
     this.seedNum = hashSeed(this.seed)
   }
 
+  /** Regenerate surface biome array from seed alone (deterministic) */
+  static computeSurfaceBiomes(seed: string): Uint8Array {
+    const width = WORLD_WIDTH
+    const seedNum = hashSeed(seed)
+    const biomeNoise = createSeededNoise(seedNum + 6)
+    const surfaceBiomes = new Uint8Array(width)
+    const spawnCenter = Math.floor(width / 2)
+    const SPAWN_BIOME_RADIUS = 80
+    for (let x = 0; x < width; x++) {
+      const distFromEdge = Math.min(x, width - 1 - x)
+      if (distFromEdge < OCEAN_WIDTH) {
+        surfaceBiomes[x] = SurfaceBiome.PLAINS
+        continue
+      }
+      if (Math.abs(x - spawnCenter) < SPAWN_BIOME_RADIUS) {
+        surfaceBiomes[x] = SurfaceBiome.PLAINS
+        continue
+      }
+      const b1 = biomeNoise(x * 0.001, 0.5)
+      const b2 = biomeNoise(x * 0.003, 1.5)
+      const b3 = biomeNoise(x * 0.0008, 2.5)
+      const bVal = b1 * 0.5 + b2 * 0.3 + b3 * 0.2
+      if (bVal < -0.45) surfaceBiomes[x] = SurfaceBiome.SNOW
+      else if (bVal < -0.25) surfaceBiomes[x] = SurfaceBiome.DESERT
+      else if (bVal < -0.05) surfaceBiomes[x] = SurfaceBiome.PLAINS
+      else if (bVal < 0.12) surfaceBiomes[x] = SurfaceBiome.FOREST
+      else if (bVal < 0.25) surfaceBiomes[x] = SurfaceBiome.JUNGLE
+      else if (bVal < 0.38) surfaceBiomes[x] = SurfaceBiome.MOUNTAINS
+      else if (bVal < 0.48) surfaceBiomes[x] = SurfaceBiome.MUSHROOM
+      else surfaceBiomes[x] = SurfaceBiome.LAKE
+    }
+    return surfaceBiomes
+  }
+
   generate(): WorldData {
     const width = WORLD_WIDTH
     const height = WORLD_HEIGHT
@@ -69,39 +103,10 @@ export class WorldGenerator {
     const oreNoise2 = createSeededNoise(this.seedNum + 3)
     const oreNoise3 = createSeededNoise(this.seedNum + 4)
     const detailNoise = createSeededNoise(this.seedNum + 5)
-    const biomeNoise = createSeededNoise(this.seedNum + 6)
     const undergroundNoise = createSeededNoise(this.seedNum + 7)
 
     // Pre-compute surface biomes
-    const surfaceBiomes = new Uint8Array(width)
-    const spawnCenter = Math.floor(width / 2)
-    const SPAWN_BIOME_RADIUS = 80 // Force Plains biome around spawn
-    for (let x = 0; x < width; x++) {
-      const distFromEdge = Math.min(x, width - 1 - x)
-      if (distFromEdge < OCEAN_WIDTH) {
-        surfaceBiomes[x] = SurfaceBiome.PLAINS // ocean edges handled separately
-        continue
-      }
-      // Force Plains around spawn so player starts in a safe area
-      if (Math.abs(x - spawnCenter) < SPAWN_BIOME_RADIUS) {
-        surfaceBiomes[x] = SurfaceBiome.PLAINS
-        continue
-      }
-      // Two noise octaves for biome selection — slow variation
-      const b1 = biomeNoise(x * 0.001, 0.5)
-      const b2 = biomeNoise(x * 0.003, 1.5)
-      const b3 = biomeNoise(x * 0.0008, 2.5) // very slow variation for temperature
-      const bVal = b1 * 0.5 + b2 * 0.3 + b3 * 0.2
-
-      if (bVal < -0.45) surfaceBiomes[x] = SurfaceBiome.SNOW
-      else if (bVal < -0.25) surfaceBiomes[x] = SurfaceBiome.DESERT
-      else if (bVal < -0.05) surfaceBiomes[x] = SurfaceBiome.PLAINS
-      else if (bVal < 0.12) surfaceBiomes[x] = SurfaceBiome.FOREST
-      else if (bVal < 0.25) surfaceBiomes[x] = SurfaceBiome.JUNGLE
-      else if (bVal < 0.38) surfaceBiomes[x] = SurfaceBiome.MOUNTAINS
-      else if (bVal < 0.48) surfaceBiomes[x] = SurfaceBiome.MUSHROOM
-      else surfaceBiomes[x] = SurfaceBiome.LAKE
-    }
+    const surfaceBiomes = WorldGenerator.computeSurfaceBiomes(this.seed)
 
     // Pre-compute surface heights (shaped by biome)
     const surfaceHeights = new Float64Array(width)
