@@ -349,7 +349,7 @@ export class WorldScene extends Phaser.Scene {
         this.player.inventory.returnHeldItem()
       } else if (this.player.shopOpen) {
         this.player.shopOpen = false
-      } else {
+      } else if (!this.mp.isOnline) {
         this.scene.pause('WorldScene')
         this.scene.pause('UIScene')
         this.scene.launch('MenuScene', { pause: true })
