@@ -69,6 +69,10 @@ export class MultiplayerManager {
   /** Local player ID */
   private _localPlayerId = 0
 
+  /** Host's player ID and name (stored on client for chat display) */
+  private _hostPlayerId = 0
+  private _hostName = 'Host'
+
   /** Pending tile changes from remote (for client mode) */
   private pendingTileChanges: TileChangeRequest[] = []
 
@@ -133,6 +137,8 @@ export class MultiplayerManager {
 
     const joinData = await this.network.connect(url, playerName, roomCode)
     this._localPlayerId = joinData.playerId
+    this._hostPlayerId = 1  // host is always player 1
+    this._hostName = joinData.hostName
 
     return joinData
   }
@@ -143,6 +149,8 @@ export class MultiplayerManager {
     this.scene = scene
     this.network = network
     this._localPlayerId = joinData.playerId
+    this._hostPlayerId = 1  // host is always player 1
+    this._hostName = joinData.hostName
     this.entities.clear()
     this.inputCollector = new InputCollector(scene)
     this.setupClientHandlers()
@@ -429,7 +437,7 @@ export class MultiplayerManager {
     this.network.on(MessageType.CHAT_MESSAGE, (msg) => {
       if (msg.senderId === this._localPlayerId) return
       const rp = this._remotePlayers.get(msg.senderId)
-      const name = rp?.name ?? 'Unknown'
+      const name = rp?.name ?? (msg.senderId === this._hostPlayerId ? this._hostName : 'Unknown')
       this.addChatMessage(msg.senderId, name, msg.data.text)
     })
 
