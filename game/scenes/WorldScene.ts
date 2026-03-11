@@ -335,7 +335,8 @@ export class WorldScene extends Phaser.Scene {
     const dt = delta / 1000
 
     // ESC: close crafting/inventory/skill tree/shop first, otherwise open pause menu
-    if (Phaser.Input.Keyboard.JustDown(this.keyESC)) {
+    // Skip if MenuScene is already active (multiplayer overlay)
+    if (Phaser.Input.Keyboard.JustDown(this.keyESC) && !this.scene.isActive('MenuScene')) {
       if (this.player.craftingOpen) {
         this.player.craftingOpen = false
       } else if (this.player.inventoryOpen) {
@@ -353,6 +354,10 @@ export class WorldScene extends Phaser.Scene {
         this.scene.pause('WorldScene')
         this.scene.pause('UIScene')
         this.scene.launch('MenuScene', { pause: true })
+        this.scene.bringToTop('MenuScene')
+      } else {
+        // Multiplayer: show menu overlay without pausing the game
+        this.scene.launch('MenuScene', { pause: true, multiplayer: true })
         this.scene.bringToTop('MenuScene')
       }
     }

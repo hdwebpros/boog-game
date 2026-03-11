@@ -3,16 +3,19 @@ import { SaveManager } from '../systems/SaveManager'
 import type { SaveSlotInfo } from '../systems/SaveManager'
 import { AudioManager, MusicTrack } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
+import { gamePrompt } from '../ui/GameDialog'
 
 export class MenuScene extends Phaser.Scene {
   private isPause = false
+  private isMultiplayer = false
 
   constructor() {
     super({ key: 'MenuScene' })
   }
 
-  init(data: { pause?: boolean }) {
+  init(data: { pause?: boolean; multiplayer?: boolean }) {
     this.isPause = data?.pause === true
+    this.isMultiplayer = data?.multiplayer === true
   }
 
   create() {
@@ -259,13 +262,14 @@ export class MenuScene extends Phaser.Scene {
       startBtn.on('pointerover', () => startBtn.setColor('#ffffff'))
       startBtn.on('pointerout', () => startBtn.setColor('#8888ff'))
       startBtn.on('pointerdown', () => {
-        const name = (window.prompt('Enter your name:', 'Host') ?? 'Host').trim().slice(0, 16) || 'Host'
-        statusText.setText('Creating room...')
-        // Set multiplayer mode and start game
-        this.registry.set('mpMode', 'host')
-        this.registry.set('mpPlayerName', name)
-        AudioManager.get()?.stopMusic()
-        this.scene.start('BootScene')
+        gamePrompt('Enter your name:', 'Host').then((raw) => {
+          const name = (raw ?? 'Host').trim().slice(0, 16) || 'Host'
+          statusText.setText('Creating room...')
+          this.registry.set('mpMode', 'host')
+          this.registry.set('mpPlayerName', name)
+          AudioManager.get()?.stopMusic()
+          this.scene.start('BootScene')
+        })
       })
 
       this.add.text(width / 2, height / 2 + 70, 'Other players will join using your room code.\nThe code appears after the world loads.', {
@@ -284,16 +288,18 @@ export class MenuScene extends Phaser.Scene {
       joinGameBtn.on('pointerover', () => joinGameBtn.setColor('#ffffff'))
       joinGameBtn.on('pointerout', () => joinGameBtn.setColor('#88ff88'))
       joinGameBtn.on('pointerdown', () => {
-        const code = window.prompt('Room code:')
-        if (!code) return
-        const name = (window.prompt('Your name:', 'Player') ?? 'Player').trim().slice(0, 16) || 'Player'
-        statusText.setText('Connecting...')
-        // Set join params and start
-        this.registry.set('mpMode', 'client')
-        this.registry.set('mpRoomCode', code.trim().toUpperCase())
-        this.registry.set('mpPlayerName', name)
-        AudioManager.get()?.stopMusic()
-        this.scene.start('BootScene')
+        gamePrompt('Room code:').then((code) => {
+          if (!code) return
+          gamePrompt('Your name:', 'Player').then((raw) => {
+            const name = (raw ?? 'Player').trim().slice(0, 16) || 'Player'
+            statusText.setText('Connecting...')
+            this.registry.set('mpMode', 'client')
+            this.registry.set('mpRoomCode', code.trim().toUpperCase())
+            this.registry.set('mpPlayerName', name)
+            AudioManager.get()?.stopMusic()
+            this.scene.start('BootScene')
+          })
+        })
       })
     }
 
@@ -313,7 +319,7 @@ export class MenuScene extends Phaser.Scene {
   private createPauseMenu(width: number, height: number) {
     this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7)
 
-    this.add.text(width / 2, height / 3, 'PAUSED', {
+    this.add.text(width / 2, height / 3, this.isMultiplayer ? 'MENU' : 'PAUSED', {
       fontSize: '32px', color: '#ffffff', fontFamily: 'monospace',
     }).setOrigin(0.5)
 
@@ -326,45 +332,52 @@ export class MenuScene extends Phaser.Scene {
       }).setOrigin(0.5)
     }
 
+    let nextY = height / 2
+
     // Resume
-    const resumeBtn = this.add.text(width / 2, height / 2, '[ RESUME ]', {
+    const resumeBtn = this.add.text(width / 2, nextY, '[ RESUME ]', {
       fontSize: '18px', color: '#00ff88', fontFamily: 'monospace',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true })
 
     resumeBtn.on('pointerover', () => resumeBtn.setColor('#ffffff'))
     resumeBtn.on('pointerout', () => resumeBtn.setColor('#00ff88'))
     resumeBtn.on('pointerdown', () => this.resumeGame())
+    nextY += 40
 
-    // Save
-    const saveBtn = this.add.text(width / 2, height / 2 + 40, '[ SAVE GAME ]', {
-      fontSize: '18px', color: '#ffff00', fontFamily: 'monospace',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+    // Save (only in single-player or host mode)
+    if (!this.isMultiplayer || mpMode === 'host') {
+      const saveBtn = this.add.text(width / 2, nextY, '[ SAVE GAME ]', {
+        fontSize: '18px', color: '#ffff00', fontFamily: 'monospace',
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true })
 
-    const saveStatus = this.add.text(width / 2, height / 2 + 65, '', {
-      fontSize: '12px', color: '#888888', fontFamily: 'monospace',
-    }).setOrigin(0.5)
+      const saveStatus = this.add.text(width / 2, nextY + 25, '', {
+        fontSize: '12px', color: '#888888', fontFamily: 'monospace',
+      }).setOrigin(0.5)
 
-    saveBtn.on('pointerover', () => saveBtn.setColor('#ffffff'))
-    saveBtn.on('pointerout', () => saveBtn.setColor('#ffff00'))
-    saveBtn.on('pointerdown', () => {
-      const worldScene = this.scene.get('WorldScene') as any
-      const currentName = worldScene?.getSaveSlotName?.() as string | null
+      saveBtn.on('pointerover', () => saveBtn.setColor('#ffffff'))
+      saveBtn.on('pointerout', () => saveBtn.setColor('#ffff00'))
+      saveBtn.on('pointerdown', () => {
+        const worldScene = this.scene.get('WorldScene') as any
+        const currentName = worldScene?.getSaveSlotName?.() as string | null
 
-      const name = window.prompt('Save name:', currentName ?? 'My World')
-      if (name === null) return // cancelled
-
-      const trimmed = name.trim() || 'My World'
-      saveStatus.setText('Saving...')
-      saveStatus.setColor('#888888')
-      const result = worldScene?.performSave?.(undefined, trimmed) as Promise<boolean> | undefined
-      ;(result ?? Promise.resolve(false)).then((success: boolean) => {
-        saveStatus.setText(success ? `Saved as "${trimmed}"!` : 'Save failed!')
-        saveStatus.setColor(success ? '#00ff88' : '#ff4444')
+        gamePrompt('Save name:', currentName ?? 'My World').then((name) => {
+          if (name === null) return
+          const trimmed = name.trim() || 'My World'
+          saveStatus.setText('Saving...')
+          saveStatus.setColor('#888888')
+          const result = worldScene?.performSave?.(undefined, trimmed) as Promise<boolean> | undefined
+          ;(result ?? Promise.resolve(false)).then((success: boolean) => {
+            saveStatus.setText(success ? `Saved as "${trimmed}"!` : 'Save failed!')
+            saveStatus.setColor(success ? '#00ff88' : '#ff4444')
+          })
+        })
       })
-    })
+      nextY += 40
+    }
 
-    // Quit to menu
-    const quitBtn = this.add.text(width / 2, height / 2 + 100, '[ QUIT TO MENU ]', {
+    // Quit to menu / Leave game
+    const quitLabel = this.isMultiplayer ? '[ LEAVE GAME ]' : '[ QUIT TO MENU ]'
+    const quitBtn = this.add.text(width / 2, nextY, quitLabel, {
       fontSize: '18px', color: '#ff4444', fontFamily: 'monospace',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true })
 
@@ -405,8 +418,12 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private resumeGame() {
-    this.scene.resume('WorldScene')
-    this.scene.resume('UIScene')
+    if (!this.isMultiplayer) {
+      // Single-player: resume paused scenes
+      this.scene.resume('WorldScene')
+      this.scene.resume('UIScene')
+    }
+    // In multiplayer, scenes were never paused — just stop the menu overlay
     this.scene.stop('MenuScene')
   }
 }

@@ -512,7 +512,6 @@ export class UIScene extends Phaser.Scene {
   }
 
   override update() {
-    if (!this.scene?.sys?.input) return
     const worldScene = this.scene.get('WorldScene') as any
     if (!worldScene?.getPlayer) return
     const player = worldScene.getPlayer()
