@@ -2,6 +2,12 @@ import Phaser from 'phaser'
 import type { WorldData } from '../world/WorldGenerator'
 import { TileType, TILE_PROPERTIES, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 
+export interface BossMarker {
+  bossType: string
+  worldX: number // pixel coords
+  worldY: number
+}
+
 const MAP_W = 240
 const MAP_H = 64
 const CELL_W = Math.ceil(WORLD_WIDTH / MAP_W)
@@ -30,6 +36,7 @@ export class MiniMap {
   private zoomIdx = 0
   private playerMapX = 0
   private playerMapY = 0
+  private bossIcons: Map<string, Phaser.GameObjects.Image> = new Map()
   // Current view state
   private cropX = 0
   private cropY = 0
@@ -79,6 +86,7 @@ export class MiniMap {
     this.gfx.setVisible(this._visible)
     this.bgGfx.setVisible(this._visible)
     this.label.setVisible(this._visible)
+    for (const icon of this.bossIcons.values()) icon.setVisible(this._visible)
     if (this._visible) this.applyZoom()
     else this.gfx.clear(), this.bgGfx.clear()
   }
@@ -246,6 +254,77 @@ export class MiniMap {
         dotSize, dotSize,
       )
     }
+
+    // Update boss icon positions
+    this.updateBossIconPositions(displayW, displayH)
+  }
+
+  updateBossMarkers(markers: BossMarker[]) {
+    const worldPxW = WORLD_WIDTH * TILE_SIZE
+    const worldPxH = WORLD_HEIGHT * TILE_SIZE
+
+    // Remove icons for bosses no longer in the list
+    for (const [key, img] of this.bossIcons) {
+      if (!markers.some(m => m.bossType === key)) {
+        img.destroy()
+        this.bossIcons.delete(key)
+      }
+    }
+
+    // Create icons for new bosses
+    for (const marker of markers) {
+      if (this.bossIcons.has(marker.bossType)) continue
+
+      const texKey = `boss_${marker.bossType}`
+      if (!this.scene.textures.exists(texKey)) continue
+
+      const icon = this.scene.add.image(0, 0, texKey)
+        .setDepth(197)
+        .setVisible(this._visible)
+
+      // Scale icon to fit nicely on the minimap (roughly 12x12 display pixels)
+      const frame = this.scene.textures.getFrame(texKey)
+      const iconSize = 12
+      const scaleX = iconSize / frame.width
+      const scaleY = iconSize / frame.height
+      const s = Math.min(scaleX, scaleY)
+      icon.setScale(s)
+
+      this.bossIcons.set(marker.bossType, icon)
+    }
+
+    // Store marker world positions for use in updateBossIconPositions
+    this._bossMarkers = markers
+  }
+
+  private _bossMarkers: BossMarker[] = []
+
+  private updateBossIconPositions(displayW: number, displayH: number) {
+    const worldPxW = WORLD_WIDTH * TILE_SIZE
+    const worldPxH = WORLD_HEIGHT * TILE_SIZE
+
+    for (const marker of this._bossMarkers) {
+      const icon = this.bossIcons.get(marker.bossType)
+      if (!icon) continue
+
+      const mapX = (marker.worldX / worldPxW) * MAP_W
+      const mapY = (marker.worldY / worldPxH) * MAP_H
+
+      const sx = this.imgX + (mapX - this.cropX) * this.currentScale
+      const sy = this.imgY + (mapY - this.cropY) * this.currentScale
+
+      // Only show if within minimap display bounds
+      const inBounds = sx >= this.imgX && sx <= this.imgX + displayW &&
+                       sy >= this.imgY && sy <= this.imgY + displayH
+      icon.setVisible(this._visible && inBounds)
+
+      if (inBounds) {
+        // Pulse effect
+        const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.003 + marker.bossType.length)
+        icon.setPosition(Math.round(sx), Math.round(sy))
+        icon.setAlpha(pulse)
+      }
+    }
   }
 
   private drawCell(cx: number, cy: number) {
@@ -310,6 +389,8 @@ export class MiniMap {
     this.gfx.destroy()
     this.bgGfx.destroy()
     this.label.destroy()
+    for (const icon of this.bossIcons.values()) icon.destroy()
+    this.bossIcons.clear()
     if (this.scene.textures.exists('_minimap')) {
       this.scene.textures.remove('_minimap')
     }

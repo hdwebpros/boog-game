@@ -12,6 +12,7 @@ import { SKILLS, SKILL_MAP, BRANCH_INFO, BRANCH_ORDER, SUPER_TREES, SUPER_TREE_M
 import type { SkillDef } from '../data/skills'
 import type { SkillTreeManager } from '../systems/SkillTreeManager'
 import { MiniMap } from '../systems/MiniMap'
+import type { BossMarker } from '../systems/MiniMap'
 import { SurfaceBiome } from '../world/WorldGenerator'
 import type { WorldData } from '../world/WorldGenerator'
 import { SHOP_INVENTORY, SELL_PRICES } from '../data/shop'
@@ -497,6 +498,8 @@ export class UIScene extends Phaser.Scene {
     this.updateChestPanel(player, inv)
     if (this.miniMap) {
       this.miniMap.update(player.sprite.x, player.sprite.y)
+      // Pass discovered altar positions to minimap for boss icons
+      this.updateMinimapBossMarkers(worldScene)
     }
     this.updateBiomeBanner(player)
   }
@@ -934,85 +937,23 @@ export class UIScene extends Phaser.Scene {
       }
     }
 
-    // Discovered altar arrows (show when no active boss)
-    if (!boss || !boss.alive) {
-      this.drawAltarArrows(worldScene)
-    }
   }
 
-  private drawAltarArrows(worldScene: any) {
+  private updateMinimapBossMarkers(worldScene: any) {
+    if (!this.miniMap) return
     const discovered = worldScene?.getDiscoveredAltars?.() as Set<string> | undefined
-    if (!discovered || discovered.size === 0) return
+    if (!discovered || discovered.size === 0) {
+      this.miniMap.updateBossMarkers([])
+      return
+    }
 
-    const cam = worldScene.cameras?.main as Phaser.Cameras.Scene2D.Camera | undefined
-    if (!cam) return
-
-    const { width, height } = this.scale
-
+    const markers: BossMarker[] = []
     for (const bossType of discovered) {
       const pos = worldScene.getDiscoveredAltarPosition?.(bossType) as { px: number; py: number } | null
       if (!pos) continue
-
-      // Check if altar is off-screen
-      const vl = cam.worldView.x
-      const vt = cam.worldView.y
-      const vr = vl + cam.worldView.width
-      const vb = vt + cam.worldView.height
-      const margin = 32
-      const onScreen = pos.px >= vl + margin && pos.px <= vr - margin && pos.py >= vt + margin && pos.py <= vb - margin
-      if (onScreen) continue
-
-      // Calculate direction to altar
-      const cx = cam.worldView.centerX
-      const cy = cam.worldView.centerY
-      const dx = pos.px - cx
-      const dy = pos.py - cy
-      const angle = Math.atan2(dy, dx)
-
-      // Place arrow at edge of screen
-      const pad = 30
-      const hw = width / 2 - pad
-      const hh = height / 2 - pad
-
-      const absCos = Math.abs(Math.cos(angle))
-      const absSin = Math.abs(Math.sin(angle))
-      let ax: number, ay: number
-      if (absCos * hh > absSin * hw) {
-        ax = width / 2 + Math.sign(Math.cos(angle)) * hw
-        ay = height / 2 + Math.tan(angle) * Math.sign(Math.cos(angle)) * hw
-      } else {
-        ax = width / 2 + (1 / Math.tan(angle)) * Math.sign(Math.sin(angle)) * hh
-        ay = height / 2 + Math.sign(Math.sin(angle)) * hh
-      }
-      ay = Phaser.Math.Clamp(ay, pad, height - pad)
-      ax = Phaser.Math.Clamp(ax, pad, width - pad)
-
-      // Draw altar arrow (golden/yellow colored, slightly smaller than boss arrow)
-      const arrowSize = 8
-      this.statsGfx.fillStyle(0xffdd44, 0.8)
-      this.statsGfx.fillTriangle(
-        ax + Math.cos(angle) * arrowSize,
-        ay + Math.sin(angle) * arrowSize,
-        ax + Math.cos(angle + 2.4) * arrowSize,
-        ay + Math.sin(angle + 2.4) * arrowSize,
-        ax + Math.cos(angle - 2.4) * arrowSize,
-        ay + Math.sin(angle - 2.4) * arrowSize,
-      )
-      this.statsGfx.lineStyle(1, 0xffee88, 0.6)
-      this.statsGfx.strokeTriangle(
-        ax + Math.cos(angle) * arrowSize,
-        ay + Math.sin(angle) * arrowSize,
-        ax + Math.cos(angle + 2.4) * arrowSize,
-        ay + Math.sin(angle + 2.4) * arrowSize,
-        ax + Math.cos(angle - 2.4) * arrowSize,
-        ay + Math.sin(angle - 2.4) * arrowSize,
-      )
-
-      // Slow pulse behind altar arrow
-      const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.003)
-      this.statsGfx.fillStyle(0xffdd44, 0.2 * pulse)
-      this.statsGfx.fillCircle(ax, ay, arrowSize + 3)
+      markers.push({ bossType, worldX: pos.px, worldY: pos.py })
     }
+    this.miniMap.updateBossMarkers(markers)
   }
 
   // ── Day/Night indicator ────────────────────────────────
