@@ -1996,47 +1996,26 @@ export class WorldScene extends Phaser.Scene {
       this.dayNight.time = dayNightTime
     }
 
-    // Apply local player correction from host (Fix #13)
+    // Apply host-authoritative state to local player (HP, mana, death/respawn only).
+    // The client is authoritative for its own movement — position is NOT corrected
+    // from the host's RemotePlayerSim, since they run identical physics on different
+    // clocks and will always diverge slightly, causing jitter if corrected.
     const correction = this.mp.consumeLocalPlayerCorrection()
     if (correction) {
-      // Host says dead, client alive → kill client
       if (correction.dead && !this.player.dead) {
+        // Host says dead → kill client
         this.player.hp = 0
         this.player.takeDamage(0, 0, 0, this.combat)
-      }
-      // Host says alive, client dead → respawn at host position with host HP
-      else if (!correction.dead && this.player.dead) {
+      } else if (!correction.dead && this.player.dead) {
+        // Host says alive → respawn at host position
         this.player.forceRespawn(correction.x, correction.y, correction.hp, correction.mana)
-        // Flush stale combat events from before respawn to prevent ghost knockback
         this.mp.consumeCombatEvents()
-      }
-      // Normal: sync HP/mana
-      else {
+      } else {
+        // Normal: sync server-authoritative stats only
         this.player.hp = correction.hp
         this.player.maxHp = correction.maxHp
         this.player.mana = correction.mana
         this.player.maxMana = correction.maxMana
-      }
-      // Position correction: only correct large desyncs (knockback, respawn, etc.)
-      // Small desyncs are normal since client and host run physics on different clocks.
-      // Correcting small diffs causes visible jitter — trust the client's local physics.
-      if (!this.player.dead) {
-        const dx = this.player.sprite.x - correction.x
-        const dy = this.player.sprite.y - correction.y
-        const distSq = dx * dx + dy * dy
-        if (distSq > 100 * 100) {
-          // Hard snap for large desyncs (teleport/respawn)
-          this.player.sprite.x = correction.x
-          this.player.sprite.y = correction.y
-          this.player.vx = correction.vx
-          this.player.vy = correction.vy
-        } else if (distSq > 48 * 48) {
-          // Gentle blend for moderate desyncs (knockback, etc.)
-          const blend = 0.08
-          this.player.sprite.x -= dx * blend
-          this.player.sprite.y -= dy * blend
-        }
-        // Below 48px: no correction — client physics is authoritative for own movement
       }
     }
 
