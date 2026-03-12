@@ -1,5 +1,5 @@
 import { SurfaceBiome } from '../world/WorldGenerator'
-import { WORLD_HEIGHT } from '../world/TileRegistry'
+import { WORLD_HEIGHT, SURFACE_Y, UNDERGROUND_Y, DEEP_UNDERGROUND_Y, CORE_Y } from '../world/TileRegistry'
 
 export enum EnemyType {
   SPACE_SLUG = 'space_slug',
@@ -64,11 +64,10 @@ export interface EnemyDef {
   noNaturalSpawn?: boolean // only spawned by other enemies, not by EnemySpawner
 }
 
-// Layer boundaries (must match WorldGenerator)
-const SURFACE = 80
-const UNDERGROUND = 180
-const DEEP = 640
-const CORE = 1320
+const SURFACE = SURFACE_Y
+const UNDERGROUND = UNDERGROUND_Y
+const DEEP = DEEP_UNDERGROUND_Y
+const CORE = CORE_Y
 
 export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
   [EnemyType.SPACE_SLUG]: {

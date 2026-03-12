@@ -90,6 +90,21 @@ export class RoomConnector {
         const clientId = msg._fromClientId as string | undefined
         const gameMsg = msg as NetworkMessage
 
+        // Handle player disconnect from relay (relay sends clientId, not playerId)
+        if (gameMsg.type === MessageType.PLAYER_LEFT && gameMsg.data?.clientId) {
+          const playerId = this.clientIdMap.get(gameMsg.data.clientId as string)
+          if (playerId) {
+            this.clientIdMap.delete(gameMsg.data.clientId as string)
+            this.playerIdToClientId.delete(playerId)
+            this.onGameMessage?.({
+              type: MessageType.PLAYER_LEFT,
+              senderId: 0,
+              data: { playerId },
+            })
+          }
+          return
+        }
+
         if (gameMsg.type === MessageType.JOIN_REQUEST && clientId) {
           // New player joining
           const sendFn = (response: string) => {

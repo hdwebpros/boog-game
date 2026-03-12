@@ -394,6 +394,46 @@ export class MenuScene extends Phaser.Scene {
       this.scene.start('MenuScene', { pause: false })
     })
 
+    // Controls guide — two side-by-side columns
+    const controlsY = nextY + 30
+    this.add.text(width / 2, controlsY, '--- CONTROLS ---', {
+      fontSize: '11px', color: '#00cccc', fontFamily: 'monospace',
+    }).setOrigin(0.5)
+
+    const leftCol = [
+      ['WASD/Arrows', 'Move'],
+      ['Space/W', 'Jump'],
+      ['LMB', 'Mine/Attack'],
+      ['RMB', 'Place Block'],
+      ['1-9', 'Hotbar Slot'],
+      ['C', 'Crafting'],
+      ['Tab', 'Inventory'],
+    ]
+    const rightCol = [
+      ['Q', 'Use Item'],
+      ['F', 'Boss/NPC'],
+      ['N', 'Minimap'],
+      ['[ / ]', 'Map Zoom'],
+      ['M', 'Music'],
+      ['ESC', 'Pause/Close'],
+    ]
+
+    const rowH = 13
+    const lx = 30
+    const rx = width / 2 + 20
+    const startY = controlsY + 16
+    for (const [col, ox] of [[leftCol, lx], [rightCol, rx]] as const) {
+      col.forEach(([key, action], i) => {
+        const y = startY + i * rowH
+        this.add.text(ox, y, key, {
+          fontSize: '10px', color: '#aaaaaa', fontFamily: 'monospace',
+        })
+        this.add.text(ox + 95, y, action, {
+          fontSize: '10px', color: '#666666', fontFamily: 'monospace',
+        })
+      })
+    }
+
     // M to mute in pause menu
     this.addMuteToggle(width)
 

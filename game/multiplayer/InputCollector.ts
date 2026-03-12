@@ -49,6 +49,7 @@ export class InputCollector {
       cursorY: wp.y,
       lmb: pointer.leftButtonDown(),
       rmb: pointer.rightButtonDown(),
+      actionAnim: '',
       seq: this.seq,
       dt,
     }
@@ -66,6 +67,7 @@ export class InputCollector {
       cursorY: 0,
       lmb: false,
       rmb: false,
+      actionAnim: '',
       seq,
       dt,
     }

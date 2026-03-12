@@ -9,6 +9,7 @@ import type { EnchantmentType } from '../data/items'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 import { SkillTreeManager } from '../systems/SkillTreeManager'
+import { resolveX, resolveY } from '../systems/PhysicsResolver'
 import { ACCESSORY_EFFECTS } from '../data/accessories'
 import type { AccessoryEffect } from '../data/accessories'
 
@@ -133,7 +134,7 @@ export class Player {
   private animFrame = 'player_idle1'
   private walkTimer = 0
   private walkFrameIndex = 0
-  private actionAnim = '' // 'mining' | 'attacking' | ''
+  actionAnim = '' // 'mining' | 'attacking' | ''
   private actionAnimTimer = 0
 
   // Equipment overlay visuals
@@ -924,11 +925,26 @@ export class Player {
       if (this.vy > this.maxFallVy) this.maxFallVy = this.vy
     }
 
-    this.resolveX(this.vx * dt, chunks)
-    this.resolveY(this.vy * dt, chunks)
-
     const hw = COL_W / 2
     const hh = COL_H / 2
+    const rx = resolveX(this.sprite.x, this.sprite.y, this.vx * dt, hw, hh, chunks)
+    this.sprite.x = rx.pos
+    if (rx.blocked) this.vx = 0
+
+    const ry = resolveY(this.sprite.x, this.sprite.y, this.vy * dt, hw, hh, chunks)
+    this.sprite.y = ry.pos
+    if (ry.blocked) {
+      if (ry.grounded) {
+        if (!this.isGrounded) AudioManager.get()?.play(SoundId.LAND)
+        this.isGrounded = true
+        if (this.maxFallVy > FALL_DMG_THRESHOLD) this.applyFallDamage()
+        this.maxFallVy = 0
+      }
+      this.vy = 0
+    } else if (this.vy * dt > 0) {
+      this.isGrounded = false
+    }
+
     this.sprite.x = Phaser.Math.Clamp(this.sprite.x, hw, WORLD_WIDTH * TILE_SIZE - hw)
     this.sprite.y = Phaser.Math.Clamp(this.sprite.y, hh, WORLD_HEIGHT * TILE_SIZE - hh)
 
@@ -1129,62 +1145,6 @@ export class Player {
     this.actionAnimTimer = 300
   }
 
-  private resolveX(dx: number, chunks: ChunkManager) {
-    if (dx === 0) return
-    const hw = COL_W / 2
-    const hh = COL_H / 2
-    const newX = this.sprite.x + dx
-    const y = this.sprite.y
-
-    const tl = Math.floor((newX - hw) / TILE_SIZE)
-    const tr = Math.floor((newX + hw - 0.001) / TILE_SIZE)
-    const tt = Math.floor((y - hh) / TILE_SIZE)
-    const tb = Math.floor((y + hh - 0.001) / TILE_SIZE)
-
-    for (let ty = tt; ty <= tb; ty++) {
-      for (let tx = tl; tx <= tr; tx++) {
-        if (chunks.isSolid(tx, ty)) {
-          this.sprite.x = dx > 0 ? tx * TILE_SIZE - hw : (tx + 1) * TILE_SIZE + hw
-          this.vx = 0
-          return
-        }
-      }
-    }
-    this.sprite.x = newX
-  }
-
-  private resolveY(dy: number, chunks: ChunkManager) {
-    if (dy === 0) return
-    const hw = COL_W / 2
-    const hh = COL_H / 2
-    const x = this.sprite.x
-    const newY = this.sprite.y + dy
-
-    const tl = Math.floor((x - hw) / TILE_SIZE)
-    const tr = Math.floor((x + hw - 0.001) / TILE_SIZE)
-    const tt = Math.floor((newY - hh) / TILE_SIZE)
-    const tb = Math.floor((newY + hh - 0.001) / TILE_SIZE)
-
-    for (let ty = tt; ty <= tb; ty++) {
-      for (let tx = tl; tx <= tr; tx++) {
-        if (chunks.isSolid(tx, ty)) {
-          if (dy > 0) {
-            this.sprite.y = ty * TILE_SIZE - hh
-            if (!this.isGrounded) AudioManager.get()?.play(SoundId.LAND)
-            this.isGrounded = true
-            if (this.maxFallVy > FALL_DMG_THRESHOLD) this.applyFallDamage()
-            this.maxFallVy = 0
-          } else {
-            this.sprite.y = (ty + 1) * TILE_SIZE + hh
-          }
-          this.vy = 0
-          return
-        }
-      }
-    }
-    this.sprite.y = newY
-    if (dy > 0) this.isGrounded = false
-  }
 
   private applyFallDamage() {
     if (this.hasAccessoryEffect('noFallDamage')) return

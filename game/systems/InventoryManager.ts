@@ -32,9 +32,12 @@ export class InventoryManager {
   accessorySlots: (ItemStack | null)[] = [null, null, null]
   selectedSlot = 0
   heldItem: ItemStack | null = null
+  discoveredItems: Set<number> = new Set()
+  onNewItemDiscovered: ((id: number) => void) | null = null
 
   /** Add item — tries hotbar first, then main inventory. Returns true if added. */
   addItem(id: number, count = 1): boolean {
+    const isNew = !this.discoveredItems.has(id)
     const cap = maxStackFor(id)
     // Try stacking with existing matching slots in hotbar
     for (let i = 0; i < HOTBAR_SIZE; i++) {
@@ -43,7 +46,7 @@ export class InventoryManager {
         const canAdd = Math.min(count, cap - slot.count)
         slot.count += canAdd
         count -= canAdd
-        if (count === 0) return true
+        if (count === 0) { this._notifyDiscovery(isNew, id); return true }
       }
     }
 
@@ -54,7 +57,7 @@ export class InventoryManager {
         const canAdd = Math.min(count, cap - slot.count)
         slot.count += canAdd
         count -= canAdd
-        if (count === 0) return true
+        if (count === 0) { this._notifyDiscovery(isNew, id); return true }
       }
     }
 
@@ -77,7 +80,15 @@ export class InventoryManager {
       return false // completely full
     }
 
+    this._notifyDiscovery(isNew, id)
     return true
+  }
+
+  private _notifyDiscovery(isNew: boolean, id: number): void {
+    if (isNew) {
+      this.discoveredItems.add(id)
+      if (this.onNewItemDiscovered) this.onNewItemDiscovered(id)
+    }
   }
 
   getSelectedItem(): ItemStack | null {

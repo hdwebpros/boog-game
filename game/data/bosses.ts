@@ -169,13 +169,12 @@ export const BOSS_DEFS: Record<BossType, BossDef> = {
   },
 }
 
-import { TileType, WORLD_HEIGHT } from '../world/TileRegistry'
+import { TileType, WORLD_HEIGHT, SURFACE_Y, UNDERGROUND_Y, DEEP_UNDERGROUND_Y, CORE_Y } from '../world/TileRegistry'
 
-// Layer boundaries (must match WorldGenerator)
-const SURFACE = 100
-const UNDERGROUND = 180
-const DEEP = 640
-const CORE = 1320
+const SURFACE = SURFACE_Y
+const UNDERGROUND = UNDERGROUND_Y
+const DEEP = DEEP_UNDERGROUND_Y
+const CORE = CORE_Y
 
 // Altar definitions — one altar per boss, placed during world gen
 export const ALTAR_DEFS: Record<BossType, AltarDef> = {

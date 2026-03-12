@@ -3,6 +3,7 @@ import type { EnemyDef } from '../data/enemies'
 import { EnemyAI } from '../data/enemies'
 import { ChunkManager } from '../world/ChunkManager'
 import { TILE_SIZE, TileType } from '../world/TileRegistry'
+import { resolveX, resolveY, unstick } from '../systems/PhysicsResolver'
 
 const GRAVITY = 600
 const DESPAWN_DIST = 800 // pixels from camera edge
@@ -619,68 +620,22 @@ export class Enemy {
     const hh = this.def.height / 2
 
     // Safety: if already stuck inside a solid tile, push out
-    const cx = Math.floor(this.sprite.x / TILE_SIZE)
-    const cy = Math.floor(this.sprite.y / TILE_SIZE)
-    if (chunks.isSolid(cx, cy)) {
-      // Push up to nearest open tile
-      for (let tryY = cy - 1; tryY >= cy - 5; tryY--) {
-        if (!chunks.isSolid(cx, tryY)) {
-          this.sprite.y = tryY * TILE_SIZE + TILE_SIZE - hh
-          this.vy = 0
-          break
-        }
-      }
-    }
+    const us = unstick(this.sprite.x, this.sprite.y, hh, chunks)
+    if (us.unstuck) { this.sprite.y = us.y; this.vy = 0 }
 
     // X
-    const newX = this.sprite.x + this.vx * dt
-    const tl = Math.floor((newX - hw) / TILE_SIZE)
-    const tr = Math.floor((newX + hw - 0.001) / TILE_SIZE)
-    const tt = Math.floor((this.sprite.y - hh) / TILE_SIZE)
-    const tb = Math.floor((this.sprite.y + hh - 0.001) / TILE_SIZE)
-
-    let blockedX = false
-    for (let ty = tt; ty <= tb && !blockedX; ty++) {
-      for (let tx = tl; tx <= tr; tx++) {
-        if (chunks.isSolid(tx, ty)) {
-          blockedX = true
-          if (this.vx > 0) this.sprite.x = tx * TILE_SIZE - hw
-          else this.sprite.x = (tx + 1) * TILE_SIZE + hw
-          this.vx = 0
-          break
-        }
-      }
-    }
-    if (!blockedX) this.sprite.x = newX
+    const rx = resolveX(this.sprite.x, this.sprite.y, this.vx * dt, hw, hh, chunks)
+    this.sprite.x = rx.pos
+    if (rx.blocked) this.vx = 0
 
     // Y
-    const newY = this.sprite.y + this.vy * dt
-    const tl2 = Math.floor((this.sprite.x - hw) / TILE_SIZE)
-    const tr2 = Math.floor((this.sprite.x + hw - 0.001) / TILE_SIZE)
-    const tt2 = Math.floor((newY - hh) / TILE_SIZE)
-    const tb2 = Math.floor((newY + hh - 0.001) / TILE_SIZE)
-
-    let blockedY = false
-    this.isGrounded = false
-    for (let ty = tt2; ty <= tb2 && !blockedY; ty++) {
-      for (let tx = tl2; tx <= tr2; tx++) {
-        if (chunks.isSolid(tx, ty)) {
-          blockedY = true
-          if (this.vy > 0) {
-            this.sprite.y = ty * TILE_SIZE - hh
-            this.isGrounded = true
-          } else {
-            this.sprite.y = (ty + 1) * TILE_SIZE + hh
-          }
-          this.vy = 0
-          break
-        }
-      }
-    }
-    if (!blockedY) this.sprite.y = newY
+    const ry = resolveY(this.sprite.x, this.sprite.y, this.vy * dt, hw, hh, chunks)
+    this.sprite.y = ry.pos
+    this.isGrounded = ry.grounded
+    if (ry.blocked) this.vy = 0
 
     // Wall bounce for patrol types
-    if (blockedX && (this.def.ai === EnemyAI.PATROL || this.def.ai === EnemyAI.CHARGE)) {
+    if (rx.blocked && (this.def.ai === EnemyAI.PATROL || this.def.ai === EnemyAI.CHARGE)) {
       this.patrolDir *= -1
     }
   }

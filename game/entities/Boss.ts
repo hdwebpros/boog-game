@@ -3,6 +3,7 @@ import type { BossDef, BossPhase } from '../data/bosses'
 import { BossAI } from '../data/bosses'
 import { ChunkManager } from '../world/ChunkManager'
 import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
+import { resolveX, resolveY } from '../systems/PhysicsResolver'
 
 const MAX_BOSS_SPEED = 400
 
@@ -121,6 +122,9 @@ export class Boss {
     if (this.sprite.active) this.sprite.destroy()
     if (this.hpBarGfx.active) this.hpBarGfx.destroy()
   }
+
+  getPhaseIndex(): number { return this.phaseIndex }
+  getShieldActive(): boolean { return this.shieldActive }
 
   getBounds() {
     return {
@@ -468,51 +472,13 @@ export class Boss {
     const hw = this.def.width / 2
     const hh = this.def.height / 2
 
-    // X
-    const newX = this.sprite.x + this.vx * dt
-    const tl = Math.floor((newX - hw) / TILE_SIZE)
-    const tr = Math.floor((newX + hw - 0.001) / TILE_SIZE)
-    const tt = Math.floor((this.sprite.y - hh) / TILE_SIZE)
-    const tb = Math.floor((this.sprite.y + hh - 0.001) / TILE_SIZE)
+    const rx = resolveX(this.sprite.x, this.sprite.y, this.vx * dt, hw, hh, chunks)
+    this.sprite.x = rx.pos
+    if (rx.blocked) this.vx = 0
 
-    let blockedX = false
-    for (let ty = tt; ty <= tb; ty++) {
-      for (let tx = tl; tx <= tr; tx++) {
-        if (chunks.isSolid(tx, ty)) {
-          blockedX = true
-          if (this.vx > 0) this.sprite.x = tx * TILE_SIZE - hw
-          else this.sprite.x = (tx + 1) * TILE_SIZE + hw
-          this.vx = 0
-        }
-      }
-      if (blockedX) break
-    }
-    if (!blockedX) this.sprite.x = newX
-
-    // Y
-    const newY = this.sprite.y + this.vy * dt
-    const tl2 = Math.floor((this.sprite.x - hw) / TILE_SIZE)
-    const tr2 = Math.floor((this.sprite.x + hw - 0.001) / TILE_SIZE)
-    const tt2 = Math.floor((newY - hh) / TILE_SIZE)
-    const tb2 = Math.floor((newY + hh - 0.001) / TILE_SIZE)
-
-    this.isGrounded = false
-    let blockedY = false
-    for (let ty = tt2; ty <= tb2; ty++) {
-      for (let tx = tl2; tx <= tr2; tx++) {
-        if (chunks.isSolid(tx, ty)) {
-          blockedY = true
-          if (this.vy > 0) {
-            this.sprite.y = ty * TILE_SIZE - hh
-            this.isGrounded = true
-          } else {
-            this.sprite.y = (ty + 1) * TILE_SIZE + hh
-          }
-          this.vy = 0
-        }
-      }
-      if (blockedY) break
-    }
-    if (!blockedY) this.sprite.y = newY
+    const ry = resolveY(this.sprite.x, this.sprite.y, this.vy * dt, hw, hh, chunks)
+    this.sprite.y = ry.pos
+    this.isGrounded = ry.grounded
+    if (ry.blocked) this.vy = 0
   }
 }

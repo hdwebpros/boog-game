@@ -19,6 +19,7 @@ import {
   type EnemySnapshot,
   type BossSnapshot,
   type DroppedItemSnapshot,
+  type ProjectileSnapshot,
   type TileChangeRequest,
   type JoinAccepted,
   type CombatEvent,
@@ -46,6 +47,7 @@ export interface RemotePlayerState {
   maxHp: number
   facingRight: boolean
   dead: boolean
+  actionAnim: string
   interpT: number
   sprite: Phaser.GameObjects.Image | null
   nameText: Phaser.GameObjects.Text | null
@@ -84,6 +86,18 @@ export class MultiplayerManager {
 
   /** Pending combat events from host (for client mode) */
   private pendingCombatEvents: CombatEvent[] = []
+
+  /** Pending dropped item snapshots from host (for client mode) */
+  private pendingDroppedItemSync: DroppedItemSnapshot[] | null = null
+
+  /** Pending projectile snapshots from host (for client mode) */
+  private pendingProjectileSync: ProjectileSnapshot[] | null = null
+
+  /** Pending day/night time from host (for client mode) */
+  private pendingDayNightTime: number | null = null
+
+  /** Pending local player correction from host (for client mode) */
+  private pendingLocalPlayerCorrection: PlayerSnapshot | null = null
 
   /** Chat messages (ring buffer, last 50) */
   private chatMessages: { senderId: number; name: string; text: string; time: number }[] = []
@@ -216,6 +230,13 @@ export class MultiplayerManager {
     }
   }
 
+  /** Send boss summon request to host (client mode only) */
+  sendBossSummon(bossType: string, altarTx: number, altarTy: number) {
+    if (this._mode === 'client' && this.network) {
+      this.network.sendBossSummon(bossType, altarTx, altarTy)
+    }
+  }
+
   /** Broadcast state to clients (host mode only) */
   broadcastState(
     dt: number,
@@ -223,10 +244,11 @@ export class MultiplayerManager {
     enemySnapshots: EnemySnapshot[],
     bossSnapshot: BossSnapshot | null,
     droppedItems: DroppedItemSnapshot[],
+    projectiles: ProjectileSnapshot[],
     dayNightTime: number,
   ) {
     if (this._mode !== 'host' || !this.host) return
-    this.host.syncTick(dt, playerSnapshots, enemySnapshots, bossSnapshot, droppedItems, dayNightTime)
+    this.host.syncTick(dt, playerSnapshots, enemySnapshots, bossSnapshot, droppedItems, projectiles, dayNightTime)
   }
 
   /** Broadcast a combat event (host → clients) */
@@ -267,6 +289,34 @@ export class MultiplayerManager {
     return events
   }
 
+  /** Consume pending dropped item sync data (client mode) */
+  consumeDroppedItemSync(): DroppedItemSnapshot[] | null {
+    const data = this.pendingDroppedItemSync
+    this.pendingDroppedItemSync = null
+    return data
+  }
+
+  /** Consume pending projectile sync data (client mode) */
+  consumeProjectileSync(): ProjectileSnapshot[] | null {
+    const data = this.pendingProjectileSync
+    this.pendingProjectileSync = null
+    return data
+  }
+
+  /** Consume pending day/night time (client mode) */
+  consumeDayNightTime(): number | null {
+    const data = this.pendingDayNightTime
+    this.pendingDayNightTime = null
+    return data
+  }
+
+  /** Consume pending local player correction (client mode) */
+  consumeLocalPlayerCorrection(): PlayerSnapshot | null {
+    const data = this.pendingLocalPlayerCorrection
+    this.pendingLocalPlayerCorrection = null
+    return data
+  }
+
   /** Update remote player interpolation (call each frame) */
   updateRemotePlayers(dt: number) {
     for (const [, rp] of this._remotePlayers) {
@@ -276,12 +326,32 @@ export class MultiplayerManager {
       rp.x = rp.prevX + (rp.targetX - rp.prevX) * t
       rp.y = rp.prevY + (rp.targetY - rp.prevY) * t
 
-      // Update sprite position
+      // Update sprite position and action animation texture
       if (rp.sprite) {
         rp.sprite.x = rp.x
         rp.sprite.y = rp.y
         rp.sprite.setFlipX(!rp.facingRight)
         rp.sprite.setAlpha(rp.dead ? 0.3 : 1)
+
+        // Swap texture for action animations
+        let desiredTex = ''
+        if (rp.actionAnim === 'mining') {
+          desiredTex = 'player_mine1'
+        } else if (rp.actionAnim === 'attacking') {
+          desiredTex = 'player_attack1'
+        } else if (Math.abs(rp.vx) > 1) {
+          desiredTex = 'player_idle1' // walk uses same base
+        } else {
+          desiredTex = 'player_idle1'
+        }
+        if (desiredTex && rp.sprite.texture.key !== desiredTex && rp.sprite.scene.textures.exists(desiredTex)) {
+          rp.sprite.setTexture(desiredTex)
+          // Action sprites are 48x64, idle is 32x64 — rescale
+          const frame = rp.sprite.scene.textures.getFrame(desiredTex)
+          if (frame) {
+            rp.sprite.setScale(16 / frame.width, 32 / frame.height)
+          }
+        }
       }
       if (rp.nameText) {
         rp.nameText.setPosition(rp.x, rp.y - 24)
@@ -343,11 +413,15 @@ export class MultiplayerManager {
   private setupClientHandlers() {
     if (!this.network) return
 
-    // Player state updates
+    // Player state updates (includes local player correction)
     this.network.on(MessageType.PLAYER_STATE, (msg) => {
       const snapshots = msg.data as PlayerSnapshot[]
       for (const snap of snapshots) {
-        if (snap.id === this._localPlayerId) continue // skip local player
+        if (snap.id === this._localPlayerId) {
+          // Store for position/HP correction (Fix #13)
+          this.pendingLocalPlayerCorrection = snap
+          continue
+        }
 
         let rp = this._remotePlayers.get(snap.id)
         if (!rp) {
@@ -361,6 +435,7 @@ export class MultiplayerManager {
             hp: snap.hp, maxHp: snap.maxHp,
             facingRight: snap.facingRight,
             dead: snap.dead,
+            actionAnim: snap.actionAnim ?? '',
             interpT: 0,
             sprite: null,
             nameText: null,
@@ -380,6 +455,7 @@ export class MultiplayerManager {
           rp.maxHp = snap.maxHp
           rp.facingRight = snap.facingRight
           rp.dead = snap.dead
+          rp.actionAnim = snap.actionAnim ?? ''
           rp.interpT = 0
         }
       }
@@ -405,10 +481,19 @@ export class MultiplayerManager {
       this.pendingCombatEvents.push(msg.data as CombatEvent)
     })
 
-    // Day/night sync
+    // Dropped item sync (Fix #1)
+    this.network.on(MessageType.DROPPED_ITEM_SYNC, (msg) => {
+      this.pendingDroppedItemSync = msg.data as DroppedItemSnapshot[]
+    })
+
+    // Projectile sync (Fix #2)
+    this.network.on(MessageType.PROJECTILE_SYNC, (msg) => {
+      this.pendingProjectileSync = msg.data as ProjectileSnapshot[]
+    })
+
+    // Day/night sync (Fix #6)
     this.network.on(MessageType.DAY_NIGHT_SYNC, (msg) => {
-      // Forward to WorldScene callback
-      this.onHostMessage?.(msg)
+      this.pendingDayNightTime = (msg.data as { time: number }).time
     })
 
     // Player join notification
@@ -469,6 +554,10 @@ export class MultiplayerManager {
     this.pendingEnemySync = null
     this.pendingBossSync = null
     this.pendingCombatEvents = []
+    this.pendingDroppedItemSync = null
+    this.pendingProjectileSync = null
+    this.pendingDayNightTime = null
+    this.pendingLocalPlayerCorrection = null
     this.chatMessages = []
     this._mode = 'offline'
   }

@@ -14,6 +14,7 @@ import {
   type EnemySnapshot,
   type BossSnapshot,
   type DroppedItemSnapshot,
+  type ProjectileSnapshot,
   type CombatEvent,
   type JoinAccepted,
   type JoinRejected,
@@ -27,6 +28,13 @@ import {
   decodeMessage,
 } from './protocol'
 import type { EntityRegistry } from './EntityRegistry'
+
+/** Day/night sync interval (5 seconds — changes slowly) */
+const DAY_NIGHT_SYNC_INTERVAL = 5000
+/** Dropped item sync interval (same as enemy) */
+const DROPPED_ITEM_SYNC_INTERVAL = ENEMY_SYNC_INTERVAL
+/** Projectile sync interval (high frequency — fast moving) */
+const PROJECTILE_SYNC_INTERVAL = PLAYER_SYNC_INTERVAL
 
 export interface RemotePlayer {
   id: number
@@ -49,6 +57,9 @@ export class HostSession {
     player: 0,
     enemy: 0,
     boss: 0,
+    droppedItem: 0,
+    projectile: 0,
+    dayNight: 0,
   }
 
   // World state references (set by WorldScene)
@@ -112,6 +123,14 @@ export class HostSession {
         // Forward to WorldScene for combat processing
         return msg
 
+      case MessageType.CRAFT_REQUEST:
+        // Forward to WorldScene (client-trusted for now)
+        return msg
+
+      case MessageType.ITEM_DROP:
+        // Forward to WorldScene to spawn dropped item
+        return msg
+
       default:
         return null
     }
@@ -162,6 +181,7 @@ export class HostSession {
         dead: false,
         isInWater: false,
         hasJetpack: false,
+        actionAnim: '',
         lastInputSeq: 0,
       },
       joinedAt: Date.now(),
@@ -258,6 +278,7 @@ export class HostSession {
     enemySnapshots: EnemySnapshot[],
     bossSnapshot: BossSnapshot | null,
     droppedItems: DroppedItemSnapshot[],
+    projectiles: ProjectileSnapshot[],
     dayNightTime: number,
   ) {
     // Player positions (high frequency)
@@ -282,12 +303,53 @@ export class HostSession {
       })
     }
 
-    // Boss state (same as enemies)
+    // Boss state (every enemy tick, only if boss exists)
     if (bossSnapshot) {
+      this.syncTimers.boss += dt * 1000
+      if (this.syncTimers.boss >= ENEMY_SYNC_INTERVAL) {
+        this.syncTimers.boss = 0
+        this.broadcast({
+          type: MessageType.BOSS_SYNC,
+          senderId: 0,
+          data: bossSnapshot,
+        })
+      }
+    } else {
+      this.syncTimers.boss = 0
+    }
+
+    // Dropped items (medium frequency)
+    this.syncTimers.droppedItem += dt * 1000
+    if (this.syncTimers.droppedItem >= DROPPED_ITEM_SYNC_INTERVAL) {
+      this.syncTimers.droppedItem = 0
       this.broadcast({
-        type: MessageType.BOSS_SYNC,
+        type: MessageType.DROPPED_ITEM_SYNC,
         senderId: 0,
-        data: bossSnapshot,
+        data: droppedItems,
+      })
+    }
+
+    // Projectiles (high frequency)
+    this.syncTimers.projectile += dt * 1000
+    if (this.syncTimers.projectile >= PROJECTILE_SYNC_INTERVAL) {
+      this.syncTimers.projectile = 0
+      if (projectiles.length > 0) {
+        this.broadcast({
+          type: MessageType.PROJECTILE_SYNC,
+          senderId: 0,
+          data: projectiles,
+        })
+      }
+    }
+
+    // Day/night time (low frequency)
+    this.syncTimers.dayNight += dt * 1000
+    if (this.syncTimers.dayNight >= DAY_NIGHT_SYNC_INTERVAL) {
+      this.syncTimers.dayNight = 0
+      this.broadcast({
+        type: MessageType.DAY_NIGHT_SYNC,
+        senderId: 0,
+        data: { time: dayNightTime },
       })
     }
   }

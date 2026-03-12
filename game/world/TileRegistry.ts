@@ -118,3 +118,9 @@ export const STATION_TILE_TYPE: Record<number, TileType> = {
 export const TILE_SIZE = 16
 export const WORLD_WIDTH = 6000
 export const WORLD_HEIGHT = 1600
+
+/** Canonical layer boundaries (tile Y coordinates) */
+export const SURFACE_Y = 100
+export const UNDERGROUND_Y = 180
+export const DEEP_UNDERGROUND_Y = 640
+export const CORE_Y = 1320

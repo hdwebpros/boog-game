@@ -4,7 +4,7 @@ import { SaveManager, parseSaveTiles } from '../systems/SaveManager'
 import { generateAllSprites } from '../assets/SpriteGenerator'
 import { AudioManager } from '../systems/AudioManager'
 import { WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
-import { NetworkManager } from '../multiplayer'
+import { NetworkManager, type JoinAccepted } from '../multiplayer'
 
 export class BootScene extends Phaser.Scene {
   private barFill!: Phaser.GameObjects.Rectangle
@@ -156,7 +156,21 @@ export class BootScene extends Phaser.Scene {
           const url = `${protocol}//${window.location.host}/_ws`
 
           const network = new NetworkManager()
-          const joinData = await network.connect(url, playerName, roomCode)
+          let joinData: JoinAccepted
+          try {
+            joinData = await network.connect(url, playerName, roomCode)
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Connection failed'
+            this.statusText.setText(`Error: ${msg}`)
+            this.statusText.setColor('#ff4444')
+            // Wait a moment so the user can read the error, then return to menu
+            await new Promise<void>(resolve => this.time.delayedCall(2500, resolve))
+            this.registry.remove('mpMode')
+            this.registry.remove('mpRoomCode')
+            this.registry.remove('mpPlayerName')
+            this.scene.start('MenuScene', { pause: false })
+            return
+          }
 
           // Generate world from the host's seed
           const generator = new WorldGenerator(joinData.seed)
@@ -213,16 +227,21 @@ export class BootScene extends Phaser.Scene {
     // Execute steps with yields between each
     const totalWeight = steps.reduce((s, st) => s + st.weight, 0)
     let completedWeight = 0
+    let aborted = false
 
     for (const step of steps) {
       this.statusText.setText(step.label)
       // Let the UI repaint before doing work
       await this.yieldFrame()
       await step.fn()
+      // If the step navigated away (e.g. connection error), stop processing
+      if (!this.scene.isActive()) { aborted = true; break }
       completedWeight += step.weight
       this.setProgress(completedWeight / totalWeight)
       await this.yieldFrame()
     }
+
+    if (aborted) return
 
     // Transition immediately — WorldScene chunks load progressively
     this.statusText.setText('Ready!')

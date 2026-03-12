@@ -139,6 +139,7 @@ export interface SaveData {
   accessorySlots?: (ItemStack | null)[]
   npcShopPosition?: NpcPosition
   chestInventories?: ChestData[]
+  discoveredItems?: number[]
   timestamp: number
 }
 
@@ -163,7 +164,8 @@ export class SaveManager {
     usedRunestones?: string[],
     accessorySlots?: (ItemStack | null)[],
     npcShopPosition?: NpcPosition,
-    chestInventories?: ChestData[]
+    chestInventories?: ChestData[],
+    discoveredItems?: number[]
   ): Promise<boolean> {
     try {
       const timestamp = Date.now()
@@ -191,6 +193,7 @@ export class SaveManager {
         accessorySlots,
         npcShopPosition,
         chestInventories,
+        discoveredItems,
         timestamp,
       }
       await idbPut(slotId, data)

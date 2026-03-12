@@ -1,5 +1,5 @@
 import { createSeededNoise, hashSeed } from '../utils/noise'
-import { TileType, WORLD_WIDTH, WORLD_HEIGHT } from './TileRegistry'
+import { TileType, WORLD_WIDTH, WORLD_HEIGHT, SURFACE_Y, UNDERGROUND_Y, DEEP_UNDERGROUND_Y, CORE_Y } from './TileRegistry'
 import { ALTAR_DEFS, BossType } from '../data/bosses'
 import type { AltarDef } from '../data/bosses'
 
@@ -28,13 +28,12 @@ export interface WorldData {
   npcShopPosition?: { tx: number; ty: number }
 }
 
-// Layer boundaries (absolute y coordinates) — scaled for 1600-tall world
-const SURFACE_BASE = 100
+const SURFACE_BASE = SURFACE_Y
 const OCEAN_WIDTH = 500
 const OCEAN_FLOOR_DEPTH = 80
-const UNDERGROUND_START = 180
-const DEEP_UNDERGROUND_START = 640
-const CORE_START = 1320
+const UNDERGROUND_START = UNDERGROUND_Y
+const DEEP_UNDERGROUND_START = DEEP_UNDERGROUND_Y
+const CORE_START = CORE_Y
 
 // Surface biome types
 export enum SurfaceBiome {

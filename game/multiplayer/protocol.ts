@@ -73,6 +73,8 @@ export interface InputState {
   /** Mouse buttons */
   lmb: boolean
   rmb: boolean
+  /** Current action animation playing on the sender */
+  actionAnim: string
   /** Sequence number for reconciliation */
   seq: number
   /** Delta time this input applies to */
@@ -140,6 +142,8 @@ export interface PlayerSnapshot {
   dead: boolean
   isInWater: boolean
   hasJetpack: boolean
+  /** Current action animation: 'mining' | 'attacking' | '' */
+  actionAnim: string
   /** Input sequence last processed (for client reconciliation) */
   lastInputSeq: number
 }
@@ -192,7 +196,7 @@ export interface DroppedItemSnapshot {
 }
 
 export interface CombatEvent {
-  type: 'damage' | 'heal' | 'death' | 'knockback'
+  type: 'damage' | 'heal' | 'death' | 'knockback' | 'xp'
   targetType?: 'player' | 'enemy'
   targetId: number
   sourceId: number

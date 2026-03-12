@@ -4,7 +4,7 @@ import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
 import { Boss } from '../entities/Boss'
 import type { WorldData, AltarPlacement, RunestonePlacement } from '../world/WorldGenerator'
-import { TileType, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
+import { TileType, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT, UNDERGROUND_Y as UNDERGROUND_TILE_Y, DEEP_UNDERGROUND_Y } from '../world/TileRegistry'
 import { CombatSystem } from '../systems/CombatSystem'
 import { EnemySpawner } from '../systems/EnemySpawner'
 import { BOSS_DEFS, ALTAR_DEFS, BossType } from '../data/bosses'
@@ -18,15 +18,15 @@ import { SoundId } from '../data/sounds'
 import { SurfaceBiome } from '../world/WorldGenerator'
 import { DayNightCycle } from '../systems/DayNightCycle'
 import { NPC } from '../entities/NPC'
-import { MultiplayerManager, RoomConnector, RemotePlayerSim, REMOTE_COL_W, REMOTE_COL_H, generateEntityId, encodeMessage, MessageType } from '../multiplayer'
+import { MultiplayerManager, RoomConnector, RemotePlayerSim, REMOTE_COL_W, REMOTE_COL_H, encodeMessage, MessageType } from '../multiplayer'
 import type { NetworkManager } from '../multiplayer'
-import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage, AttackRequest, CombatEvent } from '../multiplayer'
+import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, ProjectileSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage, AttackRequest, CombatEvent, BossSummonRequest } from '../multiplayer'
 
-// Y pixel thresholds for music zones
-const SKY_Y        = 80  * 16  // above Cloud City
-const UNDERGROUND_Y = 130 * 16  // underground layer start
-const DEEP_Y        = 640 * 16  // deep underground / core
-const OCEAN_EDGE_TILES = 80     // tile columns at each world edge treated as ocean
+// Y pixel thresholds for music zones (start music slightly before layer boundary)
+const SKY_Y         = 80 * TILE_SIZE                       // above Cloud City
+const UNDERGROUND_Y = (UNDERGROUND_TILE_Y - 50) * TILE_SIZE // music starts 50 tiles above underground
+const DEEP_Y        = DEEP_UNDERGROUND_Y * TILE_SIZE        // deep underground / core
+const OCEAN_EDGE_TILES = 80                                 // tile columns at each world edge treated as ocean
 
 // Altar interaction range (in tiles)
 const ALTAR_INTERACT_RANGE = 3
@@ -73,6 +73,10 @@ export class WorldScene extends Phaser.Scene {
   private clientBossSprite: Phaser.GameObjects.Image | null = null
   private clientBossId = 0
   private clientAttackCooldown = 0
+  /** Client-side dropped item sprites (rendered from host sync data) */
+  private clientDroppedItemSprites = new Map<number, Phaser.GameObjects.Graphics>()
+  /** Client-side projectile sprites (rendered from host sync data) */
+  private clientProjectileSprites = new Map<number, Phaser.GameObjects.Rectangle>()
 
   constructor() {
     super({ key: 'WorldScene' })
@@ -173,7 +177,18 @@ export class WorldScene extends Phaser.Scene {
           this.chunkManager.setChestInventory(chest.tx, chest.ty, chest.items)
         }
       }
+      // Restore discovered items
+      if (saveData.discoveredItems) {
+        for (const id of saveData.discoveredItems) this.player.inventory.discoveredItems.add(id)
+      }
       this.registry.remove('saveData')
+    }
+
+    // Flash notification when obtaining a new item type for the first time
+    this.player.inventory.onNewItemDiscovered = (id: number) => {
+      const def = getItemDef(id)
+      if (!def) return
+      this.showNewItemFlash(def.name)
     }
 
     // Spawn NPC at cloud city shop position
@@ -290,6 +305,10 @@ export class WorldScene extends Phaser.Scene {
     // Client-mode HUD, chat, and disconnect handling
     if (this.mp.isClient) {
       this.createMultiplayerHUD()
+      // Wire up tile change requests from client player → host
+      this.player.onTileChange = (tx, ty, newType, oldType) => {
+        this.mp.sendTileChange({ tx, ty, newType, oldType })
+      }
       this.mp.onDisconnected = (reason) => {
         this.showNotification(`Disconnected: ${reason}`, 0xff4444)
         // Return to menu after a short delay
@@ -322,6 +341,10 @@ export class WorldScene extends Phaser.Scene {
       // Clean up client-side sprites
       for (const [, sprite] of this.clientEnemySprites) sprite.destroy()
       this.clientEnemySprites.clear()
+      for (const [, sprite] of this.clientDroppedItemSprites) sprite.destroy()
+      this.clientDroppedItemSprites.clear()
+      for (const [, sprite] of this.clientProjectileSprites) sprite.destroy()
+      this.clientProjectileSprites.clear()
       if (this.clientBossSprite) { this.clientBossSprite.destroy(); this.clientBossSprite = null }
       this.remotePlayerSims.clear()
       this.mp.destroy()
@@ -647,8 +670,20 @@ export class WorldScene extends Phaser.Scene {
           for (const drop of loot) {
             this.spawnDrop(enemy.sprite.x, enemy.sprite.y, drop.itemId, drop.count)
           }
-          // Grant XP
+          // Grant XP to host
           this.grantXP(enemy.def.xp, enemy.sprite.x, enemy.sprite.y)
+          // Broadcast XP to clients (Fix #4)
+          if (this.mp.isHost) {
+            this.mp.broadcastCombatEvent({
+              type: 'xp',
+              targetType: 'player',
+              targetId: 0,
+              sourceId: enemy.entityId,
+              amount: enemy.def.xp,
+              x: enemy.sprite.x,
+              y: enemy.sprite.y,
+            })
+          }
           // Heal on kill (skill)
           const healPct = this.player.skills.getModifiers().healOnKillPct
           if (healPct > 0) {
@@ -667,6 +702,14 @@ export class WorldScene extends Phaser.Scene {
             }
           }
           AudioManager.get()?.play(SoundId.ENEMY_DIE)
+          // Broadcast despawn to clients (Fix #10)
+          if (this.mp.isHost) {
+            this.mp.getHostSession()!.broadcast({
+              type: MessageType.ENTITY_DESPAWN,
+              senderId: 0,
+              data: { id: enemy.entityId },
+            })
+          }
           this.mp.entities.unregister(enemy.entityId)
           if (enemy.sprite.active) enemy.sprite.destroy()
           this.enemies.splice(i, 1)
@@ -693,6 +736,7 @@ export class WorldScene extends Phaser.Scene {
       // Send input to host
       const input = this.mp.collectInput(dt)
       if (input) {
+        input.actionAnim = this.player.actionAnim
         this.mp.sendInput(input)
       }
 
@@ -701,6 +745,12 @@ export class WorldScene extends Phaser.Scene {
         this.npc.update(this.player.sprite.x, this.player.sprite.y)
       }
       this.checkNPCInteraction()
+
+      // Runestone interaction is purely local (altar discovery on minimap)
+      this.checkRunestoneInteraction()
+
+      // Altar prompt — client sends BOSS_SUMMON request to host
+      this.checkAltarInteraction()
 
       // Client-side attack detection — send attack requests to host
       this.checkClientAttack(dt)
@@ -936,7 +986,15 @@ export class WorldScene extends Phaser.Scene {
         this.combat.fireProjectile(weaponDef, px, py, attack.cursorX, attack.cursorY, true)
         break
       }
-      // Summon not handled for remote players yet
+      case 'summon': {
+        // Fix #14: Handle summon weapon for remote players
+        this.combat.spawnSummon(
+          { damage: attack.damage, color: attack.color, id: 0, weaponStyle: 'summon' as const } as any,
+          px, py,
+          sim!
+        )
+        break
+      }
     }
   }
 
@@ -1010,12 +1068,24 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private summonBossAtAltar(altar: AltarPlacement, altarDef: (typeof ALTAR_DEFS)[BossType], bossDef: (typeof BOSS_DEFS)[BossType]) {
-    // Consume ingredients
+    if (this.mp.isClient) {
+      // Client: send summon request to host (host validates; ingredients consumed on boss appear)
+      this.mp.sendBossSummon(altar.bossType, altar.tx, altar.ty)
+      if (this.altarPromptText) this.altarPromptText.setVisible(false)
+      return
+    }
+
+    // Host/offline: consume ingredients and spawn boss
     const inv = this.player.inventory
     for (const ing of altarDef.ingredients) {
       inv.removeItem(ing.itemId, ing.count)
     }
 
+    this.spawnBossAtAltar(altar, bossDef)
+  }
+
+  /** Actually spawn the boss at an altar (host/offline only) */
+  private spawnBossAtAltar(altar: AltarPlacement, bossDef: (typeof BOSS_DEFS)[BossType]) {
     // Spawn boss at altar location
     const bx = altar.tx * TILE_SIZE + TILE_SIZE / 2
     const by = altar.ty * TILE_SIZE - TILE_SIZE
@@ -1091,22 +1161,51 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  /** Host: handle a remote client's boss summon request */
+  private handleRemoteBossSummon(req: BossSummonRequest) {
+    if (this.activeBoss?.alive) return // already fighting a boss
+
+    // Find the altar at the requested location
+    const altar = this.chunkManager.getAltars().find(
+      a => a.tx === req.altarTx && a.ty === req.altarTy && a.bossType === req.bossType
+    )
+    if (!altar) return
+
+    const bossDef = BOSS_DEFS[altar.bossType]
+    if (!bossDef) return
+
+    this.spawnBossAtAltar(altar, bossDef)
+  }
+
   private onBossDefeated() {
     if (!this.activeBoss) return
     AudioManager.get()?.play(SoundId.BOSS_DIE)
 
-    // Grant boss XP
+    // Grant boss XP to host
     this.grantXP(this.activeBoss.def.xp, this.activeBoss.sprite.x, this.activeBoss.sprite.y)
 
-    // Drop jetpack component
-    this.player.inventory.addItem(this.activeBoss.def.dropItemId)
+    // Broadcast XP to clients (Fix #4)
+    if (this.mp.isHost) {
+      this.mp.broadcastCombatEvent({
+        type: 'xp',
+        targetType: 'player',
+        targetId: 0,
+        sourceId: 0,
+        amount: this.activeBoss.def.xp,
+        x: this.activeBoss.sprite.x,
+        y: this.activeBoss.sprite.y,
+      })
+    }
+
+    // Drop jetpack component as world drop instead of direct inventory (Fix #3)
+    this.spawnDrop(this.activeBoss.sprite.x, this.activeBoss.sprite.y, this.activeBoss.def.dropItemId, 1)
 
     // Victory message
     const name = this.activeBoss.def.name
     const dropDef = getItemDef(this.activeBoss.def.dropItemId)
     const text = this.add.text(
       this.cameras.main.centerX, this.cameras.main.centerY - 100,
-      `${name} defeated!\nObtained: ${dropDef?.name ?? 'Unknown'}`,
+      `${name} defeated!\nDropped: ${dropDef?.name ?? 'Unknown'}`,
       {
         fontSize: '20px', color: '#00ff88', fontFamily: 'monospace',
         align: 'center', stroke: '#000000', strokeThickness: 4,
@@ -1266,6 +1365,7 @@ export class WorldScene extends Phaser.Scene {
       dead: this.player.dead,
       isInWater: this.player.isInWater,
       hasJetpack: this.player.hasJetpack,
+      actionAnim: this.player.actionAnim,
       lastInputSeq: 0,
     }]
     // Add remote player snapshots
@@ -1302,8 +1402,8 @@ export class WorldScene extends Phaser.Scene {
         hp: this.activeBoss.hp,
         maxHp: this.activeBoss.def.maxHp,
         alive: this.activeBoss.alive,
-        phaseIndex: 0,
-        shieldActive: false,
+        phaseIndex: this.activeBoss.getPhaseIndex(),
+        shieldActive: this.activeBoss.getShieldActive(),
       }
     }
 
@@ -1316,17 +1416,48 @@ export class WorldScene extends Phaser.Scene {
       count: d.count,
     }))
 
-    this.mp.broadcastState(dt, playerSnapshots, enemySnapshots, bossSnapshot, droppedItems, this.dayNight.time)
+    // Build projectile snapshots (Fix #2)
+    const projectileSnapshots: ProjectileSnapshot[] = this.combat.projectiles
+      .filter(p => p.alive)
+      .map(p => ({
+        id: p.entityId,
+        x: p.sprite.x,
+        y: p.sprite.y,
+        vx: p.vx,
+        vy: p.vy,
+        damage: p.damage,
+        color: 0xffffff,
+        fromPlayer: p.fromPlayer,
+        ownerId: 0,
+      }))
+
+    this.mp.broadcastState(dt, playerSnapshots, enemySnapshots, bossSnapshot, droppedItems, projectileSnapshots, this.dayNight.time)
   }
 
   /** Register a newly spawned enemy with the entity system */
   private registerEnemy(enemy: Enemy) {
     enemy.entityId = this.mp.entities.register('enemy', enemy)
+    // Broadcast spawn to clients (Fix #10)
+    if (this.mp.isHost) {
+      this.mp.getHostSession()!.broadcast({
+        type: MessageType.ENTITY_SPAWN,
+        senderId: 0,
+        data: { entityType: 'enemy', id: enemy.entityId, type: enemy.def.type, x: enemy.sprite.x, y: enemy.sprite.y },
+      })
+    }
   }
 
   /** Register a newly spawned boss with the entity system */
   private registerBoss(boss: Boss) {
     boss.entityId = this.mp.entities.register('boss', boss)
+    // Broadcast spawn to clients (Fix #10)
+    if (this.mp.isHost) {
+      this.mp.getHostSession()!.broadcast({
+        type: MessageType.ENTITY_SPAWN,
+        senderId: 0,
+        data: { entityType: 'boss', id: boss.entityId, type: boss.def.type, x: boss.sprite.x, y: boss.sprite.y },
+      })
+    }
   }
 
   private mpHudText: Phaser.GameObjects.Text | null = null
@@ -1392,7 +1523,8 @@ export class WorldScene extends Phaser.Scene {
       Array.from(this.usedRunestones),
       this.player.inventory.accessorySlots,
       this.npcShopPosition ?? undefined,
-      this.chunkManager.getChestInventories()
+      this.chunkManager.getChestInventories(),
+      Array.from(this.player.inventory.discoveredItems)
     )
   }
 
@@ -1497,6 +1629,7 @@ export class WorldScene extends Phaser.Scene {
         hp: 100, maxHp: 100,
         facingRight: true,
         dead: false,
+        actionAnim: '',
         interpT: 1,
         sprite: null,
         nameText: null,
@@ -1516,15 +1649,23 @@ export class WorldScene extends Phaser.Scene {
 
     if (msg.type === MessageType.TILE_CHANGE) {
       const change = msg.data as TileChangeRequest
+      const hostSession = this.mp.getHostSession()!
+      const actualTile = this.chunkManager.getTile(change.tx, change.ty)
       // Validate: tile matches what client expects
-      if (this.chunkManager.getTile(change.tx, change.ty) === change.oldType) {
+      if (actualTile === change.oldType) {
         this.chunkManager.setTile(change.tx, change.ty, change.newType as TileType)
-        const hostSession = this.mp.getHostSession()!
         hostSession.recordLocalTileChange(change)
         hostSession.broadcast({
           type: MessageType.TILE_UPDATE,
           senderId: 0,
           data: change,
+        })
+      } else {
+        // Fix #7: Send correction — broadcast actual tile state to fix desynced client
+        hostSession.broadcast({
+          type: MessageType.TILE_UPDATE,
+          senderId: 0,
+          data: { tx: change.tx, ty: change.ty, newType: actualTile, oldType: change.newType },
         })
       }
       return
@@ -1557,6 +1698,23 @@ export class WorldScene extends Phaser.Scene {
       return
     }
 
+    if (msg.type === MessageType.BOSS_SUMMON) {
+      this.handleRemoteBossSummon(msg.data as BossSummonRequest)
+      return
+    }
+
+    // Fix #9: Handle item drop from client — spawn as world drop at player's sim position
+    if (msg.type === MessageType.ITEM_DROP) {
+      const sim = this.remotePlayerSims.get(msg.senderId)
+      if (sim) {
+        const dropData = msg.data as { itemId: number; count: number }
+        if (dropData.itemId > 0 && dropData.count > 0) {
+          this.spawnDrop(sim.x, sim.y, dropData.itemId, dropData.count)
+        }
+      }
+      return
+    }
+
     // PLAYER_INPUT is already stored by HostSession.handleMessage()
     // Other messages forwarded to WorldScene via onHostMessage
   }
@@ -1579,6 +1737,7 @@ export class WorldScene extends Phaser.Scene {
       dead: this.player.dead,
       isInWater: this.player.isInWater,
       hasJetpack: this.player.hasJetpack,
+      actionAnim: this.player.actionAnim,
       lastInputSeq: 0,
     }]
     const hostSession = this.mp.getHostSession()
@@ -1619,8 +1778,8 @@ export class WorldScene extends Phaser.Scene {
       hp: this.activeBoss.hp,
       maxHp: this.activeBoss.def.maxHp,
       alive: this.activeBoss.alive,
-      phaseIndex: 0,
-      shieldActive: false,
+      phaseIndex: this.activeBoss.getPhaseIndex(),
+      shieldActive: this.activeBoss.getShieldActive(),
     }
   }
 
@@ -1634,13 +1793,23 @@ export class WorldScene extends Phaser.Scene {
       const sim = this.remotePlayerSims.get(rp.id)
       if (!sim) continue
 
+      // Respawn dead remote players after delay (Fix #12)
+      if (sim.dead) {
+        sim.respawnTimer -= dt * 1000
+        if (sim.respawnTimer <= 0) {
+          const spawnX = this.worldData.spawnX * TILE_SIZE + TILE_SIZE / 2
+          const spawnY = this.worldData.spawnY * TILE_SIZE + TILE_SIZE / 2
+          sim.respawn(spawnX, spawnY)
+        }
+      }
+
       // Apply latest input from this player
       const input = rp.lastInput
       if (input) {
         sim.simulate(input, dt, this.chunkManager)
       }
 
-      // Update the snapshot that gets broadcast
+      // Update the snapshot that gets broadcast (Fix #5 — include all fields)
       hostSession.updatePlayerSnapshot(rp.id, {
         x: sim.x,
         y: sim.y,
@@ -1649,7 +1818,12 @@ export class WorldScene extends Phaser.Scene {
         facingRight: sim.facingRight,
         hp: sim.hp,
         maxHp: sim.maxHp,
+        mana: sim.mana,
+        maxMana: sim.maxMana,
         dead: sim.dead,
+        isInWater: sim.isInWater,
+        actionAnim: sim.actionAnim,
+        lastInputSeq: rp.lastInput?.seq ?? 0,
       })
 
       // Update the visual sprite on host's screen
@@ -1665,6 +1839,7 @@ export class WorldScene extends Phaser.Scene {
         rpState.hp = sim.hp
         rpState.maxHp = sim.maxHp
         rpState.dead = sim.dead
+        rpState.actionAnim = sim.actionAnim
         rpState.interpT = 1 // no interpolation needed for host
         if (rpState.sprite) {
           rpState.sprite.setPosition(sim.x, sim.y)
@@ -1697,9 +1872,53 @@ export class WorldScene extends Phaser.Scene {
       this.applyClientBossSync(bossSync)
     }
 
+    // Apply dropped item sync (Fix #1)
+    const droppedItemSync = this.mp.consumeDroppedItemSync()
+    if (droppedItemSync) {
+      this.applyClientDroppedItemSync(droppedItemSync)
+    }
+
+    // Apply projectile sync (Fix #2)
+    const projectileSync = this.mp.consumeProjectileSync()
+    if (projectileSync) {
+      this.applyClientProjectileSync(projectileSync)
+    }
+
+    // Apply day/night sync (Fix #6)
+    const dayNightTime = this.mp.consumeDayNightTime()
+    if (dayNightTime !== null) {
+      this.dayNight.time = dayNightTime
+    }
+
+    // Apply local player correction from host (Fix #13)
+    const correction = this.mp.consumeLocalPlayerCorrection()
+    if (correction) {
+      // Authoritative HP/mana/dead from host
+      this.player.hp = correction.hp
+      this.player.maxHp = correction.maxHp
+      this.player.mana = correction.mana
+      this.player.maxMana = correction.maxMana
+      if (correction.dead && !this.player.dead) {
+        this.player.hp = 0
+        this.player.takeDamage(0, 0, 0, this.combat)
+      }
+      // Position correction: snap if too far from server (>100px)
+      const dx = this.player.sprite.x - correction.x
+      const dy = this.player.sprite.y - correction.y
+      if (dx * dx + dy * dy > 100 * 100) {
+        this.player.sprite.x = correction.x
+        this.player.sprite.y = correction.y
+        this.player.vx = correction.vx
+        this.player.vy = correction.vy
+      }
+    }
+
     // Apply combat events
     for (const evt of this.mp.consumeCombatEvents()) {
-      if (evt.targetType === 'player' && evt.targetId === this.mp.localPlayerId) {
+      if (evt.type === 'xp') {
+        // Fix #4: XP granted to all clients
+        this.grantXP(evt.amount, evt.x, evt.y)
+      } else if (evt.targetType === 'player' && evt.targetId === this.mp.localPlayerId) {
         // This client's player got hit — apply damage locally
         this.player.takeDamage(evt.amount, evt.kbx ?? 0, evt.kby ?? 0, this.combat)
       } else {
@@ -1768,6 +1987,56 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  /** Client: render dropped items from host sync (Fix #1) */
+  private applyClientDroppedItemSync(snapshots: DroppedItemSnapshot[]) {
+    const seen = new Set<number>()
+    for (const snap of snapshots) {
+      seen.add(snap.id)
+      let gfx = this.clientDroppedItemSprites.get(snap.id)
+      if (!gfx) {
+        gfx = this.add.graphics().setDepth(8)
+        const itemDef = getItemDef(snap.itemId)
+        const color = itemDef?.color ?? 0xffffff
+        gfx.fillStyle(color, 1)
+        gfx.fillRect(-4, -4, 8, 8)
+        gfx.lineStyle(1, 0x000000, 0.5)
+        gfx.strokeRect(-4, -4, 8, 8)
+        this.clientDroppedItemSprites.set(snap.id, gfx)
+      }
+      gfx.setPosition(snap.x, snap.y)
+    }
+    // Remove sprites for items no longer present
+    for (const [id, gfx] of this.clientDroppedItemSprites) {
+      if (!seen.has(id)) {
+        gfx.destroy()
+        this.clientDroppedItemSprites.delete(id)
+      }
+    }
+  }
+
+  /** Client: render projectiles from host sync (Fix #2) */
+  private applyClientProjectileSync(snapshots: ProjectileSnapshot[]) {
+    const seen = new Set<number>()
+    for (const snap of snapshots) {
+      seen.add(snap.id)
+      let rect = this.clientProjectileSprites.get(snap.id)
+      if (!rect) {
+        const size = snap.fromPlayer ? 5 : 4
+        const color = snap.color ?? (snap.fromPlayer ? 0xffff00 : 0xff4444)
+        rect = this.add.rectangle(snap.x, snap.y, size, size, color).setDepth(55) as Phaser.GameObjects.Rectangle
+        this.clientProjectileSprites.set(snap.id, rect)
+      }
+      rect.setPosition(snap.x, snap.y)
+    }
+    // Remove sprites for projectiles no longer present
+    for (const [id, rect] of this.clientProjectileSprites) {
+      if (!seen.has(id)) {
+        rect.destroy()
+        this.clientProjectileSprites.delete(id)
+      }
+    }
+  }
+
   /** Show a temporary notification message */
   showNotification(message: string, color = 0xffffff) {
     const text = this.add.text(
@@ -1783,5 +2052,38 @@ export class WorldScene extends Phaser.Scene {
       }
     ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
     this.tweens.add({ targets: text, alpha: 0, duration: 1500, delay: 2000, onComplete: () => text.destroy() })
+  }
+
+  /** Flash the name of a newly discovered item on screen */
+  private showNewItemFlash(name: string) {
+    const text = this.add.text(
+      this.cameras.main.centerX, this.cameras.main.centerY + 60,
+      `New item: ${name}`,
+      {
+        fontSize: '18px',
+        color: '#ffdd44',
+        fontFamily: 'monospace',
+        align: 'center',
+        stroke: '#000000',
+        strokeThickness: 4,
+      }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(500).setAlpha(0)
+    // Flash in, hold, then fade out
+    this.tweens.add({
+      targets: text,
+      alpha: 1,
+      duration: 200,
+      yoyo: false,
+      onComplete: () => {
+        this.tweens.add({
+          targets: text,
+          alpha: 0,
+          y: text.y - 20,
+          duration: 1200,
+          delay: 1500,
+          onComplete: () => text.destroy()
+        })
+      }
+    })
   }
 }
