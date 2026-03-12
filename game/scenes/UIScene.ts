@@ -13,6 +13,8 @@ import { InventoryPanel } from '../ui/InventoryPanel'
 import { SkillTreePanel } from '../ui/SkillTreePanel'
 import { ShopPanel } from '../ui/ShopPanel'
 import { ChestPanel } from '../ui/ChestPanel'
+import { WorldMapPanel } from '../ui/WorldMapPanel'
+import type { Waypoint } from '../ui/WorldMapPanel'
 
 export class UIScene extends Phaser.Scene {
   private hotbar!: HotbarPanel
@@ -30,6 +32,9 @@ export class UIScene extends Phaser.Scene {
   // Mini-map
   private miniMap!: MiniMap
 
+  // Full-screen world map
+  private worldMap!: WorldMapPanel
+
   // Biome banner
   private biomeBannerText!: Phaser.GameObjects.Text
   private visitedZones = new Set<string>()
@@ -37,6 +42,9 @@ export class UIScene extends Phaser.Scene {
 
   // Chat overlay (multiplayer)
   private chatOverlay: ChatOverlay | null = null
+
+  // Boss markers cache (shared between minimap and world map)
+  private cachedBossMarkers: BossMarker[] = []
 
   constructor() {
     super({ key: 'UIScene' })
@@ -67,8 +75,12 @@ export class UIScene extends Phaser.Scene {
     this.shop.setGraphics(this.inventory.shopGfx, this.inventory.shopTitle)
     this.chest.setGraphics(this.inventory.chestGfx, this.inventory.chestTitle)
 
-    // Scroll handler — dispatch to active panel
+    // Scroll handler — dispatch to active panel or world map
     this.input.on('wheel', (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
+      if (this.worldMap?.visible) {
+        this.worldMap.onScroll(deltaY)
+        return
+      }
       if (this.shop.visible) {
         this.shop.onScroll(deltaY)
         return
@@ -77,10 +89,31 @@ export class UIScene extends Phaser.Scene {
       this.crafting.onScroll(deltaY)
     })
 
-    // Pointerdown — dispatch shop click tracking
+    // Pointerdown — dispatch to world map or shop
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.worldMap?.visible) {
+        this.worldMap.onPointerDown(pointer)
+        return
+      }
       this.shop.onPointerDown(pointer.x, pointer.y)
     })
+
+    // Pointermove — dispatch to world map for drag panning
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.worldMap?.visible) {
+        this.worldMap.onPointerMove(pointer)
+      }
+    })
+
+    // Pointerup — end world map drag
+    this.input.on('pointerup', () => {
+      if (this.worldMap?.visible) {
+        this.worldMap.onPointerUp()
+      }
+    })
+
+    // Disable right-click context menu on the game canvas
+    this.game.canvas.addEventListener('contextmenu', (e) => { e.preventDefault() })
 
     // Mini-map
     const worldData = this.registry.get('worldData') as WorldData
@@ -90,6 +123,18 @@ export class UIScene extends Phaser.Scene {
       if (exploredMap) {
         this.miniMap.loadExplored(exploredMap)
         this.registry.remove('exploredMap')
+      }
+
+      // Full-screen world map
+      this.worldMap = new WorldMapPanel(this)
+      this.worldMap.create()
+      this.worldMap.setWorldData(worldData)
+
+      // Load waypoints from save data
+      const savedWaypoints = this.registry.get('waypoints') as Waypoint[] | undefined
+      if (savedWaypoints) {
+        this.worldMap.loadWaypoints(savedWaypoints)
+        this.registry.remove('waypoints')
       }
     }
 
@@ -108,6 +153,41 @@ export class UIScene extends Phaser.Scene {
     const keyBracketClose = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.CLOSED_BRACKET)
     keyBracketClose.on('down', () => { if (this.miniMap) this.miniMap.zoomIn() })
 
+    // M key — toggle full-screen world map
+    const keyM = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M)
+    keyM.on('down', () => { this.toggleWorldMap() })
+
+    // C key — center on player (when world map is open)
+    const keyC_map = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C)
+    keyC_map.on('down', () => {
+      if (this.worldMap?.visible) {
+        this.worldMap.centerOnPlayer()
+      }
+    })
+
+    // DEL key — delete selected waypoint
+    const keyDel = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.DELETE)
+    keyDel.on('down', () => {
+      if (this.worldMap?.visible) {
+        this.worldMap.deleteSelectedWaypoint()
+      }
+    })
+    // Backspace as alternative delete
+    const keyBack = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.BACKSPACE)
+    keyBack.on('down', () => {
+      if (this.worldMap?.visible) {
+        this.worldMap.deleteSelectedWaypoint()
+      }
+    })
+
+    // R key — rename selected waypoint
+    const keyR = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R)
+    keyR.on('down', () => {
+      if (this.worldMap?.visible) {
+        this.worldMap.renameSelectedWaypoint()
+      }
+    })
+
     // Chat overlay (multiplayer)
     const worldScene = this.scene.get('WorldScene') as any
     const mp = worldScene?.getMultiplayer?.()
@@ -118,11 +198,41 @@ export class UIScene extends Phaser.Scene {
     // Cleanup
     this.events.on('shutdown', () => {
       if (this.miniMap) this.miniMap.destroy()
+      if (this.worldMap) this.worldMap.destroy()
       if (this.chatOverlay) {
         this.chatOverlay.destroy()
         this.chatOverlay = null
       }
     })
+  }
+
+  private toggleWorldMap() {
+    if (!this.worldMap || !this.miniMap) return
+
+    const worldScene = this.scene.get('WorldScene') as any
+    const player = worldScene?.getPlayer?.()
+    if (!player) return
+
+    if (this.worldMap.visible) {
+      // Close world map
+      this.worldMap.close()
+      player.mapOpen = false
+    } else {
+      // Close other panels first
+      player.inventoryOpen = false
+      player.craftingOpen = false
+      player.skillTreeOpen = false
+      player.inventory.returnHeldItem()
+
+      // Open world map
+      const pos = this.miniMap.getPlayerMapPos()
+      this.worldMap.setExplored(this.miniMap.getExploredArray())
+      this.worldMap.open(pos.x, pos.y)
+      player.mapOpen = true
+
+      // Hide minimap while fullscreen map is open
+      if (this.miniMap.visible) this.miniMap.toggle()
+    }
   }
 
   override update() {
@@ -155,7 +265,14 @@ export class UIScene extends Phaser.Scene {
     // Mini-map
     if (this.miniMap) {
       this.miniMap.update(player.sprite.x, player.sprite.y)
-      this.updateMinimapBossMarkers(worldScene)
+      this.updateBossMarkers(worldScene)
+    }
+
+    // Full-screen world map
+    if (this.worldMap?.visible && this.miniMap) {
+      const pos = this.miniMap.getPlayerMapPos()
+      this.worldMap.setExplored(this.miniMap.getExploredArray())
+      this.worldMap.update(pos.x, pos.y, this.cachedBossMarkers)
     }
 
     this.updateBiomeBanner(player)
@@ -164,6 +281,10 @@ export class UIScene extends Phaser.Scene {
 
   getExploredMap(): number[] | null {
     return this.miniMap?.getExplored() ?? null
+  }
+
+  getWaypoints(): Waypoint[] | null {
+    return this.worldMap?.getWaypoints() ?? null
   }
 
   // ── Biome banner ─────────────────────────────────────
@@ -211,12 +332,13 @@ export class UIScene extends Phaser.Scene {
     })
   }
 
-  // ── Minimap boss markers ─────────────────────────────
+  // ── Boss markers (shared between minimap and world map) ──
 
-  private updateMinimapBossMarkers(worldScene: any) {
+  private updateBossMarkers(worldScene: any) {
     if (!this.miniMap) return
     const discovered = worldScene?.getDiscoveredAltars?.() as Set<string> | undefined
     if (!discovered || discovered.size === 0) {
+      this.cachedBossMarkers = []
       this.miniMap.updateBossMarkers([])
       return
     }
@@ -227,6 +349,20 @@ export class UIScene extends Phaser.Scene {
       if (!pos) continue
       markers.push({ bossType, worldX: pos.px, worldY: pos.py })
     }
+    this.cachedBossMarkers = markers
     this.miniMap.updateBossMarkers(markers)
+  }
+
+  /** Close the world map if open (called by WorldScene ESC handler) */
+  closeWorldMap() {
+    if (!this.worldMap?.visible) return
+    this.worldMap.close()
+    const worldScene = this.scene.get('WorldScene') as any
+    const player = worldScene?.getPlayer?.()
+    if (player) player.mapOpen = false
+  }
+
+  isWorldMapOpen(): boolean {
+    return this.worldMap?.visible ?? false
   }
 }

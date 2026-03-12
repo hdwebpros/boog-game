@@ -159,9 +159,12 @@ export class WorldScene extends Phaser.Scene {
       if (saveData.usedRunestones) {
         for (const key of saveData.usedRunestones) this.usedRunestones.add(key)
       }
-      // Pass explored map to UIScene via registry
+      // Pass explored map and waypoints to UIScene via registry
       if (saveData.exploredMap) {
         this.registry.set('exploredMap', saveData.exploredMap)
+      }
+      if (saveData.waypoints) {
+        this.registry.set('waypoints', saveData.waypoints)
       }
       // Restore accessory slots
       if (saveData.accessorySlots) {
@@ -372,7 +375,10 @@ export class WorldScene extends Phaser.Scene {
     // ESC: close crafting/inventory/skill tree/shop first, otherwise open pause menu
     // Skip if MenuScene is already active (multiplayer overlay)
     if (Phaser.Input.Keyboard.JustDown(this.keyESC) && !this.scene.isActive('MenuScene')) {
-      if (this.player.craftingOpen) {
+      const uiScene = this.scene.get('UIScene') as any
+      if (uiScene?.isWorldMapOpen?.()) {
+        uiScene.closeWorldMap()
+      } else if (this.player.craftingOpen) {
         this.player.craftingOpen = false
       } else if (this.player.inventoryOpen) {
         this.player.inventoryOpen = false
@@ -1562,9 +1568,10 @@ export class WorldScene extends Phaser.Scene {
     this.saveSlotId = slotId
     this.saveSlotName = slotName
 
-    // Get explored map from UIScene
+    // Get explored map and waypoints from UIScene
     const uiScene = this.scene.get('UIScene') as any
     const exploredMap = uiScene?.getExploredMap?.() as number[] | null ?? undefined
+    const waypoints = uiScene?.getWaypoints?.() ?? undefined
 
     return SaveManager.save(
       slotId,
@@ -1587,7 +1594,8 @@ export class WorldScene extends Phaser.Scene {
       this.player.inventory.accessorySlots,
       this.npcShopPosition ?? undefined,
       this.chunkManager.getChestInventories(),
-      Array.from(this.player.inventory.discoveredItems)
+      Array.from(this.player.inventory.discoveredItems),
+      waypoints
     )
   }
 

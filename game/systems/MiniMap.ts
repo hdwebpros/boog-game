@@ -80,6 +80,14 @@ export class MiniMap {
 
   get visible() { return this._visible }
 
+  /** Expose raw explored array for the full-screen world map */
+  getExploredArray(): Uint8Array { return this.explored }
+
+  /** Get player position in map coordinates */
+  getPlayerMapPos(): { x: number; y: number } {
+    return { x: this.playerMapX, y: this.playerMapY }
+  }
+
   toggle() {
     this._visible = !this._visible
     this.mapImage.setVisible(this._visible)

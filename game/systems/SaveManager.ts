@@ -1,6 +1,7 @@
 import type { WorldData } from '../world/WorldGenerator'
 import type { ItemStack, ArmorSlots } from './InventoryManager'
 import type { PlacedStation, ChestData } from '../world/ChunkManager'
+import type { Waypoint } from '../ui/WorldMapPanel'
 import { WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 
 type NpcPosition = { tx: number; ty: number }
@@ -140,6 +141,7 @@ export interface SaveData {
   npcShopPosition?: NpcPosition
   chestInventories?: ChestData[]
   discoveredItems?: number[]
+  waypoints?: Waypoint[]
   timestamp: number
 }
 
@@ -165,7 +167,8 @@ export class SaveManager {
     accessorySlots?: (ItemStack | null)[],
     npcShopPosition?: NpcPosition,
     chestInventories?: ChestData[],
-    discoveredItems?: number[]
+    discoveredItems?: number[],
+    waypoints?: Waypoint[]
   ): Promise<boolean> {
     try {
       const timestamp = Date.now()
@@ -194,6 +197,7 @@ export class SaveManager {
         npcShopPosition,
         chestInventories,
         discoveredItems,
+        waypoints,
         timestamp,
       }
       await idbPut(slotId, data)

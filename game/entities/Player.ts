@@ -103,6 +103,7 @@ export class Player {
   skillTreeOpen = false
   shopOpen = false
   chestOpen = false
+  mapOpen = false
   openChestPos: { tx: number; ty: number } | null = null
   private lastChunks: ChunkManager | null = null
 
@@ -198,7 +199,7 @@ export class Player {
 
     // Mouse wheel slot cycling
     scene.input.on('wheel', (_pointer: Phaser.Input.Pointer, _dx: number[], _dy: number[], dz: number) => {
-      if (this.inventoryOpen || this.craftingOpen || this.skillTreeOpen || this.chestOpen) return
+      if (this.inventoryOpen || this.craftingOpen || this.skillTreeOpen || this.chestOpen || this.mapOpen) return
       if (dz > 0) {
         this.inventory.selectedSlot = (this.inventory.selectedSlot + 1) % 10
       } else if (dz < 0) {
@@ -207,9 +208,10 @@ export class Player {
       AudioManager.get()?.play(SoundId.SLOT_CHANGE)
     })
 
-    // C key toggles crafting UI
+    // C key toggles crafting UI (skip when world map is open)
     const keyC = kb.addKey(Phaser.Input.Keyboard.KeyCodes.C)
     keyC.on('down', () => {
+      if (this.mapOpen) return
       this.craftingOpen = !this.craftingOpen
       if (this.craftingOpen) {
         this.inventoryOpen = false
@@ -365,8 +367,8 @@ export class Player {
       this.shieldGfx.fillEllipse(this.sprite.x, this.sprite.y, 28, 40)
     }
 
-    this.handleMovement(dt, chunks)
-    if (!this.inventoryOpen && !this.skillTreeOpen && !this.shopOpen && !this.chestOpen) {
+    if (!this.mapOpen) this.handleMovement(dt, chunks)
+    if (!this.inventoryOpen && !this.skillTreeOpen && !this.shopOpen && !this.chestOpen && !this.mapOpen) {
       this.handleMining(dt, chunks)
       this.handleCombat(dt, chunks, combat, enemies)
     }
