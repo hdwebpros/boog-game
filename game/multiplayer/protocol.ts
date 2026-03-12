@@ -39,6 +39,11 @@ export enum MessageType {
   BOSS_SUMMON      = 14,
   CHAT_MESSAGE     = 15,
   ATTACK_REQUEST   = 16,
+  CHEST_REQUEST    = 17,  // client → host: open/close chest
+
+  // Targeted (host → specific client, broadcast with playerId filter)
+  ITEM_PICKUP      = 32,  // item picked up by remote player
+  CHEST_CONTENTS   = 33,  // chest inventory data
 
   // State (host → clients)
   WORLD_SEED       = 20,
@@ -144,6 +149,8 @@ export interface PlayerSnapshot {
   hasJetpack: boolean
   /** Current action animation: 'mining' | 'attacking' | '' */
   actionAnim: string
+  /** Current weapon style for attack visual: 'melee' | 'ranged' | 'magic' | 'summon' | '' */
+  weaponStyle: string
   /** Input sequence last processed (for client reconciliation) */
   lastInputSeq: number
 }

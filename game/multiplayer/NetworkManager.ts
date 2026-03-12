@@ -242,6 +242,15 @@ export class NetworkManager {
     })
   }
 
+  /** Send chest request (open/close) */
+  sendChestRequest(tx: number, ty: number, action: 'open' | 'close', items?: (any | null)[]) {
+    this.send({
+      type: MessageType.CHEST_REQUEST,
+      senderId: this._playerId,
+      data: { tx, ty, action, items },
+    })
+  }
+
   /** Call each frame to flush input buffer and handle ping */
   update(dt: number) {
     if (this._state !== 'connected') return

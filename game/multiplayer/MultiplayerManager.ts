@@ -26,7 +26,6 @@ import {
   type AttackRequest,
   MessageType,
   PLAYER_SYNC_INTERVAL,
-  generateEntityId,
 } from './protocol'
 
 export type MultiplayerMode = 'offline' | 'host' | 'client'
@@ -48,6 +47,7 @@ export interface RemotePlayerState {
   facingRight: boolean
   dead: boolean
   actionAnim: string
+  weaponStyle: string
   interpT: number
   sprite: Phaser.GameObjects.Image | null
   nameText: Phaser.GameObjects.Text | null
@@ -98,6 +98,12 @@ export class MultiplayerManager {
 
   /** Pending local player correction from host (for client mode) */
   private pendingLocalPlayerCorrection: PlayerSnapshot | null = null
+
+  /** Pending item pickups from host (for client mode) */
+  private pendingItemPickups: { itemId: number; count: number }[] = []
+
+  /** Pending chest contents from host (for client mode) */
+  private pendingChestContents: { tx: number; ty: number; items: any[] } | null = null
 
   /** Chat messages (ring buffer, last 50) */
   private chatMessages: { senderId: number; name: string; text: string; time: number }[] = []
@@ -237,6 +243,13 @@ export class MultiplayerManager {
     }
   }
 
+  /** Send chest request to host (client mode only) */
+  sendChestRequest(tx: number, ty: number, action: 'open' | 'close', items?: (any | null)[]) {
+    if (this._mode === 'client' && this.network) {
+      this.network.sendChestRequest(tx, ty, action, items)
+    }
+  }
+
   /** Broadcast state to clients (host mode only) */
   broadcastState(
     dt: number,
@@ -314,6 +327,20 @@ export class MultiplayerManager {
   consumeLocalPlayerCorrection(): PlayerSnapshot | null {
     const data = this.pendingLocalPlayerCorrection
     this.pendingLocalPlayerCorrection = null
+    return data
+  }
+
+  /** Consume pending item pickups (client mode) */
+  consumeItemPickups(): { itemId: number; count: number }[] {
+    const data = this.pendingItemPickups
+    this.pendingItemPickups = []
+    return data
+  }
+
+  /** Consume pending chest contents (client mode) */
+  consumeChestContents(): { tx: number; ty: number; items: any[] } | null {
+    const data = this.pendingChestContents
+    this.pendingChestContents = null
     return data
   }
 
@@ -436,6 +463,7 @@ export class MultiplayerManager {
             facingRight: snap.facingRight,
             dead: snap.dead,
             actionAnim: snap.actionAnim ?? '',
+            weaponStyle: snap.weaponStyle ?? '',
             interpT: 0,
             sprite: null,
             nameText: null,
@@ -456,6 +484,7 @@ export class MultiplayerManager {
           rp.facingRight = snap.facingRight
           rp.dead = snap.dead
           rp.actionAnim = snap.actionAnim ?? ''
+          rp.weaponStyle = snap.weaponStyle ?? ''
           rp.interpT = 0
         }
       }
@@ -526,6 +555,22 @@ export class MultiplayerManager {
       this.addChatMessage(msg.senderId, name, msg.data.text)
     })
 
+    // Item pickup notification (host → client)
+    this.network.on(MessageType.ITEM_PICKUP, (msg) => {
+      const data = msg.data as { playerId: number; itemId: number; count: number }
+      if (data.playerId === this._localPlayerId) {
+        this.pendingItemPickups.push({ itemId: data.itemId, count: data.count })
+      }
+    })
+
+    // Chest contents from host
+    this.network.on(MessageType.CHEST_CONTENTS, (msg) => {
+      const data = msg.data as { playerId: number; tx: number; ty: number; items: any[] }
+      if (data.playerId === this._localPlayerId) {
+        this.pendingChestContents = { tx: data.tx, ty: data.ty, items: data.items }
+      }
+    })
+
     // Entity spawn/despawn
     this.network.on(MessageType.ENTITY_SPAWN, (msg) => {
       this.onHostMessage?.(msg)
@@ -558,6 +603,8 @@ export class MultiplayerManager {
     this.pendingProjectileSync = null
     this.pendingDayNightTime = null
     this.pendingLocalPlayerCorrection = null
+    this.pendingItemPickups = []
+    this.pendingChestContents = null
     this.chatMessages = []
     this._mode = 'offline'
   }

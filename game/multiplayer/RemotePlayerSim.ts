@@ -33,6 +33,7 @@ export class RemotePlayerSim {
   isInWater = false
   respawnTimer = 0
   actionAnim = '' // 'mining' | 'attacking' | ''
+  weaponStyle = '' // 'melee' | 'ranged' | 'magic' | 'summon' | ''
 
   constructor(x: number, y: number) {
     this.x = x

@@ -15,19 +15,14 @@ import {
   type BossSnapshot,
   type DroppedItemSnapshot,
   type ProjectileSnapshot,
-  type CombatEvent,
-  type JoinAccepted,
   type JoinRejected,
   MessageType,
   PROTOCOL_VERSION,
   MAX_PLAYERS,
-  SERVER_TICK_RATE,
   ENEMY_SYNC_INTERVAL,
   PLAYER_SYNC_INTERVAL,
   encodeMessage,
-  decodeMessage,
 } from './protocol'
-import type { EntityRegistry } from './EntityRegistry'
 
 /** Day/night sync interval (5 seconds — changes slowly) */
 const DAY_NIGHT_SYNC_INTERVAL = 5000
@@ -131,6 +126,10 @@ export class HostSession {
         // Forward to WorldScene to spawn dropped item
         return msg
 
+      case MessageType.CHEST_REQUEST:
+        // Forward to WorldScene for chest interaction
+        return msg
+
       default:
         return null
     }
@@ -182,6 +181,7 @@ export class HostSession {
         isInWater: false,
         hasJetpack: false,
         actionAnim: '',
+        weaponStyle: '',
         lastInputSeq: 0,
       },
       joinedAt: Date.now(),
@@ -265,7 +265,7 @@ export class HostSession {
   }
 
   /** Send to a specific player */
-  sendTo(playerId: number, msg: NetworkMessage, sendFn?: (data: string) => void) {
+  sendTo(_playerId: number, msg: NetworkMessage, sendFn?: (data: string) => void) {
     if (sendFn) {
       sendFn(encodeMessage(msg))
     }
