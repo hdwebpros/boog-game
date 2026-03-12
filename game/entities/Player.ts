@@ -220,9 +220,7 @@ export class Player {
     keyE.on('down', () => {
       // Close chest if open
       if (this.chestOpen) {
-        this.chestOpen = false
-        this.openChestPos = null
-        this.inventory.returnHeldItem()
+        this.closeChest()
         return
       }
 
@@ -241,6 +239,7 @@ export class Player {
             this.craftingOpen = false
             this.skillTreeOpen = false
             this.shopOpen = false
+            this.onChestOpen?.(station.tx, station.ty)
             return
           }
         }
