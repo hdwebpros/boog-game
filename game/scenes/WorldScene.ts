@@ -930,13 +930,14 @@ export class WorldScene extends Phaser.Scene {
 
     this.clientAttackCooldown = def.attackSpeed ?? 400
     const facingRight = wp.x >= this.player.sprite.x
+    const style = def.weaponStyle as 'melee' | 'ranged' | 'magic' | 'summon'
 
     this.mp.sendAttack({
       x: this.player.sprite.x,
       y: this.player.sprite.y,
       cursorX: wp.x,
       cursorY: wp.y,
-      weaponStyle: def.weaponStyle as 'melee' | 'ranged' | 'magic' | 'summon',
+      weaponStyle: style,
       damage: def.damage ?? 0,
       color: def.color ?? 0xffffff,
       projectileSpeed: def.projectileSpeed,
@@ -944,6 +945,23 @@ export class WorldScene extends Phaser.Scene {
       attackSpeed: def.attackSpeed,
       facingRight,
     })
+
+    // Show local visual feedback (no damage — host is authoritative)
+    this.player.facingRight = facingRight
+    this.player.actionAnim = 'attacking'
+    this.player.actionAnimTimer = 300
+
+    if (style === 'melee') {
+      // Draw swing arc visually (empty enemies = visual only, no damage)
+      this.combat.meleeAttack(
+        { damage: 0, color: def.color ?? 0xffffff } as any,
+        this.player.sprite.x, this.player.sprite.y,
+        facingRight, []
+      )
+    } else if (style === 'magic' && def.manaCost) {
+      // Deduct mana locally for responsiveness (host will correct if wrong)
+      this.player.mana = Math.max(0, this.player.mana - def.manaCost)
+    }
   }
 
   // ── Host: Process remote player attacks ──────────────────
@@ -951,6 +969,10 @@ export class WorldScene extends Phaser.Scene {
   private handleRemoteAttack(senderId: number, attack: AttackRequest) {
     const sim = this.remotePlayerSims.get(senderId)
     if (!sim) return
+
+    // Set attack animation + weapon style so it broadcasts to clients
+    sim.actionAnim = 'attacking'
+    sim.weaponStyle = attack.weaponStyle
 
     // Use the sim's authoritative position, not the client-reported one
     const px = sim.x
@@ -1317,6 +1339,26 @@ export class WorldScene extends Phaser.Scene {
           this.mp.entities.unregister(drop.entityId)
           drop.destroy()
           this.droppedItems.splice(i, 1)
+          continue
+        }
+      }
+
+      // Host: check remote player pickups
+      if (this.mp.isHost && drop.canPickup()) {
+        for (const [rpId, sim] of this.remotePlayerSims) {
+          if (sim.dead) continue
+          if (drop.isNear(sim.x, sim.y)) {
+            // Notify the client that they picked up this item
+            this.mp.getHostSession()!.broadcast({
+              type: MessageType.ITEM_PICKUP,
+              senderId: 0,
+              data: { playerId: rpId, itemId: drop.itemId, count: drop.count },
+            })
+            this.mp.entities.unregister(drop.entityId)
+            drop.destroy()
+            this.droppedItems.splice(i, 1)
+            break
+          }
         }
       }
     }
@@ -1631,6 +1673,7 @@ export class WorldScene extends Phaser.Scene {
         facingRight: true,
         dead: false,
         actionAnim: '',
+        weaponStyle: '',
         interpT: 1,
         sprite: null,
         nameText: null,
@@ -1739,6 +1782,7 @@ export class WorldScene extends Phaser.Scene {
       isInWater: this.player.isInWater,
       hasJetpack: this.player.hasJetpack,
       actionAnim: this.player.actionAnim,
+      weaponStyle: '',
       lastInputSeq: 0,
     }]
     const hostSession = this.mp.getHostSession()
@@ -1824,6 +1868,7 @@ export class WorldScene extends Phaser.Scene {
         dead: sim.dead,
         isInWater: sim.isInWater,
         actionAnim: sim.actionAnim,
+        weaponStyle: sim.weaponStyle,
         lastInputSeq: rp.lastInput?.seq ?? 0,
       })
 
@@ -1841,6 +1886,7 @@ export class WorldScene extends Phaser.Scene {
         rpState.maxHp = sim.maxHp
         rpState.dead = sim.dead
         rpState.actionAnim = sim.actionAnim
+        rpState.weaponStyle = sim.weaponStyle
         rpState.interpT = 1 // no interpolation needed for host
         if (rpState.sprite) {
           rpState.sprite.setPosition(sim.x, sim.y)

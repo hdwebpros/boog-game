@@ -135,7 +135,7 @@ export class Player {
   private walkTimer = 0
   private walkFrameIndex = 0
   actionAnim = '' // 'mining' | 'attacking' | ''
-  private actionAnimTimer = 0
+  actionAnimTimer = 0
 
   // Equipment overlay visuals
   private equipOverlay: Phaser.GameObjects.Graphics
