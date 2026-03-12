@@ -1759,6 +1759,24 @@ export class WorldScene extends Phaser.Scene {
       return
     }
 
+    // Handle chest request from client
+    if (msg.type === MessageType.CHEST_REQUEST) {
+      const data = msg.data as { tx: number; ty: number; action: string; items?: any[] }
+      if (data.action === 'open') {
+        // Send chest contents to requesting client
+        const items = this.chunkManager.getChestInventory(data.tx, data.ty)
+        this.mp.getHostSession()!.broadcast({
+          type: MessageType.CHEST_CONTENTS,
+          senderId: 0,
+          data: { playerId: msg.senderId, tx: data.tx, ty: data.ty, items },
+        })
+      } else if (data.action === 'close' && data.items) {
+        // Client closed chest — update authoritative chest state
+        this.chunkManager.setChestInventory(data.tx, data.ty, data.items)
+      }
+      return
+    }
+
     // PLAYER_INPUT is already stored by HostSession.handleMessage()
     // Other messages forwarded to WorldScene via onHostMessage
   }

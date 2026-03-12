@@ -13,6 +13,10 @@ const SPAWN_RANGE_MIN = 400 // min px from player
 const SPAWN_RANGE_MAX = 700 // max px from player
 const OCEAN_WIDTH = 500
 
+/** Max enemies scales with player count so each player's area feels populated */
+const ENEMIES_PER_EXTRA_PLAYER_DAY = 10
+const ENEMIES_PER_EXTRA_PLAYER_NIGHT = 14
+
 export class EnemySpawner {
   private scene: Phaser.Scene
   private timer = 0
@@ -32,13 +36,17 @@ export class EnemySpawner {
   update(
     dt: number,
     chunks: ChunkManager,
-    playerX: number,
-    playerY: number,
+    playerPositions: { x: number; y: number }[],
     enemies: Enemy[],
     isNight = false
   ) {
+    if (playerPositions.length === 0) return
+
     const spawnInterval = isNight ? SPAWN_INTERVAL_NIGHT : SPAWN_INTERVAL_DAY
-    const maxEnemies = isNight ? MAX_ENEMIES_NIGHT : MAX_ENEMIES_DAY
+    const extraPlayers = Math.max(0, playerPositions.length - 1)
+    const maxEnemies = isNight
+      ? MAX_ENEMIES_NIGHT + extraPlayers * ENEMIES_PER_EXTRA_PLAYER_NIGHT
+      : MAX_ENEMIES_DAY + extraPlayers * ENEMIES_PER_EXTRA_PLAYER_DAY
 
     this.timer -= dt * 1000
     if (this.timer > 0) return
@@ -48,7 +56,12 @@ export class EnemySpawner {
     const aliveCount = enemies.filter(e => e.alive).length
     if (aliveCount >= maxEnemies) return
 
-    // Pick a spawn position near the player but off-screen
+    // Pick a random player to spawn near
+    const target = playerPositions[Math.floor(Math.random() * playerPositions.length)]!
+    const playerX = target.x
+    const playerY = target.y
+
+    // Pick a spawn position near the chosen player but off-screen
     const cam = this.scene.cameras.main
     const view = cam.worldView
     let spawnX = 0

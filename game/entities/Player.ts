@@ -59,6 +59,8 @@ export class Player {
 
   /** Callback for tile changes (mining/placement) — used for multiplayer broadcasting */
   onTileChange: ((tx: number, ty: number, newType: number, oldType: number) => void) | null = null
+  onChestOpen: ((tx: number, ty: number) => void) | null = null
+  onChestClose: ((tx: number, ty: number, items: any[]) => void) | null = null
 
   vx = 0
   vy = 0

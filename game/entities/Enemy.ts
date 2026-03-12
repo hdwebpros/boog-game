@@ -66,6 +66,9 @@ export class Enemy {
     }
   }
 
+  /** All player positions for despawn checks (set by WorldScene each frame) */
+  allPlayerPositions: { x: number; y: number }[] = []
+
   update(dt: number, chunks: ChunkManager, playerX: number, playerY: number, isNight = false, darkness = 0): { shootAtPlayer: boolean } {
     if (!this.alive) return { shootAtPlayer: false }
 
