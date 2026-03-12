@@ -382,6 +382,20 @@ export class CombatSystem {
     AudioManager.get()?.play(SoundId.SUMMON_SPAWN)
   }
 
+  /** Tick only damage number animations (for clients that skip full update) */
+  updateDamageNumbers(dt: number) {
+    for (const dn of this.damageNumbers) {
+      dn.text.y += dn.vy * dt
+      dn.vy -= 100 * dt
+      dn.lifetime -= dt * 1000
+      dn.text.setAlpha(Math.max(0, dn.lifetime / 500))
+      if (dn.lifetime <= 0) {
+        dn.text.destroy()
+      }
+    }
+    this.damageNumbers = this.damageNumbers.filter(d => d.lifetime > 0)
+  }
+
   spawnDamageNumber(x: number, y: number, amount: number, color: number) {
     const text = this.scene.add.text(x, y, `${amount}`, {
       fontSize: '14px',

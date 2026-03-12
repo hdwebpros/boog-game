@@ -56,6 +56,8 @@ export class Player {
   inventory: InventoryManager
   skills: SkillTreeManager
   entityId = 0 // unique ID for multiplayer entity tracking
+  /** When true, skip local respawn timer — host drives respawn via corrections */
+  isNetworkClient = false
 
   /** Callback for tile changes (mining/placement) — used for multiplayer broadcasting */
   onTileChange: ((tx: number, ty: number, newType: number, oldType: number) => void) | null = null
@@ -278,13 +280,29 @@ export class Player {
     keyI.on('down', () => { this.useConsumable() })
   }
 
+  /** Close the chest UI and fire the onChestClose callback (for multiplayer sync) */
+  closeChest() {
+    if (!this.chestOpen) return
+    const pos = this.openChestPos
+    this.chestOpen = false
+    this.openChestPos = null
+    this.inventory.returnHeldItem()
+    if (pos && this.lastChunks) {
+      const items = this.lastChunks.getChestInventory(pos.tx, pos.ty)
+      this.onChestClose?.(pos.tx, pos.ty, items)
+    }
+  }
+
   update(dt: number, chunks: ChunkManager, combat?: CombatSystem, enemies?: Enemy[]) {
     this.lastChunks = chunks
 
     if (this.dead) {
-      this.respawnTimer -= dt * 1000
-      if (this.respawnTimer <= 0) {
-        this.respawn()
+      // Network clients: host drives respawn via corrections, skip local timer
+      if (!this.isNetworkClient) {
+        this.respawnTimer -= dt * 1000
+        if (this.respawnTimer <= 0) {
+          this.respawn()
+        }
       }
       return
     }
@@ -418,6 +436,23 @@ export class Player {
     if (this.heldItemSprite) this.heldItemSprite.setAlpha(0.2)
     this.respawnTimer = RESPAWN_DELAY
     AudioManager.get()?.play(SoundId.PLAYER_DIE)
+  }
+
+  /** Force respawn at a specific position (used by network correction from host) */
+  forceRespawn(x: number, y: number, hp: number, mana: number) {
+    this.dead = false
+    this.hp = hp
+    this.mana = mana
+    this.sprite.x = x
+    this.sprite.y = y
+    this.sprite.clearTint()
+    this.sprite.setAlpha(1)
+    this.equipOverlay.setAlpha(1)
+    if (this.heldItemSprite) this.heldItemSprite.setAlpha(1)
+    this.iFrames = IFRAMES_DURATION * 2
+    this.vx = 0
+    this.vy = 0
+    this.lastEquipHash = ''
   }
 
   private respawn() {

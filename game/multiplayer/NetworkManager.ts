@@ -7,11 +7,6 @@ import {
   type NetworkMessage,
   type InputState,
   type TileChangeRequest,
-  type PlayerSnapshot,
-  type EnemySnapshot,
-  type BossSnapshot,
-  type DroppedItemSnapshot,
-  type CombatEvent,
   type JoinRequest,
   type JoinAccepted,
   type JoinRejected,
@@ -21,7 +16,6 @@ import {
   PROTOCOL_VERSION,
   PLAYER_SYNC_INTERVAL,
   encodeMessage,
-  decodeMessage,
 } from './protocol'
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'

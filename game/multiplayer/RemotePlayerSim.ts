@@ -14,6 +14,8 @@ const GRAVITY = 900
 const MAX_FALL_SPEED = 700
 export const REMOTE_COL_W = 12
 export const REMOTE_COL_H = 28
+const FALL_DMG_THRESHOLD = 450
+const FALL_DMG_FACTOR = 0.1
 const IFRAMES_DURATION = 500
 const RESPAWN_DELAY = 3000
 
@@ -34,6 +36,7 @@ export class RemotePlayerSim {
   respawnTimer = 0
   actionAnim = '' // 'mining' | 'attacking' | ''
   weaponStyle = '' // 'melee' | 'ranged' | 'magic' | 'summon' | ''
+  private maxFallVy = 0
 
   constructor(x: number, y: number) {
     this.x = x
@@ -67,17 +70,20 @@ export class RemotePlayerSim {
     this.iFrames = IFRAMES_DURATION * 3
   }
 
-  simulate(input: InputState, dt: number, chunks: ChunkManager) {
-    if (this.dead) return
+  /** Simulate one tick. Returns fall damage dealt (0 if none) so host can broadcast combat event. */
+  simulate(input: InputState, dt: number, chunks: ChunkManager): number {
+    if (this.dead) return 0
 
     // Tick down i-frames
     if (this.iFrames > 0) this.iFrames -= dt * 1000
 
     // Use client-reported action animation (mining/attacking)
+    // weaponStyle is set by handleRemoteAttack, clear when actionAnim clears
     if (input.actionAnim) {
       this.actionAnim = input.actionAnim
     } else {
       this.actionAnim = ''
+      this.weaponStyle = ''
     }
 
     // Horizontal movement
@@ -100,9 +106,10 @@ export class RemotePlayerSim {
     // Gravity
     this.vy += GRAVITY * dt
     if (this.vy > MAX_FALL_SPEED) this.vy = MAX_FALL_SPEED
+    if (this.vy > this.maxFallVy) this.maxFallVy = this.vy
 
-    // Resolve collisions
-    this.resolveCollisions(dt, chunks)
+    // Resolve collisions (returns fall damage if landed hard)
+    const fallDmg = this.resolveCollisions(dt, chunks)
 
     // Clamp to world bounds
     const hw = REMOTE_COL_W / 2
@@ -114,11 +121,16 @@ export class RemotePlayerSim {
     const tx = Math.floor(this.x / TILE_SIZE)
     const ty = Math.floor(this.y / TILE_SIZE)
     this.isInWater = chunks.getTile(tx, ty) === TileType.WATER
+    if (this.isInWater) this.maxFallVy = 0
+
+    return fallDmg
   }
 
-  private resolveCollisions(dt: number, chunks: ChunkManager) {
+  /** Returns fall damage dealt this tick (0 if none). */
+  private resolveCollisions(dt: number, chunks: ChunkManager): number {
     const hw = REMOTE_COL_W / 2
     const hh = REMOTE_COL_H / 2
+    let fallDamage = 0
 
     const rx = physResolveX(this.x, this.y, this.vx * dt, hw, hh, chunks)
     this.x = rx.pos
@@ -126,7 +138,19 @@ export class RemotePlayerSim {
 
     const ry = physResolveY(this.x, this.y, this.vy * dt, hw, hh, chunks)
     this.y = ry.pos
-    this.isGrounded = ry.grounded
-    if (ry.blocked) this.vy = 0
+    if (ry.blocked) {
+      if (ry.grounded) {
+        this.isGrounded = true
+        if (this.maxFallVy > FALL_DMG_THRESHOLD) {
+          fallDamage = Math.floor((this.maxFallVy - FALL_DMG_THRESHOLD) * FALL_DMG_FACTOR)
+          if (fallDamage > 0) this.takeDamage(fallDamage, 0, 0)
+        }
+        this.maxFallVy = 0
+      }
+      this.vy = 0
+    } else if (this.vy > 0) {
+      this.isGrounded = false
+    }
+    return fallDamage
   }
 }

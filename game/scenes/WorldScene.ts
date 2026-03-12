@@ -208,6 +208,7 @@ export class WorldScene extends Phaser.Scene {
       this.mp.initClientFromExisting(this, network, joinData)
       this.registry.remove('mpNetwork')
       this.registry.remove('mpJoinData')
+      this.player.isNetworkClient = true // host drives respawn
 
       // Apply stations from host
       for (const s of joinData.stations) {
@@ -309,6 +310,13 @@ export class WorldScene extends Phaser.Scene {
       this.player.onTileChange = (tx, ty, newType, oldType) => {
         this.mp.sendTileChange({ tx, ty, newType, oldType })
       }
+      // Wire up chest sync: request on open, send state on close
+      this.player.onChestOpen = (tx, ty) => {
+        this.mp.sendChestRequest(tx, ty, 'open')
+      }
+      this.player.onChestClose = (tx, ty, items) => {
+        this.mp.sendChestRequest(tx, ty, 'close', items)
+      }
       this.mp.onDisconnected = (reason) => {
         this.showNotification(`Disconnected: ${reason}`, 0xff4444)
         // Return to menu after a short delay
@@ -368,9 +376,7 @@ export class WorldScene extends Phaser.Scene {
       } else if (this.player.skillTreeOpen) {
         this.player.skillTreeOpen = false
       } else if (this.player.chestOpen) {
-        this.player.chestOpen = false
-        this.player.openChestPos = null
-        this.player.inventory.returnHeldItem()
+        this.player.closeChest()
       } else if (this.player.shopOpen) {
         this.player.shopOpen = false
       } else if (!this.mp.isOnline) {
@@ -760,6 +766,11 @@ export class WorldScene extends Phaser.Scene {
 
       // Apply pending state from host
       this.applyClientSync()
+    }
+
+    // Clients skip combat.update() — still need to animate damage numbers
+    if (this.mp.isClient) {
+      this.combat.updateDamageNumbers(dt)
     }
 
     this.chunkManager.update()
@@ -1872,7 +1883,19 @@ export class WorldScene extends Phaser.Scene {
       // Apply latest input from this player
       const input = rp.lastInput
       if (input) {
-        sim.simulate(input, dt, this.chunkManager)
+        const fallDmg = sim.simulate(input, dt, this.chunkManager)
+        if (fallDmg > 0) {
+          this.mp.broadcastCombatEvent({
+            type: 'damage',
+            targetType: 'player',
+            targetId: rp.id,
+            sourceId: 0,
+            amount: fallDmg,
+            x: sim.x,
+            y: sim.y,
+            color: 0xff4444,
+          })
+        }
       }
 
       // Update the snapshot that gets broadcast (Fix #5 — include all fields)
@@ -1974,23 +1997,32 @@ export class WorldScene extends Phaser.Scene {
     // Apply local player correction from host (Fix #13)
     const correction = this.mp.consumeLocalPlayerCorrection()
     if (correction) {
-      // Authoritative HP/mana/dead from host
-      this.player.hp = correction.hp
-      this.player.maxHp = correction.maxHp
-      this.player.mana = correction.mana
-      this.player.maxMana = correction.maxMana
+      // Host says dead, client alive → kill client
       if (correction.dead && !this.player.dead) {
         this.player.hp = 0
         this.player.takeDamage(0, 0, 0, this.combat)
       }
-      // Position correction: snap if too far from server (>100px)
-      const dx = this.player.sprite.x - correction.x
-      const dy = this.player.sprite.y - correction.y
-      if (dx * dx + dy * dy > 100 * 100) {
-        this.player.sprite.x = correction.x
-        this.player.sprite.y = correction.y
-        this.player.vx = correction.vx
-        this.player.vy = correction.vy
+      // Host says alive, client dead → respawn at host position with host HP
+      else if (!correction.dead && this.player.dead) {
+        this.player.forceRespawn(correction.x, correction.y, correction.hp, correction.mana)
+      }
+      // Normal: sync HP/mana
+      else {
+        this.player.hp = correction.hp
+        this.player.maxHp = correction.maxHp
+        this.player.mana = correction.mana
+        this.player.maxMana = correction.maxMana
+      }
+      // Position correction: snap if too far from server (>100px), skip while dead
+      if (!this.player.dead) {
+        const dx = this.player.sprite.x - correction.x
+        const dy = this.player.sprite.y - correction.y
+        if (dx * dx + dy * dy > 100 * 100) {
+          this.player.sprite.x = correction.x
+          this.player.sprite.y = correction.y
+          this.player.vx = correction.vx
+          this.player.vy = correction.vy
+        }
       }
     }
 
