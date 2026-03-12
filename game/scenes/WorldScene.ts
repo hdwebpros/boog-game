@@ -1366,6 +1366,7 @@ export class WorldScene extends Phaser.Scene {
       isInWater: this.player.isInWater,
       hasJetpack: this.player.hasJetpack,
       actionAnim: this.player.actionAnim,
+      weaponStyle: '',
       lastInputSeq: 0,
     }]
     // Add remote player snapshots
