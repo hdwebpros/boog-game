@@ -62,6 +62,7 @@ export class Player {
   /** Callback for tile changes (mining/placement) — used for multiplayer broadcasting */
   onTileChange: ((tx: number, ty: number, newType: number, oldType: number) => void) | null = null
   onChestOpen: ((tx: number, ty: number) => void) | null = null
+  onItemDrop: ((itemId: number, count: number) => void) | null = null
   onChestClose: ((tx: number, ty: number, items: any[]) => void) | null = null
 
   vx = 0
@@ -551,6 +552,13 @@ export class Player {
     if (!item) return
     const id = item.id
     if (!this.inventory.consumeSelected()) return
+
+    // In client mode, send drop request to host instead of spawning locally
+    if (this.isNetworkClient && this.onItemDrop) {
+      this.onItemDrop(id, 1)
+      return
+    }
+
     // Spawn a world drop via WorldScene
     const ws = this.scene as any
     if (typeof ws.spawnDrop === 'function') {

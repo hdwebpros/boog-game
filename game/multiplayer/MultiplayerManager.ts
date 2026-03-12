@@ -243,6 +243,13 @@ export class MultiplayerManager {
     }
   }
 
+  /** Send item drop to host (client mode only) */
+  sendItemDrop(itemId: number, count: number) {
+    if (this._mode === 'client' && this.network) {
+      this.network.sendItemDrop(itemId, count)
+    }
+  }
+
   /** Send chest request to host (client mode only) */
   sendChestRequest(tx: number, ty: number, action: 'open' | 'close', items?: (any | null)[]) {
     if (this._mode === 'client' && this.network) {

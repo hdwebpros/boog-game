@@ -246,6 +246,15 @@ export class NetworkManager {
     })
   }
 
+  /** Send item drop request */
+  sendItemDrop(itemId: number, count: number) {
+    this.send({
+      type: MessageType.ITEM_DROP,
+      senderId: this._playerId,
+      data: { itemId, count },
+    })
+  }
+
   /** Send chest request (open/close) */
   sendChestRequest(tx: number, ty: number, action: 'open' | 'close', items?: (any | null)[]) {
     this.send({

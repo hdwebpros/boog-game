@@ -224,7 +224,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Camera follows player — 2x zoom so tiles feel substantial
     this.cameras.main.setZoom(2)
-    this.cameras.main.startFollow(this.player.sprite, true, 0.1, 0.1)
+    this.cameras.main.startFollow(this.player.sprite, false, 0.25, 0.25)
 
     // Seed display (fixed to camera)
     this.add.text(8, 8, `Seed: ${this.worldData.seed}`, {
@@ -316,6 +316,10 @@ export class WorldScene extends Phaser.Scene {
       }
       this.player.onChestClose = (tx, ty, items) => {
         this.mp.sendChestRequest(tx, ty, 'close', items)
+      }
+      // Wire up item drop requests from client player → host
+      this.player.onItemDrop = (itemId, count) => {
+        this.mp.sendItemDrop(itemId, count)
       }
       this.mp.onDisconnected = (reason) => {
         this.showNotification(`Disconnected: ${reason}`, 0xff4444)
@@ -2038,17 +2042,26 @@ export class WorldScene extends Phaser.Scene {
         // Fix #4: XP granted to all clients
         this.grantXP(evt.amount, evt.x, evt.y)
       } else if (evt.targetType === 'player' && evt.targetId === this.mp.localPlayerId) {
-        // This client's player got hit — recalculate knockback direction locally
-        // to prevent desync-induced "sucked into enemy" effect
+        // Host detected a hit on this player via RemotePlayerSim.
+        // Validate against client's local position — the sim can be desynced,
+        // causing phantom hits when the client player isn't actually near the enemy.
         let kbx = evt.kbx ?? 0
         const kby = evt.kby ?? 0
-        if (kbx !== 0) {
-          // Find the source sprite on this client to get accurate knockback direction
-          const enemySprite = evt.sourceId ? this.clientEnemySprites.get(evt.sourceId) : null
-          const sourceX = enemySprite?.x ?? this.clientBossSprite?.x
-          if (sourceX !== undefined) {
+
+        // Check if the client player is actually near the hit source
+        const enemySprite = evt.sourceId ? this.clientEnemySprites.get(evt.sourceId) : null
+        const sourceX = enemySprite?.x ?? this.clientBossSprite?.x
+        const sourceY = enemySprite?.y ?? this.clientBossSprite?.y
+        if (sourceX !== undefined && sourceY !== undefined) {
+          const ddx = this.player.sprite.x - sourceX
+          const ddy = this.player.sprite.y - sourceY
+          const distSq = ddx * ddx + ddy * ddy
+          // Skip if client player is far from the enemy (phantom hit from desync)
+          if (distSq > 80 * 80) continue
+          // Recalculate knockback direction from client's local position
+          if (kbx !== 0) {
             const kbMag = Math.abs(kbx)
-            kbx = (this.player.sprite.x - sourceX) >= 0 ? kbMag : -kbMag
+            kbx = ddx >= 0 ? kbMag : -kbMag
           }
         }
         this.player.takeDamage(evt.amount, kbx, kby, this.combat)
