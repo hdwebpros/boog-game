@@ -1905,6 +1905,19 @@ export class WorldScene extends Phaser.Scene {
     // Apply pending tile changes
     for (const tc of this.mp.consumeTileChanges()) {
       this.chunkManager.setTile(tc.tx, tc.ty, tc.newType as TileType)
+      // Track station placement/removal for crafting
+      if (tc.newType !== TileType.AIR) {
+        // Check if the placed tile is a station by finding its item ID
+        for (const [itemId, tileType] of Object.entries(STATION_TILE_TYPE)) {
+          if (tileType === tc.newType) {
+            this.chunkManager.placeStation(tc.tx, tc.ty, Number(itemId))
+            break
+          }
+        }
+      } else {
+        // Tile removed — unregister station if it was one
+        this.chunkManager.removeStation(tc.tx, tc.ty)
+      }
     }
 
     // Apply enemy sync
@@ -1958,6 +1971,19 @@ export class WorldScene extends Phaser.Scene {
         this.player.vx = correction.vx
         this.player.vy = correction.vy
       }
+    }
+
+    // Apply item pickups from host
+    for (const pickup of this.mp.consumeItemPickups()) {
+      if (this.player.inventory.addItem(pickup.itemId, pickup.count)) {
+        AudioManager.get()?.play(SoundId.PICKUP)
+      }
+    }
+
+    // Apply chest contents from host
+    const chestContents = this.mp.consumeChestContents()
+    if (chestContents) {
+      this.chunkManager.setChestInventory(chestContents.tx, chestContents.ty, chestContents.items)
     }
 
     // Apply combat events
