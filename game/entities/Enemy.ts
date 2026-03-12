@@ -106,15 +106,29 @@ export class Enemy {
       if ('clearTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).clearTint()
     }
 
-    // Despawn check
-    const cam = this.scene.cameras.main
-    const view = cam.worldView
-    const camL = view.x - DESPAWN_DIST
-    const camR = view.x + view.width + DESPAWN_DIST
-    const camT = view.y - DESPAWN_DIST
-    const camB = view.y + view.height + DESPAWN_DIST
-    if (this.sprite.x < camL || this.sprite.x > camR ||
-        this.sprite.y < camT || this.sprite.y > camB) {
+    // Despawn check — use distance to nearest player (not just camera)
+    // so enemies near remote multiplayer players stay alive
+    const despawnDistSq = DESPAWN_DIST * DESPAWN_DIST
+    let nearAnyPlayer = false
+    if (this.allPlayerPositions.length > 0) {
+      for (const p of this.allPlayerPositions) {
+        const pdx = this.sprite.x - p.x
+        const pdy = this.sprite.y - p.y
+        if (pdx * pdx + pdy * pdy < despawnDistSq) {
+          nearAnyPlayer = true
+          break
+        }
+      }
+    } else {
+      // Fallback: use camera (singleplayer / offline)
+      const cam = this.scene.cameras.main
+      const view = cam.worldView
+      if (this.sprite.x > view.x - DESPAWN_DIST && this.sprite.x < view.x + view.width + DESPAWN_DIST &&
+          this.sprite.y > view.y - DESPAWN_DIST && this.sprite.y < view.y + view.height + DESPAWN_DIST) {
+        nearAnyPlayer = true
+      }
+    }
+    if (!nearAnyPlayer) {
       this.destroy()
       return result
     }
