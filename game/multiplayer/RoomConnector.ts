@@ -41,7 +41,11 @@ export class RoomConnector {
       // Send through relay — it broadcasts to all non-host clients
       // If we need to exclude a specific player, we can't easily with relay
       // (relay broadcasts to all) — but for most messages that's fine
-      this.ws.send(msgStr)
+      try {
+        this.ws.send(msgStr)
+      } catch {
+        // Connection died — will be handled by onclose
+      }
     })
   }
 
@@ -69,6 +73,12 @@ export class RoomConnector {
         } catch { return }
 
         // Handle relay management messages
+        if (msg.type === 'heartbeat') {
+          // Respond to server keepalive
+          try { this.ws?.send(JSON.stringify({ type: 'heartbeat_ack' })) } catch {}
+          return
+        }
+
         if (msg.type === 'room_created') {
           this._roomCode = msg.code
           this._connected = true
@@ -111,7 +121,7 @@ export class RoomConnector {
             // Send response back through relay, tagged for specific client
             const parsed = JSON.parse(response)
             parsed._targetId = clientId
-            this.ws?.send(JSON.stringify(parsed))
+            try { this.ws?.send(JSON.stringify(parsed)) } catch {}
           }
 
           const result = this.hostSession.handleMessage(gameMsg, sendFn)
@@ -140,7 +150,7 @@ export class RoomConnector {
           if (clientId) {
             const parsed = JSON.parse(response)
             parsed._targetId = clientId
-            this.ws?.send(JSON.stringify(parsed))
+            try { this.ws?.send(JSON.stringify(parsed)) } catch {}
           }
         }
 
@@ -150,7 +160,8 @@ export class RoomConnector {
         }
       }
 
-      this.ws.onclose = () => {
+      this.ws.onclose = (ev: CloseEvent) => {
+        console.warn(`[Host] WebSocket closed: code=${ev.code} reason="${ev.reason}" wasClean=${ev.wasClean}`)
         this._connected = false
       }
 

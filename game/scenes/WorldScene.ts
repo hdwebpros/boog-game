@@ -742,11 +742,13 @@ export class WorldScene extends Phaser.Scene {
       // Client mode: local player moves with client-side prediction
       this.player.update(dt, this.chunkManager)
 
-      // Send input to host
-      const input = this.mp.collectInput(dt)
-      if (input) {
-        input.actionAnim = this.player.actionAnim
-        this.mp.sendInput(input)
+      // Send input to host (skip while dead to prevent stale input on respawn)
+      if (!this.player.dead) {
+        const input = this.mp.collectInput(dt)
+        if (input) {
+          input.actionAnim = this.player.actionAnim
+          this.mp.sendInput(input)
+        }
       }
 
       // NPC interaction works locally for clients (shop is UI-only)
@@ -2005,6 +2007,8 @@ export class WorldScene extends Phaser.Scene {
       // Host says alive, client dead → respawn at host position with host HP
       else if (!correction.dead && this.player.dead) {
         this.player.forceRespawn(correction.x, correction.y, correction.hp, correction.mana)
+        // Flush stale combat events from before respawn to prevent ghost knockback
+        this.mp.consumeCombatEvents()
       }
       // Normal: sync HP/mana
       else {
@@ -2013,15 +2017,22 @@ export class WorldScene extends Phaser.Scene {
         this.player.mana = correction.mana
         this.player.maxMana = correction.maxMana
       }
-      // Position correction: snap if too far from server (>100px), skip while dead
+      // Position correction: snap if too far, smooth blend for moderate desyncs
       if (!this.player.dead) {
         const dx = this.player.sprite.x - correction.x
         const dy = this.player.sprite.y - correction.y
-        if (dx * dx + dy * dy > 100 * 100) {
+        const distSq = dx * dx + dy * dy
+        if (distSq > 100 * 100) {
+          // Hard snap for large desyncs
           this.player.sprite.x = correction.x
           this.player.sprite.y = correction.y
           this.player.vx = correction.vx
           this.player.vy = correction.vy
+        } else if (distSq > 4) {
+          // Gradual correction for moderate desyncs — prevents knockback direction inversion
+          const blend = 0.15
+          this.player.sprite.x -= dx * blend
+          this.player.sprite.y -= dy * blend
         }
       }
     }
@@ -2045,8 +2056,20 @@ export class WorldScene extends Phaser.Scene {
         // Fix #4: XP granted to all clients
         this.grantXP(evt.amount, evt.x, evt.y)
       } else if (evt.targetType === 'player' && evt.targetId === this.mp.localPlayerId) {
-        // This client's player got hit — apply damage locally
-        this.player.takeDamage(evt.amount, evt.kbx ?? 0, evt.kby ?? 0, this.combat)
+        // This client's player got hit — recalculate knockback direction locally
+        // to prevent desync-induced "sucked into enemy" effect
+        let kbx = evt.kbx ?? 0
+        const kby = evt.kby ?? 0
+        if (kbx !== 0) {
+          // Find the source sprite on this client to get accurate knockback direction
+          const enemySprite = evt.sourceId ? this.clientEnemySprites.get(evt.sourceId) : null
+          const sourceX = enemySprite?.x ?? this.clientBossSprite?.x
+          if (sourceX !== undefined) {
+            const kbMag = Math.abs(kbx)
+            kbx = (this.player.sprite.x - sourceX) >= 0 ? kbMag : -kbMag
+          }
+        }
+        this.player.takeDamage(evt.amount, kbx, kby, this.combat)
       } else {
         // Visual-only damage number (enemy hit or other player hit)
         this.combat.spawnDamageNumber(evt.x, evt.y, evt.amount, evt.color ?? 0xff4444)

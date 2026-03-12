@@ -434,6 +434,11 @@ export class Player {
     this.sprite.setTint(0x666666)
     this.equipOverlay.setAlpha(0.2)
     if (this.heldItemSprite) this.heldItemSprite.setAlpha(0.2)
+    // Clean up jetpack flame so it doesn't linger at death location
+    if (this.jetpackFlame) {
+      this.jetpackFlame.destroy()
+      this.jetpackFlame = null
+    }
     this.respawnTimer = RESPAWN_DELAY
     AudioManager.get()?.play(SoundId.PLAYER_DIE)
   }

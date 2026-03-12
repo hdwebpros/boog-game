@@ -16,6 +16,8 @@ interface Client {
   peer: any
   roomCode: string
   isHost: boolean
+  heartbeatTimer?: ReturnType<typeof setInterval>
+  alive: boolean
 }
 
 interface Room {
@@ -27,6 +29,17 @@ interface Room {
 
 const rooms = new Map<string, Room>()
 const clientMap = new Map<string, Client>()
+
+/** Safely send to a peer — swallows errors from dead connections */
+function safeSend(peer: any, data: string): boolean {
+  try {
+    peer.send(data)
+    return true
+  } catch {
+    // Connection already dead — will be cleaned up by close/error handler
+    return false
+  }
+}
 
 function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -46,10 +59,23 @@ export default defineWebSocketHandler({
       peer,
       roomCode: '',
       isHost: false,
+      alive: true,
     }
     clientMap.set(client.id, client)
 
-    peer.send(JSON.stringify({
+    // Heartbeat: send a keepalive every 30s and detect dead connections
+    client.heartbeatTimer = setInterval(() => {
+      if (!client.alive) {
+        // Didn't respond to last heartbeat — terminate
+        clearInterval(client.heartbeatTimer)
+        try { peer.close(1000, 'heartbeat timeout') } catch {}
+        return
+      }
+      client.alive = false
+      safeSend(peer, JSON.stringify({ type: 'heartbeat' }))
+    }, 30_000)
+
+    safeSend(peer, JSON.stringify({
       type: 'welcome',
       clientId: client.id,
     }))
@@ -59,6 +85,9 @@ export default defineWebSocketHandler({
     const client = findClientByPeer(peer)
     if (!client) return
 
+    // Any message from this client means it's alive
+    client.alive = true
+
     let msg: any
     try {
       const text = typeof rawMessage === 'string' ? rawMessage : rawMessage.text()
@@ -66,6 +95,9 @@ export default defineWebSocketHandler({
     } catch {
       return
     }
+
+    // Respond to heartbeat acknowledgement
+    if (msg.type === 'heartbeat_ack') return
 
     // Room management messages (before game protocol)
     switch (msg.type) {
@@ -82,7 +114,7 @@ export default defineWebSocketHandler({
         client.roomCode = code
         client.isHost = true
 
-        peer.send(JSON.stringify({
+        safeSend(peer, JSON.stringify({
           type: 'room_created',
           code,
           isHost: true,
@@ -94,14 +126,14 @@ export default defineWebSocketHandler({
         const code = (msg.code as string)?.toUpperCase()
         const room = rooms.get(code)
         if (!room) {
-          peer.send(JSON.stringify({
+          safeSend(peer, JSON.stringify({
             type: 'room_error',
             error: `Room ${code} not found`,
           }))
           return
         }
         if (room.clients.size >= 8) {
-          peer.send(JSON.stringify({
+          safeSend(peer, JSON.stringify({
             type: 'room_error',
             error: 'Room is full',
           }))
@@ -111,7 +143,7 @@ export default defineWebSocketHandler({
         room.clients.set(client.id, client)
         client.roomCode = code
 
-        peer.send(JSON.stringify({
+        safeSend(peer, JSON.stringify({
           type: 'room_joined',
           code,
           isHost: false,
@@ -138,13 +170,13 @@ export default defineWebSocketHandler({
         // Unicast to specific client
         const target = room.clients.get(targetId)
         if (target && target.id !== client.id) {
-          target.peer.send(text)
+          safeSend(target.peer, text)
         }
       } else {
         // Broadcast to all non-host clients
         for (const [, c] of room.clients) {
           if (c.id !== client.id) {
-            c.peer.send(text)
+            safeSend(c.peer, text)
           }
         }
       }
@@ -153,7 +185,7 @@ export default defineWebSocketHandler({
       if (room.host) {
         // Tag the sender so host knows who sent it
         msg._fromClientId = client.id
-        room.host.peer.send(JSON.stringify(msg))
+        safeSend(room.host.peer, JSON.stringify(msg))
       }
     }
   },
@@ -161,6 +193,7 @@ export default defineWebSocketHandler({
   close(peer) {
     const client = findClientByPeer(peer)
     if (client) {
+      if (client.heartbeatTimer) clearInterval(client.heartbeatTimer)
       handleLeave(client)
       clientMap.delete(client.id)
     }
@@ -170,6 +203,7 @@ export default defineWebSocketHandler({
     console.error('[WS] Error:', error)
     const client = findClientByPeer(peer)
     if (client) {
+      if (client.heartbeatTimer) clearInterval(client.heartbeatTimer)
       handleLeave(client)
       clientMap.delete(client.id)
     }
@@ -194,7 +228,7 @@ function handleLeave(client: Client) {
   if (client.isHost) {
     // Host left — close the room
     for (const [, c] of room.clients) {
-      c.peer.send(JSON.stringify({
+      safeSend(c.peer, JSON.stringify({
         type: 'room_closed',
         reason: 'Host disconnected',
       }))
@@ -203,7 +237,7 @@ function handleLeave(client: Client) {
   } else {
     // Client left — notify host
     if (room.host) {
-      room.host.peer.send(JSON.stringify({
+      safeSend(room.host.peer, JSON.stringify({
         type: MessageType_PLAYER_LEFT,
         senderId: 0,
         data: { playerId: client.playerId, clientId: client.id },

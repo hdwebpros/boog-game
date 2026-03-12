@@ -136,8 +136,13 @@ export class NetworkManager {
           return
         }
 
-        // Handle relay messages after connected (e.g. room_closed)
+        // Handle relay messages after connected (e.g. room_closed, heartbeat)
         if (typeof raw.type === 'string') {
+          if (raw.type === 'heartbeat') {
+            // Respond to server keepalive
+            try { this.ws?.send(JSON.stringify({ type: 'heartbeat_ack' })) } catch {}
+            return
+          }
           if (raw.type === 'room_closed') {
             this._state = 'disconnected'
             this.ws?.close()
@@ -165,14 +170,15 @@ export class NetworkManager {
         }
       }
 
-      this.ws.onclose = () => {
+      this.ws.onclose = (ev: CloseEvent) => {
+        console.warn(`[Net] WebSocket closed: code=${ev.code} reason="${ev.reason}" wasClean=${ev.wasClean}`)
         const wasConnected = this._state === 'connected'
         this._state = 'disconnected'
         if (wasConnected) {
           this.dispatchMessage({
             type: MessageType.PLAYER_LEFT,
             senderId: this._playerId,
-            data: { playerId: this._playerId, reason: 'disconnected' },
+            data: { playerId: this._playerId, reason: ev.reason || 'disconnected' },
           })
         }
       }
@@ -192,7 +198,11 @@ export class NetworkManager {
   /** Send a raw network message */
   send(msg: NetworkMessage) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
-    this.ws.send(encodeMessage(msg))
+    try {
+      this.ws.send(encodeMessage(msg))
+    } catch {
+      // Connection died between readyState check and send — will be handled by onclose
+    }
   }
 
   /** Queue input to be sent to host (batched at PLAYER_SYNC_INTERVAL) */
