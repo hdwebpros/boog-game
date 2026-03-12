@@ -2017,23 +2017,26 @@ export class WorldScene extends Phaser.Scene {
         this.player.mana = correction.mana
         this.player.maxMana = correction.maxMana
       }
-      // Position correction: snap if too far, smooth blend for moderate desyncs
+      // Position correction: only correct large desyncs (knockback, respawn, etc.)
+      // Small desyncs are normal since client and host run physics on different clocks.
+      // Correcting small diffs causes visible jitter — trust the client's local physics.
       if (!this.player.dead) {
         const dx = this.player.sprite.x - correction.x
         const dy = this.player.sprite.y - correction.y
         const distSq = dx * dx + dy * dy
         if (distSq > 100 * 100) {
-          // Hard snap for large desyncs
+          // Hard snap for large desyncs (teleport/respawn)
           this.player.sprite.x = correction.x
           this.player.sprite.y = correction.y
           this.player.vx = correction.vx
           this.player.vy = correction.vy
-        } else if (distSq > 4) {
-          // Gradual correction for moderate desyncs — prevents knockback direction inversion
-          const blend = 0.15
+        } else if (distSq > 48 * 48) {
+          // Gentle blend for moderate desyncs (knockback, etc.)
+          const blend = 0.08
           this.player.sprite.x -= dx * blend
           this.player.sprite.y -= dy * blend
         }
+        // Below 48px: no correction — client physics is authoritative for own movement
       }
     }
 

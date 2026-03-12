@@ -410,7 +410,8 @@ export class MenuScene extends Phaser.Scene {
       ['Tab', 'Inventory'],
     ]
     const rightCol = [
-      ['Q', 'Use Item'],
+      ['Q', 'Drop Item'],
+      ['I', 'Use Item'],
       ['F', 'Boss/NPC'],
       ['N', 'Minimap'],
       ['[ / ]', 'Map Zoom'],
