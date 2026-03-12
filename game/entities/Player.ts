@@ -296,9 +296,7 @@ export class Player {
       const dx = Math.abs(this.openChestPos.tx - ptx)
       const dy = Math.abs(this.openChestPos.ty - pty)
       if (dx > 4 || dy > 4) {
-        this.chestOpen = false
-        this.openChestPos = null
-        this.inventory.returnHeldItem()
+        this.closeChest()
       }
     }
 
@@ -1239,6 +1237,7 @@ export class Player {
                 chunks.removeChestInventory(bx, by)
                 // Close chest UI if this chest was open
                 if (this.chestOpen && this.openChestPos?.tx === bx && this.openChestPos?.ty === by) {
+                  // Don't fire onChestClose — chest is destroyed, contents already retrieved
                   this.chestOpen = false
                   this.openChestPos = null
                   this.inventory.returnHeldItem()

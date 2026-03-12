@@ -437,17 +437,7 @@ export class WorldScene extends Phaser.Scene {
       this.checkRunestoneInteraction()
       this.checkNPCInteraction()
 
-      // Spawn enemies (not during boss fight)
-      if (!this.activeBoss || !this.activeBoss.alive) {
-        const prevCount = this.enemies.length
-        this.enemySpawner.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y, this.enemies, this.dayNight.isNight)
-        // Register any newly spawned enemies
-        for (let i = prevCount; i < this.enemies.length; i++) {
-          this.registerEnemy(this.enemies[i]!)
-        }
-      }
-
-      // Build list of all player positions for enemy/boss AI targeting
+      // Build list of all player positions for spawning, enemy AI, and despawn checks
       const allPlayerPositions: { x: number; y: number; id: number }[] = [
         { x: this.player.sprite.x, y: this.player.sprite.y, id: this.mp.localPlayerId },
       ]
@@ -457,9 +447,22 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
+      // Spawn enemies near all players (not during boss fight)
+      if (!this.activeBoss || !this.activeBoss.alive) {
+        const prevCount = this.enemies.length
+        this.enemySpawner.update(dt, this.chunkManager, allPlayerPositions, this.enemies, this.dayNight.isNight)
+        // Register any newly spawned enemies
+        for (let i = prevCount; i < this.enemies.length; i++) {
+          this.registerEnemy(this.enemies[i]!)
+        }
+      }
+
       // Update enemies — target nearest player (host + all remotes)
       for (const enemy of this.enemies) {
         if (!enemy.alive) continue
+
+        // Set player positions for despawn check (enemies near any player stay alive)
+        enemy.allPlayerPositions = allPlayerPositions
 
         // Find the nearest player to this enemy
         let nearestX = this.player.sprite.x
