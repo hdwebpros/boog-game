@@ -12,6 +12,8 @@ import { SkillTreeManager } from '../systems/SkillTreeManager'
 import { resolveX, resolveY } from '../systems/PhysicsResolver'
 import { ACCESSORY_EFFECTS } from '../data/accessories'
 import type { AccessoryEffect } from '../data/accessories'
+import { BuffManager } from '../systems/BuffManager'
+import { POTION_BUFF_MAP, BUFF_DEFS } from '../data/potions'
 
 // Physics
 const MOVE_SPEED = 200
@@ -55,6 +57,7 @@ export class Player {
   sprite: Phaser.GameObjects.Image
   inventory: InventoryManager
   skills: SkillTreeManager
+  buffs: BuffManager
   entityId = 0 // unique ID for multiplayer entity tracking
   /** When true, skip local respawn timer — host drives respawn via corrections */
   isNetworkClient = false
@@ -156,6 +159,7 @@ export class Player {
     this.scene = scene
     this.inventory = new InventoryManager()
     this.skills = new SkillTreeManager()
+    this.buffs = new BuffManager()
     this.spawnX = x
     this.spawnY = y
 
@@ -322,17 +326,20 @@ export class Player {
       }
     }
 
-    // Apply skill-based max HP/mana bonuses + armor enchantments
+    // Tick buff timers
+    this.buffs.update(dt)
+
+    // Apply skill-based max HP/mana bonuses + armor enchantments + buffs
     const mods = this.skills.getModifiers()
     const armorEnch = this.getArmorEnchantmentBonuses()
-    this.maxHp = MAX_HP + mods.maxHpBonus + armorEnch.maxHpBonus + this.getAccessoryMaxHpBonus()
+    this.maxHp = MAX_HP + mods.maxHpBonus + armorEnch.maxHpBonus + this.getAccessoryMaxHpBonus() + this.buffs.getMaxHpBonus()
     this.maxMana = MAX_MANA + mods.maxManaBonus + armorEnch.maxManaBonus + this.getAccessoryMaxManaBonus()
 
-    // Mana regen (with skill multiplier)
-    this.mana = Math.min(this.maxMana, this.mana + MANA_REGEN * mods.manaRegenMult * dt)
+    // Mana regen (with skill multiplier + buff multiplier)
+    this.mana = Math.min(this.maxMana, this.mana + MANA_REGEN * mods.manaRegenMult * this.buffs.getManaRegenMult() * dt)
 
-    // HP regen from skills + life enchantment
-    const totalHpRegen = mods.hpRegen + armorEnch.hpRegen
+    // HP regen from skills + life enchantment + buffs
+    const totalHpRegen = mods.hpRegen + armorEnch.hpRegen + this.buffs.getHpRegen()
     if (totalHpRegen > 0 && this.hp < this.maxHp) {
       this.hp = Math.min(this.maxHp, this.hp + totalHpRegen * dt)
     }
@@ -379,11 +386,14 @@ export class Player {
   }
 
   takeDamage(amount: number, kbx: number, kby: number, combat?: CombatSystem) {
-    if (this.iFrames > 0 || this.dead || this.forcefieldTimer > 0) return
+    if (this.iFrames > 0 || this.dead || this.forcefieldTimer > 0 || this.buffs.has('forcefield')) return
     const mods = this.skills.getModifiers()
     const armorEnch = this.getArmorEnchantmentBonuses()
-    const defense = this.inventory.getTotalDefense() + mods.defenseBonus + armorEnch.defenseBonus
+    const defense = this.inventory.getTotalDefense() + mods.defenseBonus + armorEnch.defenseBonus + this.buffs.getDefenseBonus()
     amount = Math.max(1, amount - defense)
+
+    // Endurance potion: reduce damage taken
+    amount = Math.max(1, Math.round(amount * this.buffs.getDamageTakenMult()))
 
     // Mana shield: redirect portion of damage to mana (skill + void armor enchant)
     const totalManaShield = mods.manaShieldPct + armorEnch.manaShieldPct
@@ -411,6 +421,26 @@ export class Player {
       combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 10, amount, 0xff4444)
     }
 
+    // Thorns: reflect damage to nearby enemies
+    const thornsPct = this.buffs.getThornsPct()
+    if (thornsPct > 0 && combat) {
+      const thornsDmg = Math.max(1, Math.round(amount * thornsPct))
+      // Find the closest enemy within melee range and deal thorns damage
+      const ws = this.scene as any
+      if (ws.enemies) {
+        for (const e of ws.enemies as Enemy[]) {
+          if (!e.alive) continue
+          const dx = e.sprite.x - this.sprite.x
+          const dy = e.sprite.y - this.sprite.y
+          if (Math.sqrt(dx * dx + dy * dy) < 80) {
+            e.takeDamage(thornsDmg, dx > 0 ? 100 : -100, -60)
+            combat.spawnDamageNumber(e.sprite.x, e.sprite.y - e.def.height / 2, thornsDmg, 0x44aa44)
+            break
+          }
+        }
+      }
+    }
+
     if (this.hp <= 0) {
       // Undying Rage: survive lethal hit with 1 HP + 3s invulnerability
       if (mods.undying && this.undyingCooldown <= 0) {
@@ -434,6 +464,7 @@ export class Player {
   private die() {
     this.dead = true
     this.hp = 0
+    this.buffs.clearAll()
     this.sprite.setAlpha(0.2)
     this.sprite.setTint(0x666666)
     this.equipOverlay.setAlpha(0.2)
@@ -494,11 +525,21 @@ export class Player {
 
     if (def.category !== ItemCategory.CONSUMABLE) return
 
-    // Forcefield Potion
-    if (item.id === 193) {
-      this.forcefieldTimer = 8000
+    // Potion → buff mapping
+    const buffType = POTION_BUFF_MAP[item.id]
+    if (buffType) {
+      // Forcefield potion also sets the legacy timer for the shield visual
+      if (item.id === 193) {
+        this.forcefieldTimer = 8000
+      }
+      this.buffs.apply(buffType)
       this.inventory.consumeSelected()
       AudioManager.get()?.play(SoundId.HEAL)
+      const ws = this.scene as any
+      if (typeof ws.showNotification === 'function') {
+        const bdef = BUFF_DEFS[buffType]
+        if (bdef) ws.showNotification(`${bdef.name}: ${bdef.description}`, bdef.color)
+      }
       return
     }
 
@@ -639,9 +680,11 @@ export class Player {
 
     let dmgDealt = 0
 
+    const buffDmgMult = this.buffs.getDamageMult()
+
     switch (def.weaponStyle) {
       case 'melee': {
-        const mult = mods.meleeDamageMult * lowHpBonus * crit * manaOverloadBonus * emberBonus
+        const mult = mods.meleeDamageMult * this.buffs.getMeleeDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult
         dmgDealt = combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies, mult)
         // Arcane Strikes: melee hits release a magic shockwave
         if (mods.arcaneStrikes && dmgDealt > 0) {
@@ -657,13 +700,13 @@ export class Player {
       }
       case 'ranged':
         combat.fireProjectile(def, this.sprite.x, this.sprite.y, worldCursorX, worldCursorY, true,
-          mods.rangedDamageMult * lowHpBonus * crit * manaOverloadBonus * emberBonus)
+          mods.rangedDamageMult * this.buffs.getRangedDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult)
         break
       case 'magic':
         if (this.mana >= (def.manaCost ?? 0)) {
           this.mana -= def.manaCost ?? 0
           combat.fireProjectile(def, this.sprite.x, this.sprite.y, worldCursorX, worldCursorY, true,
-            mods.magicDamageMult * lowHpBonus * crit * manaOverloadBonus * emberBonus)
+            mods.magicDamageMult * this.buffs.getMagicDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult)
         }
         break
       case 'summon':
@@ -867,7 +910,19 @@ export class Player {
     const ptx = Math.floor(this.sprite.x / TILE_SIZE)
     const pty = Math.floor(this.sprite.y / TILE_SIZE)
     const tileMid = chunks.getTile(ptx, pty)
-    this.isInWater = tileMid === TileType.WATER
+    // Water walking: treat water surface as non-water if we have the buff and are at surface level
+    const hasWaterWalk = this.buffs.hasWaterWalking()
+    if (hasWaterWalk && tileMid === TileType.WATER) {
+      // Check if the tile above is air — if so, we're at the surface and should walk on it
+      const tileAbove = chunks.getTile(ptx, pty - 1)
+      if (tileAbove === TileType.AIR || (tileAbove !== TileType.WATER && tileAbove !== TileType.LAVA)) {
+        this.isInWater = false
+      } else {
+        this.isInWater = true
+      }
+    } else {
+      this.isInWater = tileMid === TileType.WATER
+    }
 
     const left = !this.portalNamingOpen && (this.keyA.isDown || this.cursors.left.isDown)
     const right = !this.portalNamingOpen && (this.keyD.isDown || this.cursors.right.isDown)
@@ -892,7 +947,7 @@ export class Player {
 
     const mods = this.skills.getModifiers()
     const armorEnchMoves = this.getArmorEnchantmentBonuses()
-    let speed = MOVE_SPEED * mods.moveSpeedMult * armorEnchMoves.moveSpeedMult * this.getAccessoryMoveSpeedMult()
+    let speed = MOVE_SPEED * mods.moveSpeedMult * armorEnchMoves.moveSpeedMult * this.getAccessoryMoveSpeedMult() * this.buffs.getMoveSpeedMult()
 
     // Slow horizontal movement in water
     if (this.isInWater) {
@@ -1011,6 +1066,23 @@ export class Player {
       this.vy = 0
     } else if (this.vy * dt > 0) {
       this.isGrounded = false
+    }
+
+    // Water walking: treat water surface as solid ground when falling into it
+    if (hasWaterWalk && this.vy >= 0 && !this.isClimbing) {
+      const feetTY = Math.floor((this.sprite.y + hh) / TILE_SIZE)
+      const feetTX = Math.floor(this.sprite.x / TILE_SIZE)
+      const feetTile = chunks.getTile(feetTX, feetTY)
+      if (feetTile === TileType.WATER) {
+        const aboveTile = chunks.getTile(feetTX, feetTY - 1)
+        if (aboveTile !== TileType.WATER && aboveTile !== TileType.LAVA) {
+          // Snap to water surface
+          this.sprite.y = feetTY * TILE_SIZE - hh
+          this.vy = 0
+          this.isGrounded = true
+          this.maxFallVy = 0
+        }
+      }
     }
 
     this.sprite.x = Phaser.Math.Clamp(this.sprite.x, hw, WORLD_WIDTH * TILE_SIZE - hw)
@@ -1221,7 +1293,7 @@ export class Player {
 
 
   private applyFallDamage() {
-    if (this.hasAccessoryEffect('noFallDamage')) return
+    if (this.hasAccessoryEffect('noFallDamage') || this.buffs.hasNoFallDamage()) return
     const mods = this.skills.getModifiers()
     const damage = Math.floor((this.maxFallVy - FALL_DMG_THRESHOLD) * FALL_DMG_FACTOR * mods.fallDamageMult)
     if (damage > 0) this.takeDamage(damage, 0, 0)
@@ -1272,7 +1344,7 @@ export class Player {
           this.miningTX = tx
           this.miningTY = ty
           this.miningProgress = 0
-          this.miningRequired = (props.hardness * BASE_MINE_TIME) / (toolSpeed * skillMineSpeed * this.getAccessoryMineSpeedMult())
+          this.miningRequired = (props.hardness * BASE_MINE_TIME) / (toolSpeed * skillMineSpeed * this.getAccessoryMineSpeedMult() * this.buffs.getMineSpeedMult())
         }
 
         // Play mining animation while actively mining
@@ -1543,6 +1615,28 @@ export class Player {
       this.overlay.fillStyle(0x000000, pct * 0.5)
       this.overlay.fillRect(px, py, TILE_SIZE, TILE_SIZE)
     }
+
+    // Spelunker potion: highlight ores within view range
+    if (this.buffs.hasSpelunker()) {
+      const ORE_TILES = new Set([TileType.IRON_ORE, TileType.DIAMOND_ORE, TileType.TITANIUM_ORE, TileType.CARBON_FIBER, TileType.CRYSTAL, TileType.CRYSTAL_EMBER, TileType.CRYSTAL_FROST, TileType.CRYSTAL_STORM, TileType.CRYSTAL_VOID, TileType.CRYSTAL_LIFE])
+      const cam = this.scene.cameras.main
+      const viewL = Math.floor(cam.worldView.x / TILE_SIZE) - 1
+      const viewT = Math.floor(cam.worldView.y / TILE_SIZE) - 1
+      const viewR = Math.ceil((cam.worldView.x + cam.worldView.width) / TILE_SIZE) + 1
+      const viewB = Math.ceil((cam.worldView.y + cam.worldView.height) / TILE_SIZE) + 1
+      const pulse = 0.4 + 0.3 * Math.sin(Date.now() * 0.004)
+
+      for (let sy = viewT; sy <= viewB; sy++) {
+        for (let sx = viewL; sx <= viewR; sx++) {
+          const st = chunks.getTile(sx, sy)
+          if (ORE_TILES.has(st)) {
+            const oreColor = TILE_PROPERTIES[st]?.color ?? 0xffcc00
+            this.overlay.lineStyle(1, oreColor, pulse)
+            this.overlay.strokeRect(sx * TILE_SIZE, sy * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+          }
+        }
+      }
+    }
   }
 
   /** Get cumulative bonuses from all equipped armor enchantments */
@@ -1562,11 +1656,11 @@ export class Player {
     return bonuses
   }
 
-  /** Total effective defense (base armor + skills + enchantments) */
+  /** Total effective defense (base armor + skills + enchantments + buffs) */
   getEffectiveDefense(): number {
     const mods = this.skills.getModifiers()
     const armorEnch = this.getArmorEnchantmentBonuses()
-    return this.inventory.getTotalDefense() + mods.defenseBonus + armorEnch.defenseBonus
+    return this.inventory.getTotalDefense() + mods.defenseBonus + armorEnch.defenseBonus + this.buffs.getDefenseBonus()
   }
 
   getPosition() {

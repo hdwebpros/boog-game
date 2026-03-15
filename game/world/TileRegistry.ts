@@ -60,6 +60,7 @@ export enum TileType {
   NETHER_BRICK = 58,
   SOUL_SAND = 59,
   VOID_PORTAL_BLOCK = 60,
+  STATION_BREWING_STAND = 61,
 }
 
 export interface TileProperties {
@@ -139,6 +140,7 @@ export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
   [TileType.NETHER_BRICK]:       { name: 'Nether Brick',  color: 0x4a1a2a, hardness: 4,  solid: true,  mineable: true,  tier: 2 },
   [TileType.SOUL_SAND]:          { name: 'Soul Sand',     color: 0x5a4a3a, hardness: 1,  solid: true,  mineable: true,  tier: 0 },
   [TileType.VOID_PORTAL_BLOCK]:  { name: 'Void Portal',   color: 0x9900ff, hardness: 99, solid: false, mineable: true,  tier: 99, transparent: true },
+  [TileType.STATION_BREWING_STAND]: { name: 'Brewing Stand', color: 0x884488, hardness: 3, solid: true, mineable: true, tier: 1 },
 }
 
 /** Map station item IDs to their tile types */
@@ -154,6 +156,7 @@ export const STATION_TILE_TYPE: Record<number, TileType> = {
   117: TileType.PORTAL,
   320: TileType.VOID_PORTAL_BLOCK,
   321: TileType.NETHER_BRICK,
+  118: TileType.STATION_BREWING_STAND,
 }
 
 /** Map non-station item IDs (100+) to their tile types for placement */

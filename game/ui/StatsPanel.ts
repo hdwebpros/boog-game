@@ -1,6 +1,8 @@
 import Phaser from 'phaser'
 import type { InventoryManager } from '../systems/InventoryManager'
 import type { SkillTreeManager } from '../systems/SkillTreeManager'
+import { BUFF_DEFS } from '../data/potions'
+import type { ActiveBuff } from '../systems/BuffManager'
 
 const JETPACK_PARTS = [
   { id: 180, name: 'Fuel Cell',   color: 0xddaa33 },
@@ -250,6 +252,9 @@ export class StatsPanel {
     this.skillXpText.setPosition(x, xpY + barH + 2)
     this.skillXpText.setVisible(true)
 
+    // Buff icons (below XP bar)
+    this.drawBuffBar(player, x, xpY + barH + 16)
+
     // Death overlay
     this.deathText.setVisible(player.dead === true)
 
@@ -333,6 +338,83 @@ export class StatsPanel {
           this.statsGfx.fillStyle(0xff2222, 0.3 * bpulse)
           this.statsGfx.fillCircle(ax, ay, arrowSize + 4)
         }
+      }
+    }
+  }
+
+  // ── Buff Bar ──────────────────────────────────────────
+
+  private drawBuffBar(player: any, startX: number, startY: number) {
+    const activeBuffs: ActiveBuff[] = player.buffs?.getActiveBuffs?.() ?? []
+    if (activeBuffs.length === 0) return
+
+    const iconSize = 14
+    const gap = 3
+    const maxPerRow = 8
+
+    for (let i = 0; i < activeBuffs.length; i++) {
+      const buff = activeBuffs[i]!
+      const def = BUFF_DEFS[buff.type]
+      if (!def) continue
+
+      const col = i % maxPerRow
+      const row = Math.floor(i / maxPerRow)
+      const bx = startX + col * (iconSize + gap)
+      const by = startY + row * (iconSize + gap + 8)
+
+      // Background
+      this.statsGfx.fillStyle(0x111111, 0.8)
+      this.statsGfx.fillRect(bx, by, iconSize, iconSize)
+
+      // Colored fill (fades as buff expires)
+      const pct = Math.max(0, buff.remaining / buff.duration)
+      this.statsGfx.fillStyle(def.color, 0.6 + 0.4 * pct)
+      this.statsGfx.fillRect(bx + 1, by + 1, iconSize - 2, iconSize - 2)
+
+      // Duration underbar
+      this.statsGfx.fillStyle(def.color, 0.9)
+      this.statsGfx.fillRect(bx, by + iconSize + 1, (iconSize) * pct, 2)
+
+      // Flashing when about to expire (<5s)
+      if (buff.remaining < 5000) {
+        const flash = Math.sin(Date.now() * 0.01) > 0 ? 0.6 : 0.2
+        this.statsGfx.fillStyle(0xffffff, flash)
+        this.statsGfx.fillRect(bx + 1, by + 1, iconSize - 2, iconSize - 2)
+      }
+
+      // Border
+      this.statsGfx.lineStyle(1, def.color, 0.6)
+      this.statsGfx.strokeRect(bx, by, iconSize, iconSize)
+
+      // Draw a small symbol shape based on buff type
+      const cx = bx + iconSize / 2
+      const cy = by + iconSize / 2
+
+      switch (buff.type) {
+        case 'ironskin': // shield shape
+          this.statsGfx.fillStyle(0xffffff, 0.8)
+          this.statsGfx.fillPoints(this.shieldPoints(cx, cy, 8, 8), true, true)
+          break
+        case 'swiftness': // arrow right
+          this.statsGfx.fillTriangle(cx + 4, cy, cx - 3, cy - 3, cx - 3, cy + 3)
+          break
+        case 'regeneration': // plus sign
+          this.statsGfx.fillRect(cx - 1, cy - 3, 2, 6)
+          this.statsGfx.fillRect(cx - 3, cy - 1, 6, 2)
+          break
+        case 'wrath': case 'rage': // skull/X
+          this.statsGfx.lineStyle(2, 0xffffff, 0.8)
+          this.statsGfx.beginPath()
+          this.statsGfx.moveTo(cx - 3, cy - 3)
+          this.statsGfx.lineTo(cx + 3, cy + 3)
+          this.statsGfx.moveTo(cx + 3, cy - 3)
+          this.statsGfx.lineTo(cx - 3, cy + 3)
+          this.statsGfx.strokePath()
+          break
+        default: // circle dot
+          this.statsGfx.fillStyle(0xffffff, 0.7)
+          this.statsGfx.fillCircle(cx, cy, 3)
+          break
       }
     }
   }

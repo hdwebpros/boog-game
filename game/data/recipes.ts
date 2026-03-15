@@ -10,6 +10,7 @@ export enum StationType {
   FUSION_STATION = 'fusion_station',
   ARCANE_ANVIL = 'arcane_anvil',
   VOID_FORGE = 'void_forge',
+  BREWING_STAND = 'brewing_stand',
 }
 
 export interface Recipe {
@@ -66,6 +67,34 @@ export const RECIPES: Recipe[] = [
   { id: 'iron_legs',    station: StationType.ANVIL,      inputs: [{ itemId: 100, count: 8 }, { itemId: TileType.WOOD, count: 2 }], output: { itemId: 210, count: 1 } },
   { id: 'iron_boots',   station: StationType.ANVIL,      inputs: [{ itemId: 100, count: 5 }, { itemId: TileType.WOOD, count: 1 }], output: { itemId: 211, count: 1 } },
   { id: 'forcefield_potion', station: StationType.ANVIL, inputs: [{ itemId: 100, count: 3 }, { itemId: 104, count: 2 }, { itemId: TileType.LEAVES, count: 5 }], output: { itemId: 193, count: 1 } },
+
+  // ── Brewing Stand (crafted at Workbench Mk2) ────────────
+  { id: 'brewing_stand', station: StationType.WORKBENCH_2, inputs: [{ itemId: TileType.STONE, count: 15 }, { itemId: 100, count: 3 }, { itemId: 104, count: 2 }], output: { itemId: 118, count: 1 } },
+
+  // ── Potions (crafted at Brewing Stand) ──────────────────
+  // Tier 0: basic ingredients
+  { id: 'swiftness_potion',    station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CACTUS, count: 3 }, { itemId: 105, count: 2 }],                                   output: { itemId: 401, count: 3 } },
+  { id: 'night_owl_potion',    station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.MUSHROOM_BLOCK, count: 3 }, { itemId: 105, count: 2 }],                             output: { itemId: 403, count: 3 } },
+  { id: 'featherfall_potion',  station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CLOUD_BLOCK, count: 5 }, { itemId: TileType.LEAVES, count: 3 }],                    output: { itemId: 404, count: 3 } },
+
+  // Tier 1: iron-level ingredients
+  { id: 'ironskin_potion',     station: StationType.BREWING_STAND, inputs: [{ itemId: 100, count: 2 }, { itemId: TileType.STONE, count: 5 }],                                     output: { itemId: 400, count: 3 } },
+  { id: 'regen_potion',        station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CRYSTAL_LIFE, count: 2 }, { itemId: 105, count: 3 }],                               output: { itemId: 406, count: 3 } },
+  { id: 'mana_surge_potion',   station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CRYSTAL, count: 2 }, { itemId: TileType.MUSHROOM_BLOCK, count: 3 }],                output: { itemId: 407, count: 3 } },
+  { id: 'spelunker_potion',    station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CRYSTAL_EMBER, count: 1 }, { itemId: TileType.CRYSTAL_FROST, count: 1 }, { itemId: 104, count: 2 }], output: { itemId: 402, count: 3 } },
+  { id: 'water_walking_potion', station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CORAL, count: 5 }, { itemId: TileType.ICE, count: 3 }],                            output: { itemId: 409, count: 3 } },
+  { id: 'archery_potion',      station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CACTUS, count: 3 }, { itemId: TileType.JUNGLE_GRASS, count: 3 }],                   output: { itemId: 411, count: 3 } },
+  { id: 'mining_potion',       station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.IRON_ORE, count: 3 }, { itemId: TileType.MOSS, count: 5 }],                         output: { itemId: 413, count: 3 } },
+
+  // Tier 2: diamond-level ingredients
+  { id: 'rage_potion',         station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CRYSTAL_EMBER, count: 2 }, { itemId: 100, count: 2 }],                              output: { itemId: 405, count: 3 } },
+  { id: 'thorns_potion',       station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CACTUS, count: 5 }, { itemId: 100, count: 3 }],                                    output: { itemId: 408, count: 3 } },
+  { id: 'giant_potion',        station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CRYSTAL_LIFE, count: 3 }, { itemId: TileType.MUSHROOM_BLOCK, count: 5 }],           output: { itemId: 410, count: 3 } },
+  { id: 'magic_power_potion',  station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CRYSTAL_STORM, count: 2 }, { itemId: TileType.CRYSTAL, count: 3 }],                 output: { itemId: 412, count: 3 } },
+  { id: 'endurance_potion',    station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CRYSTAL_FROST, count: 2 }, { itemId: TileType.OBSIDIAN, count: 3 }],                output: { itemId: 414, count: 3 } },
+
+  // Tier 3: rare ingredients
+  { id: 'wrath_potion',        station: StationType.BREWING_STAND, inputs: [{ itemId: TileType.CRYSTAL_VOID, count: 2 }, { itemId: TileType.CRYSTAL_EMBER, count: 2 }, { itemId: 101, count: 1 }], output: { itemId: 415, count: 3 } },
 
   // ── Tech Bench ─────────────────────────────────────────
   { id: 'tech_bench',   station: StationType.ANVIL,      inputs: [{ itemId: 101, count: 8 }, { itemId: 100, count: 5 }, { itemId: 104, count: 3 }], output: { itemId: 113, count: 1 } },
@@ -145,6 +174,7 @@ export const STATION_ITEM_MAP: Record<number, StationType> = {
   113: StationType.TECH_BENCH,
   114: StationType.FUSION_STATION,
   115: StationType.WORKBENCH_2,
+  118: StationType.BREWING_STAND,
   236: StationType.ARCANE_ANVIL,
   321: StationType.VOID_FORGE,
 }

@@ -243,6 +243,10 @@ export class WorldScene extends Phaser.Scene {
       if (saveData.discoveredPOIs) {
         for (const key of saveData.discoveredPOIs) this.discoveredPOIs.add(key)
       }
+      // Restore active buffs
+      if (saveData.activeBuffs) {
+        this.player.buffs.deserialize(saveData.activeBuffs as any)
+      }
       this.registry.remove('saveData')
     }
 
@@ -550,6 +554,10 @@ export class WorldScene extends Phaser.Scene {
         : 0
       const surfaceDarkness = this.dayNight.darkness
       effectiveDarkness = Math.max(surfaceDarkness, undergroundDarkness)
+      // Night Owl potion: reduce darkness significantly
+      if (this.player.buffs.hasNightVision()) {
+        effectiveDarkness *= 0.25
+      }
       this.darknessOverlay.setAlpha(effectiveDarkness)
       this.darknessOverlay.setFillStyle(this.dayNight.tintColor || 0x000000, 1)
     }
@@ -2173,7 +2181,8 @@ export class WorldScene extends Phaser.Scene {
       Array.from(this.player.inventory.discoveredItems),
       waypoints,
       this.chunkManager.getPortalData(),
-      Array.from(this.discoveredPOIs)
+      Array.from(this.discoveredPOIs),
+      this.player.buffs.serialize()
     )
   }
 

@@ -109,6 +109,7 @@ export const ITEMS: Record<number, ItemDef> = {
   115: { id: 115, name: 'Workbench Mk2', category: ItemCategory.STATION, stackSize: 1, tier: 1, color: 0xa0824a },
   116: { id: 116, name: 'Chest', category: ItemCategory.STATION, stackSize: 1, tier: 0, color: 0x8b5a2b },
   117: { id: 117, name: 'Portal', category: ItemCategory.STATION, stackSize: 1, tier: 3, color: 0x7744ff },
+  118: { id: 118, name: 'Brewing Stand', category: ItemCategory.STATION, stackSize: 1, tier: 1, color: 0x884488 },
 
   // ── Tools ───────────────────────────────────────────────
   120: { id: 120, name: 'Wood Pickaxe',     category: ItemCategory.TOOL, stackSize: 1, tier: 0, color: 0x8b6b3a, miningSpeed: 1.5, miningTier: 0 },
@@ -159,6 +160,24 @@ export const ITEMS: Record<number, ItemDef> = {
   191: { id: 191, name: 'Cooked Meat',   category: ItemCategory.CONSUMABLE, stackSize: 20, tier: 0, color: 0xcc6633, healAmount: 50 },
   192: { id: 192, name: 'Rebreather',    category: ItemCategory.SPECIAL,    stackSize: 1,  tier: 2, color: 0x00cccc },
   193: { id: 193, name: 'Forcefield Potion', category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 2, color: 0x44ddff },
+
+  // ── Potions ─────────────────────────────────────────────
+  400: { id: 400, name: 'Ironskin Potion',      category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 1, color: 0xddaa44 },
+  401: { id: 401, name: 'Swiftness Potion',     category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 0, color: 0x44ddff },
+  402: { id: 402, name: 'Spelunker Potion',     category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 1, color: 0xffcc00 },
+  403: { id: 403, name: 'Night Owl Potion',     category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 0, color: 0xaacc44 },
+  404: { id: 404, name: 'Featherfall Potion',   category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 0, color: 0xddddff },
+  405: { id: 405, name: 'Rage Potion',          category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 2, color: 0xff4444 },
+  406: { id: 406, name: 'Regeneration Potion',  category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 1, color: 0xff66aa },
+  407: { id: 407, name: 'Mana Surge Potion',    category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 1, color: 0x6644ff },
+  408: { id: 408, name: 'Thorns Potion',        category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 2, color: 0x44aa44 },
+  409: { id: 409, name: 'Water Walking Potion', category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 1, color: 0x2288ff },
+  410: { id: 410, name: 'Giant Potion',         category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 2, color: 0xcc8844 },
+  411: { id: 411, name: 'Archery Potion',       category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 1, color: 0x88cc44 },
+  412: { id: 412, name: 'Magic Power Potion',   category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 2, color: 0xaa44ff },
+  413: { id: 413, name: 'Mining Potion',        category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 1, color: 0xffaa44 },
+  414: { id: 414, name: 'Endurance Potion',     category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 2, color: 0x4488cc },
+  415: { id: 415, name: 'Wrath Potion',         category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 3, color: 0xff2222 },
 
   // ── Armor: Wood (Tier 0) ──────────────────────────────
   200: { id: 200, name: 'Wood Helmet',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'helmet' },
