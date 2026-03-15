@@ -7,15 +7,18 @@ import { getItemDef } from '../data/items'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 
-const CRAFT_W = 320
+const CRAFT_W = 380
 const CRAFT_H = 400
 const CRAFT_ROW_H = 32
+const MAX_INPUTS_PER_ROW = 6
+const CHAR_W = 6.6 // approximate monospace char width at 10px
 
 export class CraftingPanel {
   private scene: Phaser.Scene
   private craftingManager = new CraftingManager()
   private craftGfx!: Phaser.GameObjects.Graphics
-  private craftTexts: Phaser.GameObjects.Text[] = []
+  private craftOutputTexts: Phaser.GameObjects.Text[] = []
+  private craftInputTexts: Phaser.GameObjects.Text[][] = []
   private craftTitle!: Phaser.GameObjects.Text
   private craftVisible = false
   private craftScroll = 0
@@ -29,7 +32,8 @@ export class CraftingPanel {
   get visible() { return this.craftVisible }
 
   create() {
-    this.craftTexts = []
+    this.craftOutputTexts = []
+    this.craftInputTexts = []
     this.craftVisible = false
 
     const { width, height } = this.scene.scale
@@ -43,10 +47,19 @@ export class CraftingPanel {
 
     const maxVisible = Math.floor((CRAFT_H - 40) / CRAFT_ROW_H)
     for (let i = 0; i < maxVisible; i++) {
-      const t = this.scene.add.text(craftX + 10, craftY + 38 + i * CRAFT_ROW_H, '', {
+      const output = this.scene.add.text(craftX + 10, craftY + 38 + i * CRAFT_ROW_H, '', {
         fontSize: '11px', color: '#cccccc', fontFamily: 'monospace',
       }).setDepth(301).setVisible(false)
-      this.craftTexts.push(t)
+      this.craftOutputTexts.push(output)
+
+      const inputs: Phaser.GameObjects.Text[] = []
+      for (let j = 0; j < MAX_INPUTS_PER_ROW; j++) {
+        const t = this.scene.add.text(0, craftY + 38 + i * CRAFT_ROW_H + 1, '', {
+          fontSize: '10px', color: '#666666', fontFamily: 'monospace',
+        }).setDepth(301).setVisible(false)
+        inputs.push(t)
+      }
+      this.craftInputTexts.push(inputs)
     }
 
     // Click handler
@@ -55,7 +68,7 @@ export class CraftingPanel {
       const cx = (this.scene.scale.width - CRAFT_W) / 2
       const cy = (this.scene.scale.height - CRAFT_H) / 2 - 20
       const listTop = cy + 36
-      const listBot = listTop + this.craftTexts.length * CRAFT_ROW_H
+      const listBot = listTop + this.craftOutputTexts.length * CRAFT_ROW_H
       if (pointer.x < cx + 2 || pointer.x > cx + CRAFT_W - 2) return
       if (pointer.y < listTop || pointer.y >= listBot) return
       const row = Math.floor((pointer.y - listTop) / CRAFT_ROW_H)
@@ -80,7 +93,10 @@ export class CraftingPanel {
     this.craftTitle.setVisible(this.craftVisible)
 
     if (!this.craftVisible) {
-      for (const t of this.craftTexts) t.setVisible(false)
+      for (const t of this.craftOutputTexts) t.setVisible(false)
+      for (const row of this.craftInputTexts) {
+        for (const t of row) t.setVisible(false)
+      }
       return
     }
 
@@ -98,7 +114,7 @@ export class CraftingPanel {
     this.craftGfx.lineStyle(2, 0x444466)
     this.craftGfx.strokeRect(craftX, craftY, CRAFT_W, CRAFT_H)
 
-    const maxVisible = this.craftTexts.length
+    const maxVisible = this.craftOutputTexts.length
     const maxScroll = Math.max(0, this.craftRecipes.length - maxVisible)
     this.craftScroll = Phaser.Math.Clamp(this.craftScroll, 0, maxScroll)
 
@@ -114,7 +130,8 @@ export class CraftingPanel {
 
     for (let i = 0; i < maxVisible; i++) {
       const recipeIdx = i + this.craftScroll
-      const txt = this.craftTexts[i]!
+      const outputTxt = this.craftOutputTexts[i]!
+      const inputRow = this.craftInputTexts[i]!
 
       const entry = this.craftRecipes[recipeIdx]
       if (entry) {
@@ -122,19 +139,64 @@ export class CraftingPanel {
         const outDef = getItemDef(recipe.output.itemId)
         const outName = outDef?.name ?? `Item ${recipe.output.itemId}`
         const qty = recipe.output.count > 1 ? ` x${recipe.output.count}` : ''
-
-        const inputStr = recipe.inputs.map((inp: { itemId: number; count: number }) => {
-          const def = getItemDef(inp.itemId)
-          const name = def?.name ?? TILE_PROPERTIES[inp.itemId as TileType]?.name ?? '?'
-          return `${name}x${inp.count}`
-        }).join(', ')
-
-        txt.setText(`${outName}${qty}  [${inputStr}]`)
         const hovered = i === this.craftHoveredRow
-        txt.setColor(hovered ? '#ffffff' : canCraft ? '#00ff88' : '#666666')
-        txt.setVisible(true)
-        txt.setPosition(craftX + 10, craftY + 38 + i * CRAFT_ROW_H)
 
+        // Output name
+        outputTxt.setText(`${outName}${qty}`)
+        outputTxt.setColor(hovered ? '#ffffff' : canCraft ? '#00ff88' : '#bbbbbb')
+        outputTxt.setVisible(true)
+        outputTxt.setPosition(craftX + 10, craftY + 38 + i * CRAFT_ROW_H)
+
+        // Ingredient texts — position after output name
+        const outputChars = outName.length + qty.length
+        let curX = craftX + 10 + (outputChars + 2) * CHAR_W // 2 chars gap
+        const maxX = craftX + CRAFT_W - 12
+
+        for (let j = 0; j < MAX_INPUTS_PER_ROW; j++) {
+          const inputTxt = inputRow[j]!
+          const inp = recipe.inputs[j]
+          if (!inp) { inputTxt.setVisible(false); continue }
+
+          const def = getItemDef(inp.itemId)
+          const matName = def?.name ?? TILE_PROPERTIES[inp.itemId as TileType]?.name ?? '?'
+          // Truncate long names
+          const shortName = matName.length > 10 ? matName.slice(0, 9) + '…' : matName
+          const label = `${shortName}x${inp.count}`
+          const labelW = label.length * CHAR_W + 6
+
+          // Skip if it won't fit
+          if (curX + labelW > maxX) {
+            inputTxt.setText('...')
+            inputTxt.setColor('#555555')
+            inputTxt.setPosition(curX, craftY + 39 + i * CRAFT_ROW_H)
+            inputTxt.setVisible(true)
+            // Hide remaining
+            for (let k = j + 1; k < MAX_INPUTS_PER_ROW; k++) {
+              inputRow[k]!.setVisible(false)
+            }
+            break
+          }
+
+          const hasCount = inv.getCount(inp.itemId)
+          const hasEnough = hasCount >= inp.count
+          let color: string
+          if (hovered) {
+            color = hasEnough ? '#ffffff' : '#aa6666'
+          } else if (canCraft) {
+            color = '#00cc66'
+          } else {
+            color = hasEnough ? '#66bb77' : '#664444'
+          }
+
+          inputTxt.setText(label)
+          inputTxt.setColor(color)
+          inputTxt.setPosition(curX, craftY + 39 + i * CRAFT_ROW_H)
+          inputTxt.setVisible(true)
+
+          curX += labelW
+        }
+
+        // Row background
         if (hovered && canCraft) {
           this.craftGfx.fillStyle(0x004433, 0.5)
         } else if (canCraft) {
@@ -144,7 +206,8 @@ export class CraftingPanel {
         }
         this.craftGfx.fillRect(craftX + 2, craftY + 36 + i * CRAFT_ROW_H, CRAFT_W - 4, CRAFT_ROW_H)
       } else {
-        txt.setVisible(false)
+        outputTxt.setVisible(false)
+        for (const t of inputRow) t.setVisible(false)
       }
     }
   }

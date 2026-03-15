@@ -91,7 +91,10 @@ export class WorldScene extends Phaser.Scene {
 
     // Lighting system: RenderTexture-based darkness with light source holes
     this.createLightTexture()
-    this.darknessRT = this.add.renderTexture(0, 0, 800, 600)
+    // Position (200,150) with origin(0,0) compensates for zoom=2 applied to scrollFactor(0):
+    // screenX = 400 + (200-400)*2 = 0, screenY = 300 + (150-300)*2 = 0 → RT covers full screen
+    this.darknessRT = this.add.renderTexture(200, 150, 800, 600)
+      .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDepth(50) // above tiles but below UI
     this.lightStamp = this.add.image(0, 0, '__light_glow')
