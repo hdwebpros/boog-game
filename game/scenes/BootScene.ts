@@ -261,6 +261,9 @@ export class BootScene extends Phaser.Scene {
           this.registry.set('worldData', worldData)
           this.registry.set('voidDimension', true)
           this.registry.remove('saveData')
+          // Clear loadSlotId so void dimension doesn't auto-save over the original world
+          this.registry.remove('loadSlotId')
+          this.registry.remove('loadSlotName')
         },
       })
     } else {

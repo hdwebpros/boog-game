@@ -405,8 +405,8 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    // Auto-save: on page unload (refresh/close)
-    this.boundBeforeUnload = () => this.performSave()
+    // Auto-save: on page unload (refresh/close) — skip in void dimension
+    this.boundBeforeUnload = () => { if (!this.isVoidDimension) this.performSave() }
     window.addEventListener('beforeunload', this.boundBeforeUnload)
 
     // Clean up beforeunload listener when scene stops
@@ -908,8 +908,8 @@ export class WorldScene extends Phaser.Scene {
       this.updateMultiplayerHUD()
     }
 
-    // Auto-save every 60 seconds (host and offline only, stop retrying after quota failure)
-    if (!this.mp.isClient && !this.saveFailed) {
+    // Auto-save every 60 seconds (host and offline only, skip in void dimension, stop retrying after quota failure)
+    if (!this.mp.isClient && !this.saveFailed && !this.isVoidDimension) {
       this.autoSaveTimer += dt
       if (this.autoSaveTimer >= 60) {
         this.autoSaveTimer = 0
