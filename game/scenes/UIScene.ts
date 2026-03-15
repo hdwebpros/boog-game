@@ -49,6 +49,10 @@ export class UIScene extends Phaser.Scene {
   // Boss markers cache (shared between minimap and world map)
   private cachedBossMarkers: BossMarker[] = []
 
+  // Mystical Compass HUD
+  private compassGfx!: Phaser.GameObjects.Graphics
+  private compassDistText!: Phaser.GameObjects.Text
+
   constructor() {
     super({ key: 'UIScene' })
   }
@@ -146,6 +150,13 @@ export class UIScene extends Phaser.Scene {
       fontSize: '11px', color: '#dddddd', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 3,
     }).setDepth(210).setAlpha(0.8)
+
+    // Mystical Compass HUD
+    this.compassGfx = this.add.graphics().setDepth(210).setVisible(false)
+    this.compassDistText = this.add.text(0, 0, '', {
+      fontSize: '10px', color: '#88ccff', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 3, align: 'center',
+    }).setOrigin(0.5, 0).setDepth(210).setVisible(false)
 
     // Biome banner
     const { width } = this.scale
@@ -297,6 +308,7 @@ export class UIScene extends Phaser.Scene {
     const pty = Math.floor(player.sprite.y / TILE_SIZE)
     this.coordText.setText(`X: ${ptx}  Y: ${pty}`)
 
+    this.updateCompass(worldScene)
     this.updateBiomeBanner(player)
     this.chatOverlay?.update()
   }
@@ -373,6 +385,53 @@ export class UIScene extends Phaser.Scene {
     }
     this.cachedBossMarkers = markers
     this.miniMap.updateBossMarkers(markers)
+  }
+
+  private updateCompass(worldScene: any) {
+    const target = worldScene?.getCompassTarget?.() as { angle: number; dist: number } | null
+    if (!target) {
+      this.compassGfx.setVisible(false)
+      this.compassDistText.setVisible(false)
+      return
+    }
+
+    const cx = 760
+    const cy = 140
+    const radius = 20
+
+    this.compassGfx.clear()
+
+    // Outer ring
+    this.compassGfx.lineStyle(2, 0x336699, 0.8)
+    this.compassGfx.strokeCircle(cx, cy, radius + 4)
+
+    // Inner fill
+    this.compassGfx.fillStyle(0x112233, 0.7)
+    this.compassGfx.fillCircle(cx, cy, radius + 2)
+
+    // Arrow pointing toward nearest runestone
+    const arrowLen = radius - 2
+    const tipX = cx + Math.cos(target.angle) * arrowLen
+    const tipY = cy + Math.sin(target.angle) * arrowLen
+    const baseL = cx + Math.cos(target.angle + 2.6) * 8
+    const baseR = cx + Math.cos(target.angle - 2.6) * 8
+    const baseLY = cy + Math.sin(target.angle + 2.6) * 8
+    const baseRY = cy + Math.sin(target.angle - 2.6) * 8
+
+    this.compassGfx.fillStyle(0x66aaff, 1)
+    this.compassGfx.fillTriangle(tipX, tipY, baseL, baseLY, baseR, baseRY)
+
+    // Small dot at center
+    this.compassGfx.fillStyle(0xffffff, 0.8)
+    this.compassGfx.fillCircle(cx, cy, 2)
+
+    this.compassGfx.setVisible(true)
+
+    // Distance text below compass
+    const tileDist = Math.round(target.dist / TILE_SIZE)
+    this.compassDistText.setText(`${tileDist}m`)
+    this.compassDistText.setPosition(cx, cy + radius + 8)
+    this.compassDistText.setVisible(true)
   }
 
   /** Close the world map if open (called by WorldScene ESC handler) */

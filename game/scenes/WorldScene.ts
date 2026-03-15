@@ -67,9 +67,7 @@ export class WorldScene extends Phaser.Scene {
   // POI discovery (runestones/altars visible on minimap when nearby)
   private discoveredPOIs: Set<string> = new Set() // "type:tx,ty" keys
 
-  // Mystical Compass indicator
-  private compassGfx: Phaser.GameObjects.Graphics | null = null
-  private compassDistText: Phaser.GameObjects.Text | null = null
+  // Mystical Compass — rendering moved to UIScene, data provided via getCompassTarget()
 
   // Portal system
   private portalPromptText: Phaser.GameObjects.Text | null = null
@@ -288,12 +286,7 @@ export class WorldScene extends Phaser.Scene {
       stroke: '#000000', strokeThickness: 3, align: 'center',
     }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
 
-    // Mystical Compass HUD indicator (screen-fixed)
-    this.compassGfx = this.add.graphics().setScrollFactor(0).setDepth(200).setVisible(false)
-    this.compassDistText = this.add.text(0, 0, '', {
-      fontSize: '10px', color: '#88ccff', fontFamily: 'monospace',
-      stroke: '#000000', strokeThickness: 3, align: 'center',
-    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(200).setVisible(false)
+    // Mystical Compass now rendered in UIScene (so it's above all overlays)
 
     // M toggles music/sound mute
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M).on('down', () => {
@@ -1300,82 +1293,8 @@ export class WorldScene extends Phaser.Scene {
 
   // ── Mystical Compass ──────────────────────────────────
 
-  private updateMysticalCompass() {
-    if (!this.compassGfx || !this.compassDistText) return
-
-    // Check if player has Mystical Compass (ID 242) anywhere in inventory
-    const hasCompass = this.player.inventory.getCount(242) > 0
-    if (!hasCompass) {
-      this.compassGfx.setVisible(false)
-      this.compassDistText.setVisible(false)
-      return
-    }
-
-    // Find nearest unread runestone
-    const runestones = this.chunkManager.getRunestones()
-    const px = this.player.sprite.x
-    const py = this.player.sprite.y
-    let nearest: { tx: number; ty: number; dist: number } | null = null
-
-    for (const rs of runestones) {
-      const key = `${rs.tx},${rs.ty}`
-      if (this.usedRunestones.has(key)) continue
-      const rx = rs.tx * TILE_SIZE + TILE_SIZE / 2
-      const ry = rs.ty * TILE_SIZE + TILE_SIZE / 2
-      const dist = Math.sqrt((rx - px) ** 2 + (ry - py) ** 2)
-      if (!nearest || dist < nearest.dist) {
-        nearest = { tx: rs.tx, ty: rs.ty, dist }
-      }
-    }
-
-    if (!nearest) {
-      this.compassGfx.setVisible(false)
-      this.compassDistText.setVisible(false)
-      return
-    }
-
-    // Draw compass arrow on screen HUD (top-right area, below minimap)
-    const cx = 760  // screen x
-    const cy = 140  // screen y
-    const radius = 20
-    const rx = nearest.tx * TILE_SIZE + TILE_SIZE / 2
-    const ry = nearest.ty * TILE_SIZE + TILE_SIZE / 2
-    const angle = Math.atan2(ry - py, rx - px)
-
-    this.compassGfx.clear()
-
-    // Outer ring
-    this.compassGfx.lineStyle(2, 0x336699, 0.8)
-    this.compassGfx.strokeCircle(cx, cy, radius + 4)
-
-    // Inner fill
-    this.compassGfx.fillStyle(0x112233, 0.7)
-    this.compassGfx.fillCircle(cx, cy, radius + 2)
-
-    // Arrow pointing toward nearest runestone
-    const arrowLen = radius - 2
-    const tipX = cx + Math.cos(angle) * arrowLen
-    const tipY = cy + Math.sin(angle) * arrowLen
-    const baseL = cx + Math.cos(angle + 2.6) * 8
-    const baseR = cx + Math.cos(angle - 2.6) * 8
-    const baseLY = cy + Math.sin(angle + 2.6) * 8
-    const baseRY = cy + Math.sin(angle - 2.6) * 8
-
-    this.compassGfx.fillStyle(0x66aaff, 1)
-    this.compassGfx.fillTriangle(tipX, tipY, baseL, baseLY, baseR, baseRY)
-
-    // Small dot at center
-    this.compassGfx.fillStyle(0xffffff, 0.8)
-    this.compassGfx.fillCircle(cx, cy, 2)
-
-    this.compassGfx.setVisible(true)
-
-    // Distance text below compass
-    const tileDist = Math.round(nearest.dist / TILE_SIZE)
-    this.compassDistText.setText(`${tileDist}m`)
-    this.compassDistText.setPosition(cx, cy + radius + 8)
-    this.compassDistText.setVisible(true)
-  }
+  // Compass rendering moved to UIScene; updateMysticalCompass is now a no-op
+  private updateMysticalCompass() {}
 
   // ── Portal Interaction ──────────────────────────────────
 
@@ -1962,6 +1881,31 @@ export class WorldScene extends Phaser.Scene {
       }
     }
     return null
+  }
+
+  /** Get nearest unread runestone direction for compass HUD */
+  getCompassTarget(): { angle: number; dist: number } | null {
+    const hasCompass = this.player.inventory.getCount(242) > 0
+    if (!hasCompass) return null
+
+    const runestones = this.chunkManager.getRunestones()
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    let nearest: { rx: number; ry: number; dist: number } | null = null
+
+    for (const rs of runestones) {
+      const key = `${rs.tx},${rs.ty}`
+      if (this.usedRunestones.has(key)) continue
+      const rx = rs.tx * TILE_SIZE + TILE_SIZE / 2
+      const ry = rs.ty * TILE_SIZE + TILE_SIZE / 2
+      const dist = Math.sqrt((rx - px) ** 2 + (ry - py) ** 2)
+      if (!nearest || dist < nearest.dist) {
+        nearest = { rx, ry, dist }
+      }
+    }
+
+    if (!nearest) return null
+    return { angle: Math.atan2(nearest.ry - py, nearest.rx - px), dist: nearest.dist }
   }
 
   // ── Host: Handle messages from remote players ──────────
