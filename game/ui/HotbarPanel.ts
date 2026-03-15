@@ -4,7 +4,7 @@ import { TileType, TILE_PROPERTIES } from '../world/TileRegistry'
 import { getItemDef, ENCHANTMENT_NAMES, ENCHANTMENT_COLORS } from '../data/items'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
-import { SLOT_SIZE, SLOT_GAP, getItemTexKey } from './UIContext'
+import { SLOT_SIZE, SLOT_GAP, getItemTexKey, drawEnchantGradient } from './UIContext'
 
 const HOTBAR_SLOTS = 10
 const HOTBAR_WIDTH = HOTBAR_SLOTS * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP
@@ -135,12 +135,10 @@ export class HotbarPanel {
           }
         }
         txt.setText(item.count > 1 ? `${item.count}` : '')
-        // Enchantment glow border
+        // Enchantment gradient overlay
         if (item.enchantment) {
           const enchColor = ENCHANTMENT_COLORS[item.enchantment] ?? 0xffffff
-          const pulse = 0.5 + 0.3 * Math.sin(Date.now() * 0.004)
-          this.hotbarGfx.lineStyle(2, enchColor, pulse)
-          this.hotbarGfx.strokeRect(hotbarX + i * (SLOT_SIZE + SLOT_GAP) + 1, hotbarY + 1, SLOT_SIZE - 2, SLOT_SIZE - 2)
+          drawEnchantGradient(this.hotbarGfx, hotbarX + i * (SLOT_SIZE + SLOT_GAP), hotbarY, enchColor)
         }
       } else {
         icon.fillAlpha = 0

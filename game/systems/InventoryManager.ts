@@ -144,10 +144,23 @@ export class InventoryManager {
 
   /** Return held item to inventory when closing */
   returnHeldItem(): void {
-    if (this.heldItem) {
+    if (!this.heldItem) return
+    // Enchanted items must go into an empty slot to preserve enchantment
+    if (this.heldItem.enchantment) {
+      const hotbarEmpty = this.hotbar.indexOf(null)
+      if (hotbarEmpty !== -1) {
+        this.hotbar[hotbarEmpty] = { ...this.heldItem }
+      } else {
+        const mainEmpty = this.mainInventory.indexOf(null)
+        if (mainEmpty !== -1) {
+          this.mainInventory[mainEmpty] = { ...this.heldItem }
+        }
+        // If completely full, item is lost (same as before)
+      }
+    } else {
       this.addItem(this.heldItem.id, this.heldItem.count)
-      this.heldItem = null
     }
+    this.heldItem = null
   }
 
   /** Left-click a slot: pick up / place / swap / stack */
@@ -157,22 +170,22 @@ export class InventoryManager {
 
     if (!this.heldItem) {
       if (slot) {
-        this.heldItem = { id: slot.id, count: slot.count }
+        this.heldItem = { ...slot }
         slots[idx] = null
       }
     } else {
       if (!slot) {
-        slots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
+        slots[idx] = { ...this.heldItem }
         this.heldItem = null
-      } else if (slot.id === this.heldItem.id) {
+      } else if (slot.id === this.heldItem.id && slot.enchantment === this.heldItem.enchantment) {
         const cap = maxStackFor(slot.id)
         const canAdd = Math.min(this.heldItem.count, cap - slot.count)
         slot.count += canAdd
         this.heldItem.count -= canAdd
         if (this.heldItem.count <= 0) this.heldItem = null
       } else {
-        const temp = { id: slot.id, count: slot.count }
-        slots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
+        const temp = { ...slot }
+        slots[idx] = { ...this.heldItem }
         this.heldItem = temp
       }
     }
@@ -185,7 +198,7 @@ export class InventoryManager {
     if (!this.heldItem) {
       // Pick up equipped armor
       if (current) {
-        this.heldItem = { id: current.id, count: current.count }
+        this.heldItem = { ...current }
         this.armorSlots[slot] = null
       }
     } else {
@@ -193,17 +206,22 @@ export class InventoryManager {
       const def = getItemDef(this.heldItem.id)
       if (def?.category === ItemCategory.ARMOR && def.armorSlot === slot) {
         // Swap: equip held, pick up current
-        const temp = current ? { id: current.id, count: current.count } : null
-        this.armorSlots[slot] = { id: this.heldItem.id, count: this.heldItem.count }
+        const temp = current ? { ...current } : null
+        this.armorSlots[slot] = { ...this.heldItem }
         this.heldItem = temp
       } else if (!current) {
         // Wrong armor type for this slot — do nothing
       } else {
-        // Slot has armor, held item isn't valid — pick up current armor, keep held
-        // (swap held with current)
-        const temp = { id: current.id, count: current.count }
+        // Slot has armor, held item isn't valid — unequip current to inventory
+        const temp = { ...current }
         this.armorSlots[slot] = null
-        this.addItem(temp.id, temp.count)
+        if (temp.enchantment) {
+          const empty = this.hotbar.indexOf(null) !== -1 ? this.hotbar : this.mainInventory
+          const idx = empty.indexOf(null)
+          if (idx !== -1) empty[idx] = temp
+        } else {
+          this.addItem(temp.id, temp.count)
+        }
       }
     }
   }
@@ -214,14 +232,14 @@ export class InventoryManager {
 
     if (!this.heldItem) {
       if (current) {
-        this.heldItem = { id: current.id, count: current.count }
+        this.heldItem = { ...current }
         this.accessorySlots[idx] = null
       }
     } else {
       const def = getItemDef(this.heldItem.id)
       if (def?.category === ItemCategory.ACCESSORY) {
-        const temp = current ? { id: current.id, count: current.count } : null
-        this.accessorySlots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
+        const temp = current ? { ...current } : null
+        this.accessorySlots[idx] = { ...this.heldItem }
         this.heldItem = temp
       }
     }
@@ -254,22 +272,22 @@ export class InventoryManager {
     const slot = slots[idx]
     if (!this.heldItem) {
       if (slot) {
-        this.heldItem = { id: slot.id, count: slot.count }
+        this.heldItem = { ...slot }
         slots[idx] = null
       }
     } else {
       if (!slot) {
-        slots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
+        slots[idx] = { ...this.heldItem }
         this.heldItem = null
-      } else if (slot.id === this.heldItem.id) {
+      } else if (slot.id === this.heldItem.id && slot.enchantment === this.heldItem.enchantment) {
         const cap = maxStackFor(slot.id)
         const canAdd = Math.min(this.heldItem.count, cap - slot.count)
         slot.count += canAdd
         this.heldItem.count -= canAdd
         if (this.heldItem.count <= 0) this.heldItem = null
       } else {
-        const temp = { id: slot.id, count: slot.count }
-        slots[idx] = { id: this.heldItem.id, count: this.heldItem.count }
+        const temp = { ...slot }
+        slots[idx] = { ...this.heldItem }
         this.heldItem = temp
       }
     }
@@ -283,16 +301,16 @@ export class InventoryManager {
     if (!this.heldItem) {
       if (slot && slot.count > 0) {
         const half = Math.ceil(slot.count / 2)
-        this.heldItem = { id: slot.id, count: half }
+        this.heldItem = { ...slot, count: half }
         slot.count -= half
         if (slot.count <= 0) slots[idx] = null
       }
     } else {
       if (!slot) {
-        slots[idx] = { id: this.heldItem.id, count: 1 }
+        slots[idx] = { ...this.heldItem, count: 1 }
         this.heldItem.count--
         if (this.heldItem.count <= 0) this.heldItem = null
-      } else if (slot.id === this.heldItem.id && slot.count < maxStackFor(slot.id)) {
+      } else if (slot.id === this.heldItem.id && slot.enchantment === this.heldItem.enchantment && slot.count < maxStackFor(slot.id)) {
         slot.count++
         this.heldItem.count--
         if (this.heldItem.count <= 0) this.heldItem = null

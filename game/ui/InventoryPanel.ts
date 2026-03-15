@@ -6,7 +6,7 @@ import { getItemDef, ENCHANTMENT_NAMES, ENCHANTMENT_COLORS } from '../data/items
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 import { ACCESSORY_EFFECTS } from '../data/accessories'
-import { SLOT_SIZE, SLOT_GAP, getItemTexKey } from './UIContext'
+import { SLOT_SIZE, SLOT_GAP, getItemTexKey, drawEnchantGradient } from './UIContext'
 
 const INV_COLS = 10
 const INV_MAIN_ROWS = 3
@@ -322,9 +322,7 @@ export class InventoryPanel {
         txt.setVisible(true)
         if (item.enchantment) {
           const enchColor = ENCHANTMENT_COLORS[item.enchantment] ?? 0xffffff
-          const pulse = 0.5 + 0.3 * Math.sin(Date.now() * 0.004)
-          this.invGfx.lineStyle(2, enchColor, pulse)
-          this.invGfx.strokeRect(sx + 1, sy + 1, SLOT_SIZE - 2, SLOT_SIZE - 2)
+          drawEnchantGradient(this.invGfx, sx, sy, enchColor)
         }
       } else {
         icon.fillAlpha = 0
