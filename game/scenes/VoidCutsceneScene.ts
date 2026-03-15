@@ -6,14 +6,16 @@ export class VoidCutsceneScene extends Phaser.Scene {
   private allObjects: Phaser.GameObjects.GameObject[] = []
   private seed = ''
   private saveData: unknown = null
+  private playerState: unknown = null
 
   constructor() {
     super({ key: 'VoidCutsceneScene' })
   }
 
-  init(data: { seed?: string; saveData?: unknown }) {
+  init(data: { seed?: string; saveData?: unknown; playerState?: unknown }) {
     this.seed = data?.seed ?? ''
     this.saveData = data?.saveData ?? null
+    this.playerState = data?.playerState ?? null
   }
 
   create() {
@@ -352,6 +354,9 @@ export class VoidCutsceneScene extends Phaser.Scene {
         // Store data in registry so BootScene can pick it up
         this.registry.set('voidDimension', true)
         this.registry.set('worldSeed', this.seed)
+        if (this.playerState) {
+          this.registry.set('voidPlayerState', this.playerState)
+        }
         if (this.saveData) {
           this.registry.set('returnSaveData', this.saveData)
         }

@@ -238,6 +238,33 @@ export class WorldScene extends Phaser.Scene {
       this.registry.remove('saveData')
     }
 
+    // Restore player state when entering void dimension (inventory, HP, etc.)
+    const voidPlayerState = this.registry.get('voidPlayerState') as any
+    if (voidPlayerState) {
+      this.player.hp = voidPlayerState.hp
+      this.player.mana = voidPlayerState.mana
+      this.player.inventory.hotbar = voidPlayerState.hotbar
+      if (voidPlayerState.mainInventory) {
+        this.player.inventory.mainInventory = voidPlayerState.mainInventory
+      }
+      this.player.inventory.selectedSlot = voidPlayerState.selectedSlot
+      this.player.hasJetpack = voidPlayerState.hasJetpack
+      this.player.hasRebreather = voidPlayerState.hasRebreather ?? false
+      if (voidPlayerState.armorSlots) {
+        this.player.inventory.armorSlots = voidPlayerState.armorSlots
+      }
+      if (voidPlayerState.accessorySlots) {
+        this.player.inventory.accessorySlots = voidPlayerState.accessorySlots
+      }
+      if (voidPlayerState.skills) {
+        this.player.skills.loadSaveData(voidPlayerState.skills)
+      }
+      if (voidPlayerState.discoveredItems) {
+        for (const id of voidPlayerState.discoveredItems) this.player.inventory.discoveredItems.add(id)
+      }
+      this.registry.remove('voidPlayerState')
+    }
+
     // Flash notification when obtaining a new item type for the first time
     this.player.inventory.onNewItemDiscovered = (id: number) => {
       const def = getItemDef(id)
@@ -978,8 +1005,9 @@ export class WorldScene extends Phaser.Scene {
     if (this.player.hasJetpack) {
       // Check if player has reached the sky (top of world)
       if (this.player.sprite.y < 32 && !this.endingTriggered) {
-        // Trigger ending cutscene — pause world so player can resume after
+        // Trigger ending cutscene — save world then pause so data persists
         this.endingTriggered = true
+        this.performSave()
         AudioManager.get()?.stopMusic()
         this.scene.pause('WorldScene')
         this.scene.stop('UIScene')
@@ -1599,11 +1627,27 @@ export class WorldScene extends Phaser.Scene {
     this.registry.set('originalSaveSlotId', this.saveSlotId)
     this.registry.set('originalSaveSlotName', this.saveSlotName)
 
+    // Capture player state to carry into void dimension
+    const playerState = {
+      hp: this.player.hp,
+      mana: this.player.mana,
+      hotbar: this.player.inventory.hotbar,
+      mainInventory: this.player.inventory.mainInventory,
+      selectedSlot: this.player.inventory.selectedSlot,
+      hasJetpack: this.player.hasJetpack,
+      hasRebreather: this.player.hasRebreather,
+      armorSlots: this.player.inventory.armorSlots,
+      accessorySlots: this.player.inventory.accessorySlots,
+      skills: this.player.skills.toSaveData(),
+      discoveredItems: Array.from(this.player.inventory.discoveredItems),
+    }
+
     // Transition to VoidCutsceneScene
     AudioManager.get()?.stopMusic()
     this.scene.stop('UIScene')
     this.scene.start('VoidCutsceneScene', {
       seed: this.worldSeed,
+      playerState,
       saveData: {
         slotId: this.saveSlotId,
         slotName: this.saveSlotName,
@@ -1690,7 +1734,8 @@ export class WorldScene extends Phaser.Scene {
     this.finalBoss.destroy()
     this.finalBoss = null
 
-    // Trigger true ending
+    // Trigger true ending — save world so data persists
+    this.performSave()
     AudioManager.get()?.stopMusic()
     this.scene.pause('WorldScene')
     this.scene.stop('UIScene')
