@@ -396,8 +396,8 @@ export class CombatSystem {
     this.damageNumbers = this.damageNumbers.filter(d => d.lifetime > 0)
   }
 
-  spawnDamageNumber(x: number, y: number, amount: number, color: number) {
-    const text = this.scene.add.text(x, y, `${amount}`, {
+  spawnDamageNumber(x: number, y: number, amount: number, color: number, label?: string) {
+    const text = this.scene.add.text(x, y, label ?? `${amount}`, {
       fontSize: '14px',
       color: `#${color.toString(16).padStart(6, '0')}`,
       fontFamily: 'monospace',

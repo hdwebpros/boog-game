@@ -332,8 +332,9 @@ export class Player {
     // Apply skill-based max HP/mana bonuses + armor enchantments + buffs
     const mods = this.skills.getModifiers()
     const armorEnch = this.getArmorEnchantmentBonuses()
-    this.maxHp = MAX_HP + mods.maxHpBonus + armorEnch.maxHpBonus + this.getAccessoryMaxHpBonus() + this.buffs.getMaxHpBonus()
-    this.maxMana = MAX_MANA + mods.maxManaBonus + armorEnch.maxManaBonus + this.getAccessoryMaxManaBonus()
+    const ascMult = mods.allStatsMultiplier
+    this.maxHp = Math.round((MAX_HP + mods.maxHpBonus + armorEnch.maxHpBonus + this.getAccessoryMaxHpBonus() + this.buffs.getMaxHpBonus()) * ascMult)
+    this.maxMana = Math.round((MAX_MANA + mods.maxManaBonus + armorEnch.maxManaBonus + this.getAccessoryMaxManaBonus()) * ascMult)
 
     // Mana regen (with skill multiplier + buff multiplier)
     this.mana = Math.min(this.maxMana, this.mana + MANA_REGEN * mods.manaRegenMult * this.buffs.getManaRegenMult() * dt)
@@ -388,12 +389,27 @@ export class Player {
   takeDamage(amount: number, kbx: number, kby: number, combat?: CombatSystem) {
     if (this.iFrames > 0 || this.dead || this.forcefieldTimer > 0 || this.buffs.has('forcefield')) return
     const mods = this.skills.getModifiers()
+
+    // Ascension: dodge chance
+    if (mods.dodgeChance > 0 && Math.random() < mods.dodgeChance) {
+      if (combat) {
+        combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 20, 0, 0xaaaaff, 'DODGE')
+      }
+      return
+    }
+
     const armorEnch = this.getArmorEnchantmentBonuses()
-    const defense = this.inventory.getTotalDefense() + mods.defenseBonus + armorEnch.defenseBonus + this.buffs.getDefenseBonus()
+    const ascMult = mods.allStatsMultiplier
+    const defense = Math.round((this.inventory.getTotalDefense() + mods.defenseBonus + armorEnch.defenseBonus + this.buffs.getDefenseBonus()) * ascMult)
     amount = Math.max(1, amount - defense)
 
     // Endurance potion: reduce damage taken
     amount = Math.max(1, Math.round(amount * this.buffs.getDamageTakenMult()))
+
+    // Ascension: damage reduction
+    if (mods.damageReduction > 0) {
+      amount = Math.max(1, Math.round(amount * (1 - mods.damageReduction)))
+    }
 
     // Mana shield: redirect portion of damage to mana (skill + void armor enchant)
     const totalManaShield = mods.manaShieldPct + armorEnch.manaShieldPct
@@ -678,13 +694,21 @@ export class Player {
     // Mana Overload: mana >75% grants +100% damage but drains 15% max mana per hit
     const manaOverloadBonus = (mods.manaOverload && this.mana > this.maxMana * 0.75) ? 2 : 1
 
+    // Ascension: all damage multiplier
+    const allDmgMult = mods.allDamageMultiplier
+
+    // Ascension: void damage multiplier (check if in void dimension)
+    const ws = this.scene as any
+    const inVoid = ws.isVoidDimension === true
+    const voidDmgMult = inVoid ? mods.voidDamageMultiplier : 1
+
     let dmgDealt = 0
 
     const buffDmgMult = this.buffs.getDamageMult()
 
     switch (def.weaponStyle) {
       case 'melee': {
-        const mult = mods.meleeDamageMult * this.buffs.getMeleeDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult
+        const mult = mods.meleeDamageMult * this.buffs.getMeleeDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult * allDmgMult * voidDmgMult
         dmgDealt = combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies, mult)
         // Arcane Strikes: melee hits release a magic shockwave
         if (mods.arcaneStrikes && dmgDealt > 0) {
@@ -700,18 +724,20 @@ export class Player {
       }
       case 'ranged':
         combat.fireProjectile(def, this.sprite.x, this.sprite.y, worldCursorX, worldCursorY, true,
-          mods.rangedDamageMult * this.buffs.getRangedDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult)
+          mods.rangedDamageMult * this.buffs.getRangedDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult * allDmgMult * voidDmgMult)
         break
       case 'magic':
         if (this.mana >= (def.manaCost ?? 0)) {
           this.mana -= def.manaCost ?? 0
+          if (this.mana < 0) this.mana = 0
           combat.fireProjectile(def, this.sprite.x, this.sprite.y, worldCursorX, worldCursorY, true,
-            mods.magicDamageMult * this.buffs.getMagicDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult)
+            mods.magicDamageMult * this.buffs.getMagicDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult * allDmgMult * voidDmgMult)
         }
         break
       case 'summon':
         if (this.mana >= (def.manaCost ?? 0)) {
           this.mana -= def.manaCost ?? 0
+          if (this.mana < 0) this.mana = 0
           combat.spawnSummon(def, this.sprite.x, this.sprite.y, this.sprite)
         }
         break
@@ -947,7 +973,7 @@ export class Player {
 
     const mods = this.skills.getModifiers()
     const armorEnchMoves = this.getArmorEnchantmentBonuses()
-    let speed = MOVE_SPEED * mods.moveSpeedMult * armorEnchMoves.moveSpeedMult * this.getAccessoryMoveSpeedMult() * this.buffs.getMoveSpeedMult()
+    let speed = MOVE_SPEED * mods.moveSpeedMult * armorEnchMoves.moveSpeedMult * this.getAccessoryMoveSpeedMult() * this.buffs.getMoveSpeedMult() * mods.allStatsMultiplier
 
     // Slow horizontal movement in water
     if (this.isInWater) {
@@ -1293,7 +1319,7 @@ export class Player {
 
 
   private applyFallDamage() {
-    if (this.hasAccessoryEffect('noFallDamage') || this.buffs.hasNoFallDamage()) return
+    if (this.dead || this.hasAccessoryEffect('noFallDamage') || this.buffs.hasNoFallDamage()) return
     const mods = this.skills.getModifiers()
     const damage = Math.floor((this.maxFallVy - FALL_DMG_THRESHOLD) * FALL_DMG_FACTOR * mods.fallDamageMult)
     if (damage > 0) this.takeDamage(damage, 0, 0)
@@ -1344,7 +1370,7 @@ export class Player {
           this.miningTX = tx
           this.miningTY = ty
           this.miningProgress = 0
-          this.miningRequired = (props.hardness * BASE_MINE_TIME) / (toolSpeed * skillMineSpeed * this.getAccessoryMineSpeedMult() * this.buffs.getMineSpeedMult())
+          this.miningRequired = (props.hardness * BASE_MINE_TIME) / Math.max(0.1, toolSpeed * skillMineSpeed * this.getAccessoryMineSpeedMult() * this.buffs.getMineSpeedMult())
         }
 
         // Play mining animation while actively mining

@@ -410,6 +410,8 @@ export class ChunkManager {
     const key = `${portal.tx},${portal.ty}`
     const sprite = this.portalSprites.get(key)
     if (sprite) {
+      const label = (sprite as any)._portalLabel as Phaser.GameObjects.Text | undefined
+      if (label) label.destroy()
       sprite.destroy()
       this.portalSprites.delete(key)
     }

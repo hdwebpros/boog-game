@@ -1,13 +1,12 @@
 import Phaser from 'phaser'
-import { SKILLS, BRANCH_INFO, BRANCH_ORDER, SUPER_TREES, SUPER_TREE_MAP } from '../data/skills'
+import { SKILLS, BRANCH_INFO, BRANCH_ORDER, SUPER_TREES, SUPER_TREE_MAP, SKILL_MAP, SkillBranch } from '../data/skills'
 import type { SkillDef } from '../data/skills'
 import type { SkillTreeManager } from '../systems/SkillTreeManager'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
-import { SKILL_MAP } from '../data/skills'
 
 const SKILL_W = 520
-const SKILL_H = 440
+const SKILL_H = 520
 const SKILL_NODE_SIZE = 36
 const SKILL_NODE_GAP_X = 56
 const SKILL_NODE_GAP_Y = 70
@@ -65,9 +64,10 @@ export class SkillTreePanel {
       this.skillBranchLabels.push(label)
     }
 
-    // Normal skill nodes
-    const normalSkills = SKILLS.filter(s => !s.superTree)
+    // Normal skill nodes (exclude super tree and ascension skills)
+    const normalSkills = SKILLS.filter(s => !s.superTree && s.branch !== SkillBranch.ASCENSION)
     for (const branch of BRANCH_ORDER) {
+      if (branch === SkillBranch.ASCENSION) continue
       const branchIdx = BRANCH_ORDER.indexOf(branch)
       const branchSkills = normalSkills.filter(s => s.branch === branch)
 
@@ -149,6 +149,62 @@ export class SkillTreePanel {
         this.skillNameTexts.push(nameText)
       }
     }
+
+    // Ascension skill nodes
+    const ascY = superY + SKILL_NODE_GAP_Y + 10
+    const ascSkills = SKILLS.filter(s => s.branch === SkillBranch.ASCENSION)
+    const ascInfo = BRANCH_INFO[SkillBranch.ASCENSION]
+
+    // Ascension label
+    const ascLabel = this.scene.add.text(width / 2, ascY - 14, `[${ascInfo.icon}] ${ascInfo.name}`, {
+      fontSize: '8px', color: ascInfo.colorStr, fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5, 0).setDepth(321).setVisible(false)
+    this.skillBranchLabels.push(ascLabel)
+
+    // Layout: 3 base skills in a row, then 2 mid skills, then 1 capstone
+    // Row 0: void_strike, soul_harvest, dimensional_shift
+    // Row 1: chaos_mastery, void_armor
+    // Row 2: ascendant
+    const ascRows: SkillDef[][] = [
+      ascSkills.filter(s => !s.prerequisites && !s.requires),
+      ascSkills.filter(s => (s.prerequisites && s.prerequisites.length > 0) || (s.requires && !s.prerequisites)),
+      ascSkills.filter(s => s.id === 'ascendant'),
+    ]
+    // Fix: separate mid-tier (has requires OR prerequisites but is not capstone) from capstone
+    const midTier = ascSkills.filter(s => s.id !== 'ascendant' && (s.requires || (s.prerequisites && s.prerequisites.length > 0)))
+    ascRows[1] = midTier
+
+    for (let row = 0; row < ascRows.length; row++) {
+      const rowSkills = ascRows[row]!
+      const totalRowWidth = rowSkills.length * SKILL_NODE_SIZE + (rowSkills.length - 1) * 12
+      const rowStartX = panelX + (SKILL_W - totalRowWidth) / 2
+
+      for (let si = 0; si < rowSkills.length; si++) {
+        const skill = rowSkills[si]!
+        const nx = rowStartX + si * (SKILL_NODE_SIZE + 12)
+        const ny = ascY + row * (SKILL_NODE_GAP_Y - 10)
+        const cx = nx + SKILL_NODE_SIZE / 2
+        const cy = ny + SKILL_NODE_SIZE / 2
+
+        const zone = this.scene.add.zone(cx, cy, SKILL_NODE_SIZE, SKILL_NODE_SIZE)
+          .setInteractive().setDepth(323)
+        zone.on('pointerdown', () => this.onSkillNodeClick(skill.id))
+        this.skillNodeZones.push(zone)
+        this.skillNodeSkills.push(skill)
+
+        const abbr = skill.name.split(' ').map(w => w[0]).join('').substring(0, 3)
+        const nodeText = this.scene.add.text(cx, cy - 2, abbr, {
+          fontSize: '11px', color: '#ffffff', fontFamily: 'monospace',
+          stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(322).setVisible(false)
+        this.skillNodeTexts.push(nodeText)
+
+        const nameText = this.scene.add.text(cx, ny + SKILL_NODE_SIZE + 2, skill.name, {
+          fontSize: '7px', color: '#888888', fontFamily: 'monospace',
+        }).setOrigin(0.5, 0).setDepth(321).setVisible(false)
+        this.skillNameTexts.push(nameText)
+      }
+    }
   }
 
   update(player: any, pointerJustDown: boolean) {
@@ -186,26 +242,41 @@ export class SkillTreePanel {
     const pointer = this.scene.input.activePointer
     let hoveredSkill: SkillDef | null = null
 
-    // Connecting lines
+    // Connecting lines (single requires + prerequisites array)
     for (let i = 0; i < this.skillNodeSkills.length; i++) {
       const skill = this.skillNodeSkills[i]!
-      if (!skill.requires) continue
-
-      const parentIdx = this.skillNodeSkills.findIndex(s => s.id === skill.requires)
-      if (parentIdx < 0) continue
-
-      const parentZone = this.skillNodeZones[parentIdx]!
       const childZone = this.skillNodeZones[i]!
-
       const unlocked = skills.hasSkill(skill.id)
-      const parentUnlocked = skills.hasSkill(skill.requires)
       const isSuper = !!skill.superTree
+      const isAsc = skill.branch === SkillBranch.ASCENSION
       const superColor = isSuper ? (SUPER_TREE_MAP[skill.superTree!]?.color ?? 0x666688) : 0
-      const lineColor = unlocked ? (isSuper ? superColor : 0x44ff44) : parentUnlocked ? 0x666688 : 0x333344
-      const lineAlpha = unlocked ? 0.8 : 0.4
+      const ascColor = BRANCH_INFO[SkillBranch.ASCENSION].color
 
-      this.skillGfx.lineStyle(2, lineColor, lineAlpha)
-      this.skillGfx.lineBetween(parentZone.x, parentZone.y, childZone.x, childZone.y)
+      // Draw line for single `requires`
+      if (skill.requires) {
+        const parentIdx = this.skillNodeSkills.findIndex(s => s.id === skill.requires)
+        if (parentIdx >= 0) {
+          const parentZone = this.skillNodeZones[parentIdx]!
+          const parentUnlocked = skills.hasSkill(skill.requires)
+          const lineColor = unlocked ? (isSuper ? superColor : isAsc ? ascColor : 0x44ff44) : parentUnlocked ? 0x666688 : 0x333344
+          this.skillGfx.lineStyle(2, lineColor, unlocked ? 0.8 : 0.4)
+          this.skillGfx.lineBetween(parentZone.x, parentZone.y, childZone.x, childZone.y)
+        }
+      }
+
+      // Draw lines for `prerequisites` array
+      if (skill.prerequisites) {
+        for (const prereqId of skill.prerequisites) {
+          const parentIdx = this.skillNodeSkills.findIndex(s => s.id === prereqId)
+          if (parentIdx >= 0) {
+            const parentZone = this.skillNodeZones[parentIdx]!
+            const parentUnlocked = skills.hasSkill(prereqId)
+            const lineColor = unlocked ? (isAsc ? ascColor : 0x44ff44) : parentUnlocked ? 0x666688 : 0x333344
+            this.skillGfx.lineStyle(2, lineColor, unlocked ? 0.8 : 0.4)
+            this.skillGfx.lineBetween(parentZone.x, parentZone.y, childZone.x, childZone.y)
+          }
+        }
+      }
     }
 
     // Divider
@@ -228,8 +299,10 @@ export class SkillTreePanel {
       const nodeColor = superTreeDef ? superTreeDef.color : BRANCH_INFO[skill.branch].color
       const nodeColorStr = superTreeDef ? superTreeDef.colorStr : BRANCH_INFO[skill.branch].colorStr
       const superAvailable = superTreeDef ? skills.isSuperTreeUnlocked(skill.superTree!) : true
-      const prereqMet = !skill.requires || skills.hasSkill(skill.requires)
-      const needsMoreSP = !unlocked && prereqMet && skills.skillPoints < skill.cost
+      const prereqMet = (!skill.requires || skills.hasSkill(skill.requires))
+        && (!skill.prerequisites || skill.prerequisites.every(p => skills.hasSkill(p)))
+      const ascReqMet = !skill.requiredSuperTrees || skills.completedSuperTreeCount() >= skill.requiredSuperTrees
+      const needsMoreSP = !unlocked && prereqMet && ascReqMet && skills.skillPoints < skill.cost
 
       // Node background
       if (unlocked) {
@@ -326,6 +399,16 @@ export class SkillTreePanel {
         if (hoveredSkill.requires && !skills.hasSkill(hoveredSkill.requires)) {
           const reqSkill = SKILL_MAP[hoveredSkill.requires]
           reasons.push(`Requires: ${reqSkill ? reqSkill.name : hoveredSkill.requires}`)
+        }
+        if (hoveredSkill.prerequisites) {
+          const missing = hoveredSkill.prerequisites.filter(p => !skills.hasSkill(p))
+          if (missing.length > 0) {
+            const names = missing.map(p => SKILL_MAP[p]?.name ?? p).join(', ')
+            reasons.push(`Requires: ${names}`)
+          }
+        }
+        if (hoveredSkill.requiredSuperTrees && skills.completedSuperTreeCount() < hoveredSkill.requiredSuperTrees) {
+          reasons.push(`Need ${hoveredSkill.requiredSuperTrees} super trees (have ${skills.completedSuperTreeCount()})`)
         }
         if (skills.skillPoints < hoveredSkill.cost) {
           reasons.push(`Need ${hoveredSkill.cost - skills.skillPoints} more SP`)

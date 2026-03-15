@@ -99,7 +99,7 @@ export class Summon {
 
   destroy() {
     this.alive = false
-    this.sprite.destroy()
+    if (this.sprite.active) this.sprite.destroy()
   }
 
   getBounds() {

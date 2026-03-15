@@ -129,6 +129,7 @@ export const BUFF_DEFS: Record<BuffType, BuffDef> = {
   forcefield: {
     type: 'forcefield', name: 'Forcefield', description: 'Immune to damage',
     color: 0x44ddff, duration: 8000,
+    damageTakenMult: 0,
   },
 }
 

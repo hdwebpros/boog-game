@@ -250,14 +250,14 @@ export const ITEMS: Record<number, ItemDef> = {
   321: { id: 321, name: 'Void Forge',    category: ItemCategory.STATION, stackSize: 1, tier: 5, color: 0x4a0080, tileType: TileType.NETHER_BRICK },
 
   // ── Void Weapons ───────────────────────────────────────
-  330: { id: 330, name: 'Void Blade',          category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0x9933ff, damage: 85,  weaponStyle: 'melee' as WeaponStyle,  attackSpeed: 1.4 },
-  331: { id: 331, name: 'Abyssal Scythe',      category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0x6600cc, damage: 110, weaponStyle: 'melee' as WeaponStyle,  attackSpeed: 0.9 },
-  332: { id: 332, name: 'Hellfire Bow',        category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0xff4400, damage: 70,  weaponStyle: 'ranged' as WeaponStyle, attackSpeed: 1.6, projectileSpeed: 500 },
-  333: { id: 333, name: 'Void Staff',          category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0xcc00ff, damage: 95,  weaponStyle: 'magic' as WeaponStyle,  attackSpeed: 1.2, manaCost: 25 },
-  334: { id: 334, name: 'Soul Reaver',         category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0x66ccff, damage: 60,  weaponStyle: 'summon' as WeaponStyle, attackSpeed: 0.5, manaCost: 40 },
-  335: { id: 335, name: 'Chaos Edge',          category: ItemCategory.WEAPON, stackSize: 1, tier: 6, color: 0xff00ff, damage: 150, weaponStyle: 'melee' as WeaponStyle,  attackSpeed: 1.6 },
-  336: { id: 336, name: 'Dimensional Rifle',   category: ItemCategory.WEAPON, stackSize: 1, tier: 6, color: 0x00ffcc, damage: 120, weaponStyle: 'ranged' as WeaponStyle, attackSpeed: 2.0, projectileSpeed: 600 },
-  337: { id: 337, name: 'Arcane Annihilator',  category: ItemCategory.WEAPON, stackSize: 1, tier: 6, color: 0xffcc00, damage: 130, weaponStyle: 'magic' as WeaponStyle,  attackSpeed: 1.5, manaCost: 35 },
+  330: { id: 330, name: 'Void Blade',          category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0x9933ff, damage: 85,  weaponStyle: 'melee' as WeaponStyle,  attackSpeed: 280 },
+  331: { id: 331, name: 'Abyssal Scythe',      category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0x6600cc, damage: 110, weaponStyle: 'melee' as WeaponStyle,  attackSpeed: 450 },
+  332: { id: 332, name: 'Hellfire Bow',        category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0xff4400, damage: 70,  weaponStyle: 'ranged' as WeaponStyle, attackSpeed: 250, projectileSpeed: 500 },
+  333: { id: 333, name: 'Void Staff',          category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0xcc00ff, damage: 95,  weaponStyle: 'magic' as WeaponStyle,  attackSpeed: 320, manaCost: 25 },
+  334: { id: 334, name: 'Soul Reaver',         category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0x66ccff, damage: 60,  weaponStyle: 'summon' as WeaponStyle, attackSpeed: 800, manaCost: 40 },
+  335: { id: 335, name: 'Chaos Edge',          category: ItemCategory.WEAPON, stackSize: 1, tier: 6, color: 0xff00ff, damage: 150, weaponStyle: 'melee' as WeaponStyle,  attackSpeed: 250 },
+  336: { id: 336, name: 'Dimensional Rifle',   category: ItemCategory.WEAPON, stackSize: 1, tier: 6, color: 0x00ffcc, damage: 120, weaponStyle: 'ranged' as WeaponStyle, attackSpeed: 200, projectileSpeed: 600 },
+  337: { id: 337, name: 'Arcane Annihilator',  category: ItemCategory.WEAPON, stackSize: 1, tier: 6, color: 0xffcc00, damage: 130, weaponStyle: 'magic' as WeaponStyle,  attackSpeed: 270, manaCost: 35 },
 
   // ── Void Armor (Tier 5) ────────────────────────────────
   340: { id: 340, name: 'Void Helmet',     category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 18, armorSlot: 'helmet' as ArmorSlot },

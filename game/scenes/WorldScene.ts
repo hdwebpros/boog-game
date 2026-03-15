@@ -852,8 +852,9 @@ export class WorldScene extends Phaser.Scene {
               y: enemy.sprite.y,
             })
           }
-          // Heal on kill (skill)
-          const healPct = this.player.skills.getModifiers().healOnKillPct
+          // Heal on kill (skill + ascension killHealPercent)
+          const skillMods = this.player.skills.getModifiers()
+          const healPct = skillMods.healOnKillPct + skillMods.killHealPercent
           if (healPct > 0) {
             this.player.hp = Math.min(this.player.maxHp, this.player.hp + this.player.maxHp * healPct)
           }

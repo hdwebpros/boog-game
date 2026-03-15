@@ -69,7 +69,7 @@ export class Projectile {
 
   destroy() {
     this.alive = false
-    this.sprite.destroy()
+    if (this.sprite.active) this.sprite.destroy()
   }
 
   getBounds(): { x: number; y: number; w: number; h: number } {

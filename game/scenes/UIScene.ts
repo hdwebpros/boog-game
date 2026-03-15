@@ -217,6 +217,11 @@ export class UIScene extends Phaser.Scene {
 
     // Cleanup
     this.events.on('shutdown', () => {
+      this.input.off('wheel')
+      this.input.off('pointerdown')
+      this.input.off('pointermove')
+      this.input.off('pointerup')
+      this.input.keyboard?.removeAllKeys(true)
       if (this.miniMap) this.miniMap.destroy()
       if (this.worldMap) this.worldMap.destroy()
       if (this.chatOverlay) {

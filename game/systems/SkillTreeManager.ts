@@ -1,5 +1,5 @@
 import { SKILLS, SKILL_MAP, SUPER_TREES, SUPER_TREE_MAP, xpForLevel } from '../data/skills'
-import type { SkillBranch, SkillDef } from '../data/skills'
+import type { SkillBranch } from '../data/skills'
 
 export interface SkillModifiers {
   meleeDamageMult: number
@@ -28,6 +28,13 @@ export interface SkillModifiers {
   arcaneStrikes: boolean
   manaOverload: boolean
   aoeMining: boolean
+  // Ascension modifiers
+  voidDamageMultiplier: number
+  killHealPercent: number
+  dodgeChance: number
+  allDamageMultiplier: number
+  damageReduction: number
+  allStatsMultiplier: number
 }
 
 export class SkillTreeManager {
@@ -68,6 +75,17 @@ export class SkillTreeManager {
     return st.branches.every(b => this.isBranchComplete(b))
   }
 
+  /** Check if all skills in a super tree are unlocked (tree is completed) */
+  isSuperTreeComplete(superTreeId: string): boolean {
+    const stSkills = SKILLS.filter(s => s.superTree === superTreeId)
+    return stSkills.length > 0 && stSkills.every(s => this.unlockedSkills.has(s.id))
+  }
+
+  /** Count how many super trees are fully completed */
+  completedSuperTreeCount(): number {
+    return SUPER_TREES.filter(st => this.isSuperTreeComplete(st.id)).length
+  }
+
   /** Check if a skill can be unlocked */
   canUnlock(skillId: string): boolean {
     const skill = SKILL_MAP[skillId]
@@ -77,6 +95,10 @@ export class SkillTreeManager {
     // Super tree skill: requires both branches complete
     if (skill.superTree && !this.isSuperTreeUnlocked(skill.superTree)) return false
     if (skill.requires && !this.unlockedSkills.has(skill.requires)) return false
+    // Multiple prerequisites (all required)
+    if (skill.prerequisites && !skill.prerequisites.every(p => this.unlockedSkills.has(p))) return false
+    // Required number of completed super trees (for ascension skills)
+    if (skill.requiredSuperTrees && this.completedSuperTreeCount() < skill.requiredSuperTrees) return false
     return true
   }
 
@@ -125,6 +147,13 @@ export class SkillTreeManager {
       arcaneStrikes: false,
       manaOverload: false,
       aoeMining: false,
+      // Ascension
+      voidDamageMultiplier: 1,
+      killHealPercent: 0,
+      dodgeChance: 0,
+      allDamageMultiplier: 1,
+      damageReduction: 0,
+      allStatsMultiplier: 1,
     }
 
     for (const skillId of this.unlockedSkills) {
@@ -157,6 +186,13 @@ export class SkillTreeManager {
       if (s.arcaneStrikes) mods.arcaneStrikes = true
       if (s.manaOverload) mods.manaOverload = true
       if (s.aoeMining) mods.aoeMining = true
+      // Ascension modifiers
+      if (s.voidDamageMultiplier) mods.voidDamageMultiplier *= s.voidDamageMultiplier
+      if (s.killHealPercent) mods.killHealPercent += s.killHealPercent
+      if (s.dodgeChance) mods.dodgeChance += s.dodgeChance
+      if (s.allDamageMultiplier) mods.allDamageMultiplier *= s.allDamageMultiplier
+      if (s.damageReduction) mods.damageReduction += s.damageReduction
+      if (s.allStatsMultiplier) mods.allStatsMultiplier *= s.allStatsMultiplier
     }
 
     this.cachedModifiers = mods
