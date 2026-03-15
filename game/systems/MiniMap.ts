@@ -8,6 +8,13 @@ export interface BossMarker {
   worldY: number
 }
 
+export interface POIMarker {
+  type: 'runestone' | 'altar'
+  bossType: string
+  worldX: number // pixel coords
+  worldY: number
+}
+
 const MAP_W = 240
 const MAP_H = 64
 const CELL_W = Math.ceil(WORLD_WIDTH / MAP_W)
@@ -37,6 +44,8 @@ export class MiniMap {
   private playerMapX = 0
   private playerMapY = 0
   private bossIcons: Map<string, Phaser.GameObjects.Image> = new Map()
+  private poiGfx!: Phaser.GameObjects.Graphics
+  private _poiMarkers: POIMarker[] = []
   // Current view state
   private cropX = 0
   private cropY = 0
@@ -72,6 +81,9 @@ export class MiniMap {
     // Overlay (border, player dot, viewport rect)
     this.gfx = scene.add.graphics().setDepth(196).setVisible(false)
 
+    // POI markers (runestones, altars)
+    this.poiGfx = scene.add.graphics().setDepth(196).setVisible(false)
+
     // Zoom label
     this.label = scene.add.text(0, 0, '', {
       fontFamily: 'monospace', fontSize: '10px', color: '#8899bb',
@@ -93,10 +105,11 @@ export class MiniMap {
     this.mapImage.setVisible(this._visible)
     this.gfx.setVisible(this._visible)
     this.bgGfx.setVisible(this._visible)
+    this.poiGfx.setVisible(this._visible)
     this.label.setVisible(this._visible)
     for (const icon of this.bossIcons.values()) icon.setVisible(this._visible)
     if (this._visible) this.applyZoom()
-    else this.gfx.clear(), this.bgGfx.clear()
+    else this.gfx.clear(), this.bgGfx.clear(), this.poiGfx.clear()
   }
 
   zoomIn() {
@@ -265,6 +278,9 @@ export class MiniMap {
 
     // Update boss icon positions
     this.updateBossIconPositions(displayW, displayH)
+
+    // Draw POI markers (runestones, altars)
+    this.drawPOIMarkers(displayW, displayH)
   }
 
   updateBossMarkers(markers: BossMarker[]) {
@@ -331,6 +347,43 @@ export class MiniMap {
         const pulse = 0.7 + 0.3 * Math.sin(Date.now() * 0.003 + marker.bossType.length)
         icon.setPosition(Math.round(sx), Math.round(sy))
         icon.setAlpha(pulse)
+      }
+    }
+  }
+
+  updatePOIMarkers(markers: POIMarker[]) {
+    this._poiMarkers = markers
+  }
+
+  private drawPOIMarkers(displayW: number, displayH: number) {
+    this.poiGfx.clear()
+    if (!this._visible || this._poiMarkers.length === 0) return
+
+    const worldPxW = WORLD_WIDTH * TILE_SIZE
+    const worldPxH = WORLD_HEIGHT * TILE_SIZE
+
+    for (const marker of this._poiMarkers) {
+      const mapX = (marker.worldX / worldPxW) * MAP_W
+      const mapY = (marker.worldY / worldPxH) * MAP_H
+
+      const sx = this.imgX + (mapX - this.cropX) * this.currentScale
+      const sy = this.imgY + (mapY - this.cropY) * this.currentScale
+
+      const inBounds = sx >= this.imgX && sx <= this.imgX + displayW &&
+                       sy >= this.imgY && sy <= this.imgY + displayH
+      if (!inBounds) continue
+
+      const pulse = 0.6 + 0.4 * Math.sin(Date.now() * 0.004 + mapX + mapY)
+      const size = Math.max(2, Math.round(this.currentScale * 1.5))
+
+      if (marker.type === 'altar') {
+        // Red diamond for altars
+        this.poiGfx.fillStyle(0xff4444, pulse)
+        this.poiGfx.fillPoint(Math.round(sx), Math.round(sy), size + 1)
+      } else {
+        // Cyan dot for runestones
+        this.poiGfx.fillStyle(0x44ccff, pulse)
+        this.poiGfx.fillPoint(Math.round(sx), Math.round(sy), size)
       }
     }
   }
@@ -412,6 +465,7 @@ export class MiniMap {
     this.mapImage.destroy()
     this.gfx.destroy()
     this.bgGfx.destroy()
+    this.poiGfx.destroy()
     this.label.destroy()
     for (const icon of this.bossIcons.values()) icon.destroy()
     this.bossIcons.clear()

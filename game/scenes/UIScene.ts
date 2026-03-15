@@ -275,6 +275,8 @@ export class UIScene extends Phaser.Scene {
     if (this.miniMap) {
       this.miniMap.update(player.sprite.x, player.sprite.y)
       this.updateBossMarkers(worldScene)
+      const pois = worldScene?.getDiscoveredPOIs?.() as { type: 'runestone' | 'altar'; bossType: string; worldX: number; worldY: number }[] | undefined
+      if (pois) this.miniMap.updatePOIMarkers(pois)
 
       // LMB click on minimap cycles zoom
       if (this.pointerJustDown && pointer.leftButtonDown() &&

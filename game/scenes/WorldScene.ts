@@ -64,6 +64,13 @@ export class WorldScene extends Phaser.Scene {
   private altarPromptText: Phaser.GameObjects.Text | null = null
   private runestonePromptText: Phaser.GameObjects.Text | null = null
 
+  // POI discovery (runestones/altars visible on minimap when nearby)
+  private discoveredPOIs: Set<string> = new Set() // "type:tx,ty" keys
+
+  // Mystical Compass indicator
+  private compassGfx: Phaser.GameObjects.Graphics | null = null
+  private compassDistText: Phaser.GameObjects.Text | null = null
+
   // Portal system
   private portalPromptText: Phaser.GameObjects.Text | null = null
   private portalNamingActive = false
@@ -195,6 +202,10 @@ export class WorldScene extends Phaser.Scene {
       if (saveData.portals) {
         this.chunkManager.restorePortals(saveData.portals)
       }
+      // Restore discovered POIs (minimap markers for runestones/altars)
+      if (saveData.discoveredPOIs) {
+        for (const key of saveData.discoveredPOIs) this.discoveredPOIs.add(key)
+      }
       this.registry.remove('saveData')
     }
 
@@ -276,6 +287,13 @@ export class WorldScene extends Phaser.Scene {
       fontSize: '11px', color: '#bb88ff', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 3, align: 'center',
     }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
+
+    // Mystical Compass HUD indicator (screen-fixed)
+    this.compassGfx = this.add.graphics().setScrollFactor(0).setDepth(200).setVisible(false)
+    this.compassDistText = this.add.text(0, 0, '', {
+      fontSize: '10px', color: '#88ccff', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 3, align: 'center',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(200).setVisible(false)
 
     // M toggles music/sound mute
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M).on('down', () => {
@@ -471,6 +489,8 @@ export class WorldScene extends Phaser.Scene {
       // Check altar/runestone/NPC/portal interactions
       this.checkAltarInteraction()
       this.checkRunestoneInteraction()
+      this.checkPOIDiscovery()
+      this.updateMysticalCompass()
       this.checkNPCInteraction()
       this.checkPortalInteraction()
 
@@ -790,6 +810,7 @@ export class WorldScene extends Phaser.Scene {
 
       // Runestone interaction is purely local (altar discovery on minimap)
       this.checkRunestoneInteraction()
+      this.checkPOIDiscovery()
 
       // Altar prompt — client sends BOSS_SUMMON request to host
       this.checkAltarInteraction()
@@ -1231,6 +1252,129 @@ export class WorldScene extends Phaser.Scene {
     } else if (this.runestonePromptText) {
       this.runestonePromptText.setVisible(false)
     }
+  }
+
+  // ── POI Discovery (show on minimap when nearby) ──────
+
+  private static readonly POI_DISCOVER_RANGE = 12 // tiles
+
+  private checkPOIDiscovery() {
+    const ptx = Math.floor(this.player.sprite.x / TILE_SIZE)
+    const pty = Math.floor(this.player.sprite.y / TILE_SIZE)
+    const range = WorldScene.POI_DISCOVER_RANGE
+
+    for (const altar of this.chunkManager.getAltars()) {
+      const key = `altar:${altar.tx},${altar.ty}`
+      if (this.discoveredPOIs.has(key)) continue
+      if (Math.abs(altar.tx - ptx) <= range && Math.abs(altar.ty - pty) <= range) {
+        this.discoveredPOIs.add(key)
+      }
+    }
+
+    for (const rs of this.chunkManager.getRunestones()) {
+      const key = `runestone:${rs.tx},${rs.ty}`
+      if (this.discoveredPOIs.has(key)) continue
+      if (Math.abs(rs.tx - ptx) <= range && Math.abs(rs.ty - pty) <= range) {
+        this.discoveredPOIs.add(key)
+      }
+    }
+  }
+
+  getDiscoveredPOIs(): { type: 'runestone' | 'altar'; bossType: string; worldX: number; worldY: number }[] {
+    const result: { type: 'runestone' | 'altar'; bossType: string; worldX: number; worldY: number }[] = []
+
+    for (const altar of this.chunkManager.getAltars()) {
+      if (this.discoveredPOIs.has(`altar:${altar.tx},${altar.ty}`)) {
+        result.push({ type: 'altar', bossType: altar.bossType, worldX: altar.tx * TILE_SIZE, worldY: altar.ty * TILE_SIZE })
+      }
+    }
+
+    for (const rs of this.chunkManager.getRunestones()) {
+      if (this.discoveredPOIs.has(`runestone:${rs.tx},${rs.ty}`)) {
+        result.push({ type: 'runestone', bossType: rs.bossType, worldX: rs.tx * TILE_SIZE, worldY: rs.ty * TILE_SIZE })
+      }
+    }
+
+    return result
+  }
+
+  // ── Mystical Compass ──────────────────────────────────
+
+  private updateMysticalCompass() {
+    if (!this.compassGfx || !this.compassDistText) return
+
+    // Check if player has Mystical Compass (ID 242) anywhere in inventory
+    const hasCompass = this.player.inventory.getCount(242) > 0
+    if (!hasCompass) {
+      this.compassGfx.setVisible(false)
+      this.compassDistText.setVisible(false)
+      return
+    }
+
+    // Find nearest unread runestone
+    const runestones = this.chunkManager.getRunestones()
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    let nearest: { tx: number; ty: number; dist: number } | null = null
+
+    for (const rs of runestones) {
+      const key = `${rs.tx},${rs.ty}`
+      if (this.usedRunestones.has(key)) continue
+      const rx = rs.tx * TILE_SIZE + TILE_SIZE / 2
+      const ry = rs.ty * TILE_SIZE + TILE_SIZE / 2
+      const dist = Math.sqrt((rx - px) ** 2 + (ry - py) ** 2)
+      if (!nearest || dist < nearest.dist) {
+        nearest = { tx: rs.tx, ty: rs.ty, dist }
+      }
+    }
+
+    if (!nearest) {
+      this.compassGfx.setVisible(false)
+      this.compassDistText.setVisible(false)
+      return
+    }
+
+    // Draw compass arrow on screen HUD (top-right area, below minimap)
+    const cx = 760  // screen x
+    const cy = 140  // screen y
+    const radius = 20
+    const rx = nearest.tx * TILE_SIZE + TILE_SIZE / 2
+    const ry = nearest.ty * TILE_SIZE + TILE_SIZE / 2
+    const angle = Math.atan2(ry - py, rx - px)
+
+    this.compassGfx.clear()
+
+    // Outer ring
+    this.compassGfx.lineStyle(2, 0x336699, 0.8)
+    this.compassGfx.strokeCircle(cx, cy, radius + 4)
+
+    // Inner fill
+    this.compassGfx.fillStyle(0x112233, 0.7)
+    this.compassGfx.fillCircle(cx, cy, radius + 2)
+
+    // Arrow pointing toward nearest runestone
+    const arrowLen = radius - 2
+    const tipX = cx + Math.cos(angle) * arrowLen
+    const tipY = cy + Math.sin(angle) * arrowLen
+    const baseL = cx + Math.cos(angle + 2.6) * 8
+    const baseR = cx + Math.cos(angle - 2.6) * 8
+    const baseLY = cy + Math.sin(angle + 2.6) * 8
+    const baseRY = cy + Math.sin(angle - 2.6) * 8
+
+    this.compassGfx.fillStyle(0x66aaff, 1)
+    this.compassGfx.fillTriangle(tipX, tipY, baseL, baseLY, baseR, baseRY)
+
+    // Small dot at center
+    this.compassGfx.fillStyle(0xffffff, 0.8)
+    this.compassGfx.fillCircle(cx, cy, 2)
+
+    this.compassGfx.setVisible(true)
+
+    // Distance text below compass
+    const tileDist = Math.round(nearest.dist / TILE_SIZE)
+    this.compassDistText.setText(`${tileDist}m`)
+    this.compassDistText.setPosition(cx, cy + radius + 8)
+    this.compassDistText.setVisible(true)
   }
 
   // ── Portal Interaction ──────────────────────────────────
@@ -1772,7 +1916,8 @@ export class WorldScene extends Phaser.Scene {
       this.chunkManager.getChestInventories(),
       Array.from(this.player.inventory.discoveredItems),
       waypoints,
-      this.chunkManager.getPortalData()
+      this.chunkManager.getPortalData(),
+      Array.from(this.discoveredPOIs)
     )
   }
 

@@ -255,6 +255,10 @@ const ITEMS = [
     name: 'item_116', label: 'chest',
     desc: 'wooden treasure chest inventory icon for a 2D side-scrolling game. Small brown wooden chest with darker plank bands, gold metal latch and lock on the front, slightly rounded lid on top. Pixel art item sprite.',
   },
+  {
+    name: 'item_242', label: 'mystical_compass',
+    desc: 'mystical compass navigation item for a 2D side-scrolling game inventory icon. Ancient ornate compass with glowing blue magical rune symbols around the rim, a spinning ethereal blue needle in the center, dark metal casing with arcane engravings. Pixel art item sprite.',
+  },
 ]
 
 // ─── GENERATION FUNCTIONS ───────────────────────────────────

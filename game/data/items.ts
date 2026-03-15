@@ -206,6 +206,9 @@ export const ITEMS: Record<number, ItemDef> = {
   240: { id: 240, name: 'Abyssal Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 3, color: 0x9933ff },
   241: { id: 241, name: 'Verdant Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 1, color: 0x33ff66 },
 
+  // ── Special Items ─────────────────────────────────────
+  242: { id: 242, name: 'Mystical Compass', category: ItemCategory.SPECIAL, stackSize: 1, tier: 2, color: 0x66aaff },
+
   // ── Currency ──────────────────────────────────────────
   250: { id: 250, name: 'Silver Coin', category: ItemCategory.CURRENCY, stackSize: 999, tier: 0, color: 0xccccdd },
 
