@@ -548,6 +548,23 @@ export class Player {
         return
       }
     }
+    // Also check equipped armor slots
+    for (const slotName of ['helmet', 'chestplate', 'leggings', 'boots'] as const) {
+      const armorItem = this.inventory.armorSlots[slotName]
+      if (!armorItem) continue
+      const slotDef = getItemDef(armorItem.id)
+      if (!slotDef) continue
+      if (slotDef.category === ItemCategory.ARMOR) {
+        armorItem.enchantment = enchType
+        this.inventory.consumeSelected()
+        AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+        const ws = this.scene as any
+        if (typeof ws.showNotification === 'function') {
+          ws.showNotification(`${ENCHANTMENT_NAMES[enchType]} chant applied to ${slotDef.name}!`, ENCHANTMENT_COLORS[enchType])
+        }
+        return
+      }
+    }
   }
 
   private dropItem() {
