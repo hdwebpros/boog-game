@@ -1009,6 +1009,8 @@ export class WorldScene extends Phaser.Scene {
         this.endingTriggered = true
         this.performSave()
         AudioManager.get()?.stopMusic()
+        // Stash UIScene explored map & waypoints so they survive the stop/relaunch
+        this.stashUISceneData()
         this.scene.pause('WorldScene')
         this.scene.stop('UIScene')
         this.scene.launch('EndingScene')
@@ -1737,6 +1739,8 @@ export class WorldScene extends Phaser.Scene {
     // Trigger true ending — save world so data persists
     this.performSave()
     AudioManager.get()?.stopMusic()
+    // Stash UIScene explored map & waypoints so they survive the stop/relaunch
+    this.stashUISceneData()
     this.scene.pause('WorldScene')
     this.scene.stop('UIScene')
     this.scene.start('TrueEndingScene', {
@@ -2109,6 +2113,15 @@ export class WorldScene extends Phaser.Scene {
 
   getMultiplayer(): MultiplayerManager {
     return this.mp
+  }
+
+  /** Save UIScene's explored map & waypoints to registry so they survive a stop/relaunch */
+  private stashUISceneData() {
+    const uiScene = this.scene.get('UIScene') as any
+    const exploredMap = uiScene?.getExploredMap?.() as number[] | null
+    const waypoints = uiScene?.getWaypoints?.() ?? null
+    if (exploredMap) this.registry.set('exploredMap', exploredMap)
+    if (waypoints) this.registry.set('waypoints', waypoints)
   }
 
   performSave(overrideSlotId?: string, overrideName?: string): Promise<boolean> {
