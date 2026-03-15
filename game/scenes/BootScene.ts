@@ -21,6 +21,7 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`tile_${i}`, `/sprites/tile_${i}.png`)
     }
     this.load.image('tile_42', '/sprites/tile_42.png')
+    this.load.image('tile_48', '/sprites/tile_48.png')
 
     // Load player frame PNGs directly (all 32x64 or 48x64)
     const playerFrames = ['idle1', 'idle2', 'walk1', 'walk2', 'walk3', 'walk4']
@@ -51,7 +52,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('summon_minion', '/sprites/summon_minion.png')
 
     // Load accessory & coin item PNGs
-    const itemPngs = [116, 250, 300, 301, 302, 303, 304, 305]
+    const itemPngs = [116, 117, 250, 300, 301, 302, 303, 304, 305]
     for (const id of itemPngs) {
       this.load.image(`item_${id}`, `/sprites/item_${id}.png`)
     }
