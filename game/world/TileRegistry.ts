@@ -42,6 +42,7 @@ export enum TileType {
   CLOUD_PILLAR = 40,
   SEAWEED = 41,
   CHEST = 42,
+  TORCH = 43,
 }
 
 export interface TileProperties {
@@ -55,6 +56,8 @@ export interface TileProperties {
   transparent?: boolean
   damaging?: boolean
   climbable?: boolean
+  lightRadius?: number // light emission radius in pixels
+  lightColor?: number  // light tint color (default warm white)
 }
 
 export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
@@ -67,7 +70,7 @@ export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
   [TileType.IRON_ORE]:     { name: 'Iron Ore',     color: 0xc19a6b, hardness: 3,   solid: true,  mineable: true,  tier: 1 },
   [TileType.DIAMOND_ORE]:  { name: 'Diamond Ore',  color: 0x4af0e0, hardness: 5,   solid: true,  mineable: true,  tier: 2 },
   [TileType.TITANIUM_ORE]: { name: 'Titanium Ore', color: 0xd4d4d4, hardness: 6,   solid: true,  mineable: true,  tier: 3 },
-  [TileType.LAVA]:         { name: 'Lava',         color: 0xff4400, hardness: 0,   solid: false, mineable: false, tier: 0, liquid: true, damaging: true },
+  [TileType.LAVA]:         { name: 'Lava',         color: 0xff4400, hardness: 0,   solid: false, mineable: false, tier: 0, liquid: true, damaging: true, lightRadius: 80, lightColor: 0xff4400 },
   [TileType.WATER]:        { name: 'Water',        color: 0x2266cc, hardness: 0,   solid: false, mineable: false, tier: 0, liquid: true, transparent: true },
   [TileType.SAND]:         { name: 'Sand',         color: 0xe6d5a8, hardness: 0.5, solid: true,  mineable: true,  tier: 0 },
   [TileType.CORAL]:        { name: 'Coral',        color: 0xff6b9d, hardness: 1,   solid: true,  mineable: true,  tier: 0 },
@@ -82,7 +85,7 @@ export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
   [TileType.ICE]:            { name: 'Ice',            color: 0x88ccee, hardness: 2,   solid: true,  mineable: true,  tier: 0, transparent: true },
   [TileType.CLAY]:           { name: 'Clay',           color: 0xb07050, hardness: 1.5, solid: true,  mineable: true,  tier: 0 },
   [TileType.OBSIDIAN]:       { name: 'Obsidian',       color: 0x1a1a2e, hardness: 7,   solid: true,  mineable: true,  tier: 3 },
-  [TileType.CRYSTAL]:        { name: 'Crystal',        color: 0xaa55ff, hardness: 4,   solid: true,  mineable: true,  tier: 2, transparent: true },
+  [TileType.CRYSTAL]:        { name: 'Crystal',        color: 0xaa55ff, hardness: 4,   solid: true,  mineable: true,  tier: 2, transparent: true, lightRadius: 48, lightColor: 0xaa55ff },
   [TileType.MOSS]:           { name: 'Moss',           color: 0x3d7a3d, hardness: 0.5, solid: true,  mineable: true,  tier: 0 },
   [TileType.MUSHROOM_BLOCK]: { name: 'Mushroom Block', color: 0xcc6644, hardness: 1,   solid: true,  mineable: true,  tier: 0 },
   [TileType.SANDSTONE]:      { name: 'Sandstone',      color: 0xd4b483, hardness: 2,   solid: true,  mineable: true,  tier: 0 },
@@ -101,6 +104,7 @@ export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
   [TileType.CLOUD_PILLAR]:       { name: 'Cloud Pillar', color: 0xddaa44, hardness: 0, solid: true, mineable: false, tier: 0 },
   [TileType.SEAWEED]:            { name: 'Seaweed', color: 0x1a7a30, hardness: 0.2, solid: false, mineable: true, tier: 0, transparent: true },
   [TileType.CHEST]:              { name: 'Chest', color: 0x8b5a2b, hardness: 2, solid: true, mineable: true, tier: 0 },
+  [TileType.TORCH]:              { name: 'Torch', color: 0xffaa00, hardness: 0.3, solid: false, mineable: true, tier: 0, transparent: true, lightRadius: 96, lightColor: 0xffaa00 },
 }
 
 /** Map station item IDs to their tile types */
@@ -113,6 +117,16 @@ export const STATION_TILE_TYPE: Record<number, TileType> = {
   115: TileType.STATION_WORKBENCH_MK2,
   236: TileType.STATION_ARCANE_ANVIL,
   116: TileType.CHEST,
+}
+
+/** Map non-station item IDs (100+) to their tile types for placement */
+export const ITEM_TO_TILE: Record<number, TileType> = {
+  106: TileType.TORCH,
+}
+
+/** Reverse map: tile type → item ID for drops (only for tiles where tileType !== itemId) */
+export const TILE_TO_ITEM: Partial<Record<TileType, number>> = {
+  [TileType.TORCH]: 106,
 }
 
 export const TILE_SIZE = 16

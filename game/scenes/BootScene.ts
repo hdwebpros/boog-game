@@ -194,14 +194,18 @@ export class BootScene extends Phaser.Scene {
         fn: async () => {
           const saveData = await SaveManager.load(loadSlotId)
           if (!saveData) return
+          const tiles = parseSaveTiles(saveData.tiles)
+          const { altars, runestones } = WorldGenerator.computeAltarsAndRunestones(saveData.seed, tiles)
           const worldData = {
-            tiles: parseSaveTiles(saveData.tiles),
+            tiles,
             width: WORLD_WIDTH,
             height: WORLD_HEIGHT,
             seed: saveData.seed,
             spawnX: Math.floor(saveData.playerX / 16),
             spawnY: Math.floor(saveData.playerY / 16),
             surfaceBiomes: WorldGenerator.computeSurfaceBiomes(saveData.seed),
+            altars,
+            runestones,
           }
           this.registry.set('worldData', worldData)
           this.registry.set('saveData', saveData)

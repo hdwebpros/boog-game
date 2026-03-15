@@ -4,7 +4,7 @@ import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
 import { Boss } from '../entities/Boss'
 import type { WorldData, AltarPlacement, RunestonePlacement } from '../world/WorldGenerator'
-import { TileType, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT, UNDERGROUND_Y as UNDERGROUND_TILE_Y, DEEP_UNDERGROUND_Y, STATION_TILE_TYPE } from '../world/TileRegistry'
+import { TileType, TILE_SIZE, TILE_PROPERTIES, WORLD_WIDTH, WORLD_HEIGHT, UNDERGROUND_Y as UNDERGROUND_TILE_Y, DEEP_UNDERGROUND_Y, STATION_TILE_TYPE } from '../world/TileRegistry'
 import { CombatSystem } from '../systems/CombatSystem'
 import { EnemySpawner } from '../systems/EnemySpawner'
 import { BOSS_DEFS, ALTAR_DEFS, BossType } from '../data/bosses'
@@ -50,7 +50,8 @@ export class WorldScene extends Phaser.Scene {
   private saveSlotId: string | null = null
   private saveSlotName: string | null = null
   private dayNight = new DayNightCycle()
-  private darknessOverlay!: Phaser.GameObjects.Rectangle
+  private darknessRT!: Phaser.GameObjects.RenderTexture
+  private lightStamp!: Phaser.GameObjects.Image
   private skyGfx!: Phaser.GameObjects.Graphics
   private wasNight = false
   private endingTriggered = false
@@ -88,10 +89,13 @@ export class WorldScene extends Phaser.Scene {
     // Sky gradient background
     this.createSkyBackground()
 
-    // Darkness overlay for day/night cycle (covers full screen, fixed to camera)
-    this.darknessOverlay = this.add.rectangle(400, 300, 800, 600, 0x0a0a2a, 0)
+    // Lighting system: RenderTexture-based darkness with light source holes
+    this.createLightTexture()
+    this.darknessRT = this.add.renderTexture(0, 0, 800, 600)
       .setScrollFactor(0)
-      .setDepth(50) // above tiles (depth 0-10) but below UI (depth 100+)
+      .setDepth(50) // above tiles but below UI
+    this.lightStamp = this.add.image(0, 0, '__light_glow')
+      .setVisible(false)
     // Reset cycle on new game
     this.dayNight = new DayNightCycle()
 
@@ -432,12 +436,14 @@ export class WorldScene extends Phaser.Scene {
     // Update sky background gradient for day/night
     this.updateSkyBackground()
 
-    // Apply darkness overlay (only affects surface — fade out when deep underground)
+    // Apply darkness overlay with light sources
     const playerTY = Math.floor(this.player.sprite.y / TILE_SIZE)
-    const undergroundFade = Math.min(1, Math.max(0, (playerTY - 100) / 60)) // fade out 100-160 tiles deep
-    const effectiveDarkness = this.dayNight.darkness * (1 - undergroundFade)
-    this.darknessOverlay.fillColor = this.dayNight.tintColor
-    this.darknessOverlay.fillAlpha = effectiveDarkness
+    const undergroundDarkness = playerTY > 100
+      ? Math.min(0.85, (playerTY - 100) / 80 * 0.85)
+      : 0
+    const surfaceDarkness = this.dayNight.darkness
+    const effectiveDarkness = Math.max(surfaceDarkness, undergroundDarkness)
+    this.updateLighting(effectiveDarkness)
 
     // Local player always updates (client-predicted movement)
     if (!this.mp.isClient) {
@@ -1289,6 +1295,78 @@ export class WorldScene extends Phaser.Scene {
     this.skyGfx.setScrollFactor(0)
     this.skyGfx.setDepth(-10)
     this.updateSkyBackground()
+  }
+
+  /** Creates the radial gradient texture used for light sources */
+  private createLightTexture() {
+    const size = 256
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')!
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+    gradient.addColorStop(0, 'rgba(255,255,255,1)')
+    gradient.addColorStop(0.3, 'rgba(255,255,255,0.6)')
+    gradient.addColorStop(0.7, 'rgba(255,255,255,0.15)')
+    gradient.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, size, size)
+    this.textures.addCanvas('__light_glow', canvas)
+  }
+
+  /** Fills darkness RT and punches light holes at light-emitting tiles + player */
+  private updateLighting(darkness: number) {
+    const rt = this.darknessRT
+    const cam = this.cameras.main
+
+    // Clear and fill with darkness
+    rt.clear()
+    if (darkness <= 0.01) return // no darkness = skip entirely
+
+    const tintColor = this.dayNight.tintColor
+    const r = (tintColor >> 16) & 0xff
+    const g = (tintColor >> 8) & 0xff
+    const b = tintColor & 0xff
+    rt.fill(r, g, b, darkness * 255)
+
+    // Determine visible tile range
+    const camL = cam.scrollX
+    const camT = cam.scrollY
+    const camR = camL + 800
+    const camB = camT + 600
+    const tileL = Math.max(0, Math.floor(camL / TILE_SIZE) - 2)
+    const tileR = Math.min(this.worldData.width - 1, Math.ceil(camR / TILE_SIZE) + 2)
+    const tileT = Math.max(0, Math.floor(camT / TILE_SIZE) - 2)
+    const tileB = Math.min(this.worldData.height - 1, Math.ceil(camB / TILE_SIZE) + 2)
+
+    const { tiles, width } = this.worldData
+    const stamp = this.lightStamp
+
+    // Erase light circles at light-emitting tiles
+    for (let ty = tileT; ty <= tileB; ty++) {
+      for (let tx = tileL; tx <= tileR; tx++) {
+        const tileType = tiles[ty * width + tx] as TileType
+        const props = TILE_PROPERTIES[tileType]
+        if (!props?.lightRadius) continue
+
+        const worldX = tx * TILE_SIZE + TILE_SIZE / 2
+        const worldY = ty * TILE_SIZE + TILE_SIZE / 2
+        const screenX = worldX - camL
+        const screenY = worldY - camT
+        const radius = props.lightRadius
+
+        stamp.setDisplaySize(radius * 2, radius * 2)
+        stamp.setPosition(screenX, screenY)
+        rt.erase(stamp)
+      }
+    }
+
+    // Player glow (small ambient light)
+    const playerScreenX = this.player.sprite.x - camL
+    const playerScreenY = this.player.sprite.y - camT
+    stamp.setDisplaySize(120, 120)
+    stamp.setPosition(playerScreenX, playerScreenY)
+    rt.erase(stamp)
   }
 
   /** Repaints the sky gradient based on dayNight.time */

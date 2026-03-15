@@ -260,6 +260,51 @@ export class SaveManager {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
   }
 
+  /** Download a save slot as a JSON file */
+  static async exportSave(slotId: string) {
+    const data = await this.load(slotId)
+    if (!data) return
+    const json = JSON.stringify(data)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `starfall_${data.name.replace(/[^a-zA-Z0-9]/g, '_')}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  /** Import a save from a JSON file, returns the new slot info or null */
+  static async importSave(): Promise<SaveSlotInfo | null> {
+    return new Promise((resolve) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.json'
+      input.onchange = async () => {
+        const file = input.files?.[0]
+        if (!file) { resolve(null); return }
+        try {
+          const text = await file.text()
+          const data = JSON.parse(text) as SaveData
+          if (data.version !== 1) { resolve(null); return }
+          const slotId = this.generateSlotId()
+          const name = data.name || 'Imported Save'
+          data.name = name
+          data.timestamp = Date.now()
+          await idbPut(slotId, data)
+          const index = this.getIndex()
+          const info: SaveSlotInfo = { id: slotId, name, timestamp: data.timestamp }
+          index.push(info)
+          localStorage.setItem(INDEX_KEY, JSON.stringify(index))
+          resolve(info)
+        } catch {
+          resolve(null)
+        }
+      }
+      input.click()
+    })
+  }
+
   // Migrate old saves (localStorage → IndexedDB)
   static async migrateOldSave() {
     // Migrate single-slot legacy save

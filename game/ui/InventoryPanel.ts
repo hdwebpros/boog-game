@@ -37,6 +37,7 @@ export class InventoryPanel {
   private armorSlotLabels: Phaser.GameObjects.Text[] = []
   private armorSlotZones: Phaser.GameObjects.Zone[] = []
   private armorDefenseText!: Phaser.GameObjects.Text
+  private accSlotImages: (Phaser.GameObjects.Image | null)[] = [null, null, null]
 
   // Held item (cursor)
   private heldIcon!: Phaser.GameObjects.Rectangle
@@ -217,6 +218,9 @@ export class InventoryPanel {
         }
       }
       this.armorDefenseText?.setVisible(false)
+      for (let i = 0; i < 3; i++) {
+        if (this.accSlotImages[i]) this.accSlotImages[i]!.setVisible(false)
+      }
       this.heldIcon?.setVisible(false)
       this.heldText?.setVisible(false)
       if (this.heldImage) this.heldImage.setVisible(false)
@@ -479,9 +483,30 @@ export class InventoryPanel {
 
       if (accItem) {
         const accDef = getItemDef(accItem.id)
-        if (accDef) {
+        const texKey = getItemTexKey(accItem.id)
+
+        if (this.scene.textures.exists(texKey)) {
+          const existing = this.accSlotImages[i]
+          if (!existing || existing.texture.key !== texKey) {
+            if (existing) existing.destroy()
+            this.accSlotImages[i] = this.scene.add.image(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2, texKey)
+              .setDisplaySize(SLOT_SIZE - 12, SLOT_SIZE - 12).setDepth(311)
+          } else {
+            existing.setPosition(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2)
+            existing.setVisible(true)
+          }
+        } else if (accDef) {
           this.armorGfx.fillStyle(accDef.color, 0.9)
           this.armorGfx.fillRect(sx + 6, sy + 6, SLOT_SIZE - 12, SLOT_SIZE - 12)
+          if (this.accSlotImages[i]) {
+            this.accSlotImages[i]!.destroy()
+            this.accSlotImages[i] = null
+          }
+        }
+      } else {
+        if (this.accSlotImages[i]) {
+          this.accSlotImages[i]!.destroy()
+          this.accSlotImages[i] = null
         }
       }
     }

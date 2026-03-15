@@ -169,8 +169,25 @@ export class MenuScene extends Phaser.Scene {
       }
     }
 
+    // Import Save button
+    const importBtn = this.add.text(width / 2 + 80, height - 40, '[ IMPORT ]', {
+      fontSize: '18px', color: '#44aa44', fontFamily: 'monospace',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    importBtn.on('pointerover', () => importBtn.setColor('#66ff66'))
+    importBtn.on('pointerout', () => importBtn.setColor('#44aa44'))
+    importBtn.on('pointerdown', () => {
+      SaveManager.importSave().then((info) => {
+        if (info) {
+          AudioManager.get()?.play(SoundId.MENU_SELECT)
+          const { width: w, height: h } = this.scale
+          this.showLoadScreen(w, h)
+        }
+      })
+    })
+
     // Back button
-    const backBtn = this.add.text(width / 2, height - 40, '[ BACK ]', {
+    const backBtn = this.add.text(width / 2 - 80, height - 40, '[ BACK ]', {
       fontSize: '18px', color: '#888888', fontFamily: 'monospace',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true })
 
@@ -208,6 +225,19 @@ export class MenuScene extends Phaser.Scene {
       AudioManager.get()?.stopMusic()
       this.registry.set('loadSlotId', save.id)
       this.scene.start('BootScene')
+    })
+
+    // Download button
+    const dlBtn = this.add.text(width - 90, y + 20, 'DL', {
+      fontSize: '14px', color: '#4488ff', fontFamily: 'monospace',
+      backgroundColor: '#001133', padding: { x: 4, y: 2 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    dlBtn.on('pointerover', () => dlBtn.setColor('#88bbff'))
+    dlBtn.on('pointerout', () => dlBtn.setColor('#4488ff'))
+    dlBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      pointer.event.stopPropagation()
+      SaveManager.exportSave(save.id)
     })
 
     // Delete button

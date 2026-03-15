@@ -3045,6 +3045,7 @@ export function generateAllSprites(scene: Phaser.Scene) {
     [TileType.STATION_WORKBENCH_MK2]: makeTileStationWorkbenchMk2,
     [TileType.STATION_ARCANE_ANVIL]: makeTileStationArcaneAnvil,
     [TileType.CHEST]: makeTileChest,
+    [TileType.TORCH]: makeItemTorch,
   }
 
   for (const [type, maker] of Object.entries(tileMakers)) {

@@ -56,6 +56,26 @@ export class WorldGenerator {
     this.seedNum = hashSeed(this.seed)
   }
 
+  /** Regenerate altars and runestones for a saved world (deterministic from seed) */
+  static computeAltarsAndRunestones(seed: string, tiles: Uint8Array): { altars: AltarPlacement[]; runestones: RunestonePlacement[] } {
+    const gen = new WorldGenerator(seed)
+    const width = WORLD_WIDTH
+    const height = WORLD_HEIGHT
+    // Scan tiles for surface heights (first solid tile from top in each column)
+    const surfaceHeights = new Float64Array(width)
+    for (let x = 0; x < width; x++) {
+      surfaceHeights[x] = SURFACE_Y // default
+      for (let y = 0; y < height; y++) {
+        const t = tiles[y * width + x]!
+        if (t !== TileType.AIR && t !== TileType.WATER && t !== TileType.LEAVES) {
+          surfaceHeights[x] = y
+          break
+        }
+      }
+    }
+    return gen.placeAltarsAndRunestones(tiles, width, height, surfaceHeights)
+  }
+
   /** Regenerate surface biome array from seed alone (deterministic) */
   static computeSurfaceBiomes(seed: string): Uint8Array {
     const width = WORLD_WIDTH

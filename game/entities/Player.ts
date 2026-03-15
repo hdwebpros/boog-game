@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { ChunkManager } from '../world/ChunkManager'
-import { TileType, TILE_SIZE, TILE_PROPERTIES, WORLD_WIDTH, WORLD_HEIGHT, STATION_TILE_TYPE } from '../world/TileRegistry'
+import { TileType, TILE_SIZE, TILE_PROPERTIES, WORLD_WIDTH, WORLD_HEIGHT, STATION_TILE_TYPE, ITEM_TO_TILE, TILE_TO_ITEM } from '../world/TileRegistry'
 import { InventoryManager } from '../systems/InventoryManager'
 import { CombatSystem } from '../systems/CombatSystem'
 import { Enemy } from './Enemy'
@@ -1313,7 +1313,8 @@ export class Player {
                 this.inventory.addItem(shardId, doubleDrop ? 2 : 1)
                 if (Math.random() < 0.5) this.inventory.addItem(235, 1)
               } else {
-                this.inventory.addItem(bt, doubleDrop ? 2 : 1)
+                const dropId = TILE_TO_ITEM[bt] ?? bt
+                this.inventory.addItem(dropId, doubleDrop ? 2 : 1)
               }
             }
           }
@@ -1376,6 +1377,18 @@ export class Player {
       this.onTileChange?.(tx, ty, stationTile, TileType.AIR)
       chunks.setTile(tx, ty, stationTile)
       chunks.placeStation(tx, ty, item.id)
+      this.inventory.consumeSelected()
+      AudioManager.get()?.play(SoundId.PLACE_BLOCK)
+      return
+    }
+
+    // Check for item-to-tile mapping (e.g. torch item 106 → TileType.TORCH)
+    const mappedTile = ITEM_TO_TILE[item.id]
+    if (mappedTile != null) {
+      const mProps = TILE_PROPERTIES[mappedTile]
+      if (!mProps || !mProps.mineable) return
+      this.onTileChange?.(tx, ty, mappedTile, TileType.AIR)
+      chunks.setTile(tx, ty, mappedTile)
       this.inventory.consumeSelected()
       AudioManager.get()?.play(SoundId.PLACE_BLOCK)
       return
