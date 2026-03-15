@@ -29,6 +29,12 @@ export interface ChestData {
   items: (ItemStack | null)[]
 }
 
+export interface PortalData {
+  tx: number  // top-left tile x of the 4x4 portal
+  ty: number  // top-left tile y of the 4x4 portal
+  name: string // empty string = unnamed
+}
+
 export class ChunkManager {
   private scene: Phaser.Scene
   private worldData: WorldData
@@ -37,6 +43,8 @@ export class ChunkManager {
   private chunksY: number
   private placedStations: PlacedStation[] = []
   private chestInventories = new Map<string, (ItemStack | null)[]>()
+  private portals: PortalData[] = []
+  private portalSprites = new Map<string, Phaser.GameObjects.Graphics>()
   private stamp: Phaser.GameObjects.Image | null = null
   private eraser: Phaser.GameObjects.Image | null = null
 
@@ -386,6 +394,117 @@ export class ChunkManager {
     this.chestInventories.set(`${tx},${ty}`, items)
   }
 
+  /** Place a portal (4x4 tiles starting at tx,ty as top-left) */
+  placePortal(tx: number, ty: number) {
+    this.portals.push({ tx, ty, name: '' })
+    this.createPortalSprite(this.portals[this.portals.length - 1]!)
+  }
+
+  /** Remove portal at any tile within its 4x4 area */
+  removePortal(tx: number, ty: number): PortalData | null {
+    const idx = this.portals.findIndex(p =>
+      tx >= p.tx && tx < p.tx + 4 && ty >= p.ty && ty < p.ty + 4
+    )
+    if (idx < 0) return null
+    const portal = this.portals.splice(idx, 1)[0]!
+    const key = `${portal.tx},${portal.ty}`
+    const sprite = this.portalSprites.get(key)
+    if (sprite) {
+      sprite.destroy()
+      this.portalSprites.delete(key)
+    }
+    return portal
+  }
+
+  /** Get portal at tile coords (checks within 4x4 area) */
+  getPortalAt(tx: number, ty: number): PortalData | null {
+    return this.portals.find(p =>
+      tx >= p.tx && tx < p.tx + 4 && ty >= p.ty && ty < p.ty + 4
+    ) ?? null
+  }
+
+  /** Get all portals */
+  getPortals(): PortalData[] {
+    return this.portals
+  }
+
+  /** Find the matching portal (same name, different location) */
+  getLinkedPortal(portal: PortalData): PortalData | null {
+    if (!portal.name) return null
+    return this.portals.find(p =>
+      p.name === portal.name && (p.tx !== portal.tx || p.ty !== portal.ty)
+    ) ?? null
+  }
+
+  /** Set portal name */
+  setPortalName(portal: PortalData, name: string) {
+    portal.name = name
+    // Update sprite label
+    const key = `${portal.tx},${portal.ty}`
+    const sprite = this.portalSprites.get(key)
+    if (sprite) {
+      sprite.destroy()
+      this.portalSprites.delete(key)
+    }
+    this.createPortalSprite(portal)
+  }
+
+  /** Get portal save data */
+  getPortalData(): PortalData[] {
+    return [...this.portals]
+  }
+
+  /** Restore portals from save */
+  restorePortals(data: PortalData[]) {
+    for (const p of data) {
+      this.portals.push({ tx: p.tx, ty: p.ty, name: p.name })
+      this.createPortalSprite(this.portals[this.portals.length - 1]!)
+    }
+  }
+
+  /** Create a visual portal sprite (animated swirling effect) */
+  private createPortalSprite(portal: PortalData) {
+    const key = `${portal.tx},${portal.ty}`
+    const gfx = this.scene.add.graphics()
+    gfx.setDepth(5) // above tiles, below entities
+
+    // Draw portal frame (4x4 tiles = 64x64 pixels)
+    const px = portal.tx * TILE_SIZE
+    const py = portal.ty * TILE_SIZE
+    const w = 4 * TILE_SIZE
+    const h = 4 * TILE_SIZE
+
+    // Outer frame
+    gfx.lineStyle(2, 0x7744ff, 1)
+    gfx.strokeRect(px, py, w, h)
+
+    // Inner glow
+    gfx.fillStyle(0x5522cc, 0.3)
+    gfx.fillRect(px + 2, py + 2, w - 4, h - 4)
+
+    // Inner swirl pattern
+    gfx.fillStyle(0x9966ff, 0.4)
+    gfx.fillCircle(px + w / 2, py + h / 2, 20)
+    gfx.fillStyle(0xbb88ff, 0.3)
+    gfx.fillCircle(px + w / 2 - 6, py + h / 2 + 4, 10)
+    gfx.fillCircle(px + w / 2 + 8, py + h / 2 - 6, 8)
+
+    // Name label above
+    if (portal.name) {
+      const label = this.scene.add.text(
+        px + w / 2, py - 6, portal.name,
+        {
+          fontSize: '10px', color: '#bb88ff', fontFamily: 'monospace',
+          stroke: '#000000', strokeThickness: 2, align: 'center',
+        }
+      ).setOrigin(0.5, 1).setDepth(6)
+      // Store label reference on graphics for cleanup
+      ;(gfx as any)._portalLabel = label
+    }
+
+    this.portalSprites.set(key, gfx)
+  }
+
   /** Get altars from world data */
   getAltars(): AltarPlacement[] {
     return this.worldData.altars ?? []
@@ -413,5 +532,11 @@ export class ChunkManager {
     this.altarSprites = []
     for (const s of this.runestoneSprites) s.destroy()
     this.runestoneSprites = []
+    for (const [, gfx] of this.portalSprites) {
+      const label = (gfx as any)._portalLabel as Phaser.GameObjects.Text | undefined
+      if (label) label.destroy()
+      gfx.destroy()
+    }
+    this.portalSprites.clear()
   }
 }

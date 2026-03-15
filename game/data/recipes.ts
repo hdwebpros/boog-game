@@ -96,6 +96,9 @@ export const RECIPES: Recipe[] = [
     { itemId: 183, count: 1 }, { itemId: 184, count: 1 }, { itemId: 185, count: 1 },
   ], output: { itemId: 186, count: 1 } },
 
+  // ── Portal (crafted at Tech Bench) ────────────────────
+  { id: 'portal', station: StationType.TECH_BENCH, inputs: [{ itemId: 101, count: 10 }, { itemId: 102, count: 5 }, { itemId: TileType.OBSIDIAN, count: 20 }], output: { itemId: 117, count: 1 } },
+
   // ── Arcane Anvil (crafted at Anvil) ───────────────────
   { id: 'arcane_anvil', station: StationType.ANVIL, inputs: [{ itemId: 100, count: 8 }, { itemId: 101, count: 4 }, { itemId: 235, count: 5 }], output: { itemId: 236, count: 1 } },
 

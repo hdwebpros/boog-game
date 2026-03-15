@@ -103,6 +103,7 @@ export class Player {
   skillTreeOpen = false
   shopOpen = false
   chestOpen = false
+  portalNamingOpen = false
   mapOpen = false
   openChestPos: { tx: number; ty: number } | null = null
   private lastChunks: ChunkManager | null = null
@@ -850,11 +851,11 @@ export class Player {
     const tileMid = chunks.getTile(ptx, pty)
     this.isInWater = tileMid === TileType.WATER
 
-    const left = this.keyA.isDown || this.cursors.left.isDown
-    const right = this.keyD.isDown || this.cursors.right.isDown
-    const jump = Phaser.Input.Keyboard.JustDown(this.keySpace) ||
+    const left = !this.portalNamingOpen && (this.keyA.isDown || this.cursors.left.isDown)
+    const right = !this.portalNamingOpen && (this.keyD.isDown || this.cursors.right.isDown)
+    const jump = !this.portalNamingOpen && (Phaser.Input.Keyboard.JustDown(this.keySpace) ||
                  Phaser.Input.Keyboard.JustDown(this.keyW) ||
-                 Phaser.Input.Keyboard.JustDown(this.cursors.up!)
+                 Phaser.Input.Keyboard.JustDown(this.cursors.up!))
 
     // Detect if player overlaps a climbable tile
     const onVine = chunks.isClimbable(ptx, pty) ||
@@ -995,7 +996,13 @@ export class Player {
     }
 
     this.sprite.x = Phaser.Math.Clamp(this.sprite.x, hw, WORLD_WIDTH * TILE_SIZE - hw)
-    this.sprite.y = Phaser.Math.Clamp(this.sprite.y, hh, WORLD_HEIGHT * TILE_SIZE - hh)
+    const clampedY = Phaser.Math.Clamp(this.sprite.y, hh, WORLD_HEIGHT * TILE_SIZE - hh)
+    if (clampedY !== this.sprite.y && this.sprite.y > clampedY) {
+      // Hit bottom of world — treat as ground
+      this.isGrounded = true
+      this.vy = 0
+    }
+    this.sprite.y = clampedY
 
     // Animation frame selection
     this.updateAnimation(dt)
@@ -1276,6 +1283,24 @@ export class Player {
             if (bt === TileType.AIR) continue
             const bp = TILE_PROPERTIES[bt]
             if (!bp?.mineable) continue
+
+            // Portal: mine any tile in the 4x4 → remove entire portal
+            if (bt === TileType.PORTAL) {
+              const portal = chunks.getPortalAt(bx, by)
+              if (portal) {
+                for (let dx = 0; dx < 4; dx++) {
+                  for (let dy = 0; dy < 4; dy++) {
+                    this.onTileChange?.(portal.tx + dx, portal.ty + dy, TileType.AIR, TileType.PORTAL)
+                    chunks.setTile(portal.tx + dx, portal.ty + dy, TileType.AIR)
+                  }
+                }
+                chunks.removeStation(portal.tx, portal.ty)
+                chunks.removePortal(portal.tx, portal.ty)
+                this.inventory.addItem(117) // Portal item
+              }
+              continue
+            }
+
             const bStation = chunks.getPlacedStations().find(s => s.tx === bx && s.ty === by)
             if (bStation) {
               // If it's a chest, retrieve stored items
@@ -1374,6 +1399,37 @@ export class Player {
 
     const stationTile = STATION_TILE_TYPE[item.id]
     if (itemDef && stationTile) {
+      // Portal: 4x4 multi-tile placement (tx,ty = top-left corner)
+      if (stationTile === TileType.PORTAL) {
+        // tx,ty is where player clicked — use it as top-left of 4x4
+        for (let dx = 0; dx < 4; dx++) {
+          for (let dy = 0; dy < 4; dy++) {
+            const px = tx + dx
+            const py = ty + dy
+            if (px >= WORLD_WIDTH || py >= WORLD_HEIGHT) return
+            if (chunks.getTile(px, py) !== TileType.AIR) return
+          }
+        }
+        // Check player doesn't overlap any of the 4x4 tiles
+        for (let dx = 0; dx < 4; dx++) {
+          for (let dy = 0; dy < 4; dy++) {
+            if (this.overlapsPlayer(tx + dx, ty + dy)) return
+          }
+        }
+        // Place all 16 tiles
+        for (let dx = 0; dx < 4; dx++) {
+          for (let dy = 0; dy < 4; dy++) {
+            this.onTileChange?.(tx + dx, ty + dy, TileType.PORTAL, TileType.AIR)
+            chunks.setTile(tx + dx, ty + dy, TileType.PORTAL)
+          }
+        }
+        chunks.placeStation(tx, ty, item.id)
+        chunks.placePortal(tx, ty)
+        this.inventory.consumeSelected()
+        AudioManager.get()?.play(SoundId.PLACE_BLOCK)
+        return
+      }
+
       this.onTileChange?.(tx, ty, stationTile, TileType.AIR)
       chunks.setTile(tx, ty, stationTile)
       chunks.placeStation(tx, ty, item.id)

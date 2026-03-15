@@ -2138,6 +2138,130 @@ function makeItemTorch(): PixelGrid {
   return g
 }
 
+function makeStarLantern(): PixelGrid {
+  const g = makeGrid(16, 16)
+  // Chain
+  g[0]![7] = 0x888899; g[0]![8] = 0x888899
+  g[1]![7] = 0x888899; g[1]![8] = 0x888899
+  // Lantern frame
+  for (let y = 2; y <= 10; y++) { g[y]![5] = 0xccaa44; g[y]![10] = 0xccaa44 }
+  for (let x = 5; x <= 10; x++) { g[2]![x] = 0xccaa44; g[10]![x] = 0xccaa44 }
+  // Inner glow
+  for (let y = 3; y <= 9; y++) for (let x = 6; x <= 9; x++) g[y]![x] = 0xffdd66
+  // Bright center
+  for (let y = 4; y <= 8; y++) for (let x = 7; x <= 8; x++) g[y]![x] = 0xffee99
+  g[6]![7] = 0xffffcc; g[6]![8] = 0xffffcc
+  // Bottom cap
+  g[11]![6] = 0xccaa44; g[11]![7] = 0xccaa44; g[11]![8] = 0xccaa44; g[11]![9] = 0xccaa44
+  return g
+}
+
+function makeCelestialBanner(): PixelGrid {
+  const g = makeGrid(16, 16)
+  // Rod at top
+  for (let x = 4; x <= 11; x++) g[0]![x] = 0x888899
+  // Banner body (tapers to a point)
+  const purple = 0x6655cc
+  const trim = 0x8877ee
+  const star = 0xffdd44
+  for (let y = 1; y <= 13; y++) {
+    const inset = Math.floor(y / 4)
+    for (let x = 5 + inset; x <= 10 - inset; x++) {
+      g[y]![x] = (x === 5 + inset || x === 10 - inset) ? trim : purple
+    }
+  }
+  g[14]![7] = purple; g[14]![8] = purple
+  g[15]![7] = trim
+  // Star emblem
+  g[5]![7] = star; g[5]![8] = star
+  g[6]![7] = star; g[6]![8] = star
+  g[4]![7] = star; g[7]![8] = star
+  return g
+}
+
+function makeStarfallFlower(): PixelGrid {
+  const g = makeGrid(16, 16)
+  // Stem
+  for (let y = 8; y <= 15; y++) { g[y]![7] = 0x44aa44; g[y]![8] = 0x338833 }
+  // Leaves
+  g[11]![6] = 0x55bb55; g[11]![5] = 0x44aa44
+  g[12]![9] = 0x55bb55; g[12]![10] = 0x44aa44
+  // Petals
+  const petal = 0xff66aa
+  const glow = 0xff88cc
+  g[4]![7] = petal; g[4]![8] = petal
+  g[5]![6] = petal; g[5]![9] = petal
+  g[6]![5] = petal; g[6]![10] = petal
+  g[7]![6] = petal; g[7]![9] = petal
+  g[3]![7] = glow; g[3]![8] = glow
+  // Center
+  g[5]![7] = 0xffddee; g[5]![8] = 0xffddee
+  g[6]![7] = 0xffccdd; g[6]![8] = 0xffccdd
+  return g
+}
+
+function makeSkyCrystalLamp(): PixelGrid {
+  const g = makeGrid(16, 16)
+  // Base pedestal
+  for (let x = 5; x <= 10; x++) { g[14]![x] = 0x888899; g[15]![x] = 0x777788 }
+  g[13]![6] = 0x888899; g[13]![7] = 0x888899; g[13]![8] = 0x888899; g[13]![9] = 0x888899
+  // Crystal body
+  const outer = 0x44ccff
+  const mid = 0x66ddff
+  const core = 0xaaeeff
+  for (let y = 4; y <= 12; y++) {
+    const w = y <= 6 ? y - 3 : y >= 11 ? 13 - y : 3
+    for (let dx = -w; dx <= w; dx++) {
+      const x = 8 + dx
+      if (x < 0 || x > 15) continue
+      g[y]![x] = Math.abs(dx) <= 1 ? core : Math.abs(dx) <= 2 ? mid : outer
+    }
+  }
+  // Top point
+  g[3]![7] = outer; g[3]![8] = outer
+  g[2]![7] = mid; g[2]![8] = mid
+  g[1]![8] = outer
+  return g
+}
+
+function makeTilePortal(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const frame = 0x5522aa
+  const frameLt = 0x7744cc
+  const inner = 0x331177
+  const glow = 0x9966ff
+  const glowLt = 0xbb88ff
+
+  // Frame border (outer edges)
+  for (let i = 0; i < 16; i++) {
+    g[0]![i] = frame; g[15]![i] = frame
+    g[i]![0] = frame; g[i]![15] = frame
+  }
+  // Frame highlight
+  for (let i = 1; i < 15; i++) {
+    g[1]![i] = frameLt; g[i]![1] = frameLt
+  }
+
+  // Inner swirl area
+  for (let y = 2; y < 14; y++) {
+    for (let x = 2; x < 14; x++) {
+      g[y]![x] = inner
+    }
+  }
+
+  // Swirl pattern
+  g[5]![6] = glow; g[5]![7] = glow; g[5]![8] = glowLt
+  g[6]![5] = glow; g[6]![9] = glowLt
+  g[7]![4] = glowLt; g[7]![10] = glow
+  g[8]![5] = glowLt; g[8]![9] = glow
+  g[9]![6] = glowLt; g[9]![7] = glow; g[9]![8] = glow
+  // Center bright spot
+  g[7]![7] = 0xddbbff; g[7]![8] = 0xddbbff
+  g[8]![7] = 0xddbbff; g[8]![8] = 0xddbbff
+
+  return g
+}
+
 function makeItemWorkbench(): PixelGrid {
   const g = makeGrid(16, 16)
   const wood = 0x8b6b3a
@@ -3046,6 +3170,11 @@ export function generateAllSprites(scene: Phaser.Scene) {
     [TileType.STATION_ARCANE_ANVIL]: makeTileStationArcaneAnvil,
     [TileType.CHEST]: makeTileChest,
     [TileType.TORCH]: makeItemTorch,
+    [TileType.STAR_LANTERN]: makeStarLantern,
+    [TileType.CELESTIAL_BANNER]: makeCelestialBanner,
+    [TileType.STARFALL_FLOWER]: makeStarfallFlower,
+    [TileType.SKY_CRYSTAL_LAMP]: makeSkyCrystalLamp,
+    [TileType.PORTAL]: makeTilePortal,
   }
 
   for (const [type, maker] of Object.entries(tileMakers)) {

@@ -43,6 +43,11 @@ export enum TileType {
   SEAWEED = 41,
   CHEST = 42,
   TORCH = 43,
+  STAR_LANTERN = 44,
+  CELESTIAL_BANNER = 45,
+  STARFALL_FLOWER = 46,
+  SKY_CRYSTAL_LAMP = 47,
+  PORTAL = 48,
 }
 
 export interface TileProperties {
@@ -105,6 +110,11 @@ export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
   [TileType.SEAWEED]:            { name: 'Seaweed', color: 0x1a7a30, hardness: 0.2, solid: false, mineable: true, tier: 0, transparent: true },
   [TileType.CHEST]:              { name: 'Chest', color: 0x8b5a2b, hardness: 2, solid: true, mineable: true, tier: 0 },
   [TileType.TORCH]:              { name: 'Torch', color: 0xffaa00, hardness: 0.3, solid: false, mineable: true, tier: 0, transparent: true, lightRadius: 96, lightColor: 0xffaa00 },
+  [TileType.STAR_LANTERN]:       { name: 'Star Lantern', color: 0xffdd66, hardness: 0.3, solid: false, mineable: true, tier: 0, transparent: true, lightRadius: 112, lightColor: 0xffdd66 },
+  [TileType.CELESTIAL_BANNER]:   { name: 'Celestial Banner', color: 0x6655cc, hardness: 0.3, solid: false, mineable: true, tier: 0, transparent: true },
+  [TileType.STARFALL_FLOWER]:    { name: 'Starfall Flower', color: 0xff66aa, hardness: 0.3, solid: false, mineable: true, tier: 0, transparent: true, lightRadius: 48, lightColor: 0xff88cc },
+  [TileType.SKY_CRYSTAL_LAMP]:   { name: 'Sky Crystal Lamp', color: 0x44ccff, hardness: 0.3, solid: false, mineable: true, tier: 0, transparent: true, lightRadius: 128, lightColor: 0x88ddff },
+  [TileType.PORTAL]:             { name: 'Portal', color: 0x7744ff, hardness: 4, solid: false, mineable: true, tier: 3, transparent: true, lightRadius: 96, lightColor: 0x7744ff },
 }
 
 /** Map station item IDs to their tile types */
@@ -117,16 +127,26 @@ export const STATION_TILE_TYPE: Record<number, TileType> = {
   115: TileType.STATION_WORKBENCH_MK2,
   236: TileType.STATION_ARCANE_ANVIL,
   116: TileType.CHEST,
+  117: TileType.PORTAL,
 }
 
 /** Map non-station item IDs (100+) to their tile types for placement */
 export const ITEM_TO_TILE: Record<number, TileType> = {
   106: TileType.TORCH,
+  310: TileType.STAR_LANTERN,
+  311: TileType.CELESTIAL_BANNER,
+  312: TileType.STARFALL_FLOWER,
+  313: TileType.SKY_CRYSTAL_LAMP,
 }
 
 /** Reverse map: tile type → item ID for drops (only for tiles where tileType !== itemId) */
 export const TILE_TO_ITEM: Partial<Record<TileType, number>> = {
+  [TileType.PORTAL]: 117,
   [TileType.TORCH]: 106,
+  [TileType.STAR_LANTERN]: 310,
+  [TileType.CELESTIAL_BANNER]: 311,
+  [TileType.STARFALL_FLOWER]: 312,
+  [TileType.SKY_CRYSTAL_LAMP]: 313,
 }
 
 export const TILE_SIZE = 16

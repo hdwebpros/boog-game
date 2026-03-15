@@ -12,6 +12,10 @@ export const SHOP_INVENTORY: ShopItem[] = [
   { itemId: 303, price: 200 },  // Miner's Lantern
   { itemId: 304, price: 150 },  // Lucky Charm
   { itemId: 305, price: 300 },  // Celestial Cape
+  { itemId: 310, price: 15 },   // Star Lantern
+  { itemId: 311, price: 20 },   // Celestial Banner
+  { itemId: 312, price: 10 },   // Starfall Flower
+  { itemId: 313, price: 25 },   // Sky Crystal Lamp
 ]
 
 export const SELL_PRICES: Record<number, number> = {
@@ -63,4 +67,10 @@ export const SELL_PRICES: Record<number, number> = {
   233: 10,  // Void Shard
   234: 4,   // Life Shard
   235: 3,   // Arcane Dust
+
+  // Decorations
+  310: 5,   // Star Lantern
+  311: 7,   // Celestial Banner
+  312: 3,   // Starfall Flower
+  313: 8,   // Sky Crystal Lamp
 }

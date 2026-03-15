@@ -108,6 +108,7 @@ export const ITEMS: Record<number, ItemDef> = {
   114: { id: 114, name: 'Fusion Station', category: ItemCategory.STATION, stackSize: 1, tier: 4, color: 0x8844cc },
   115: { id: 115, name: 'Workbench Mk2', category: ItemCategory.STATION, stackSize: 1, tier: 1, color: 0xa0824a },
   116: { id: 116, name: 'Chest', category: ItemCategory.STATION, stackSize: 1, tier: 0, color: 0x8b5a2b },
+  117: { id: 117, name: 'Portal', category: ItemCategory.STATION, stackSize: 1, tier: 3, color: 0x7744ff },
 
   // ── Tools ───────────────────────────────────────────────
   120: { id: 120, name: 'Wood Pickaxe',     category: ItemCategory.TOOL, stackSize: 1, tier: 0, color: 0x8b6b3a, miningSpeed: 1.5, miningTier: 0 },
@@ -215,6 +216,12 @@ export const ITEMS: Record<number, ItemDef> = {
   303: { id: 303, name: "Miner's Lantern",  category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0xffaa33 },
   304: { id: 304, name: 'Lucky Charm',      category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0x44ff88 },
   305: { id: 305, name: 'Celestial Cape',   category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0x6688ff },
+
+  // ── Decorations ─────────────────────────────────────
+  310: { id: 310, name: 'Star Lantern',      category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xffdd66 },
+  311: { id: 311, name: 'Celestial Banner',   category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0x6655cc },
+  312: { id: 312, name: 'Starfall Flower',    category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xff66aa },
+  313: { id: 313, name: 'Sky Crystal Lamp',   category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0x44ccff },
 }
 
 export function getItemDef(id: number): ItemDef | undefined {

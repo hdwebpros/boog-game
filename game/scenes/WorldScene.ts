@@ -43,6 +43,7 @@ export class WorldScene extends Phaser.Scene {
   private activeBoss: Boss | null = null
   private droppedItems: DroppedItem[] = []
   private keyF!: Phaser.Input.Keyboard.Key
+  private keyG!: Phaser.Input.Keyboard.Key
   private keyESC!: Phaser.Input.Keyboard.Key
   private autoSaveTimer = 0
   private saveFailed = false
@@ -62,6 +63,12 @@ export class WorldScene extends Phaser.Scene {
   private usedRunestones: Set<string> = new Set() // "tx,ty" keys
   private altarPromptText: Phaser.GameObjects.Text | null = null
   private runestonePromptText: Phaser.GameObjects.Text | null = null
+
+  // Portal system
+  private portalPromptText: Phaser.GameObjects.Text | null = null
+  private portalNamingActive = false
+  private portalNamingInput = ''
+  private portalNamingTarget: import('../world/ChunkManager').PortalData | null = null
 
   // Multiplayer
   mp = new MultiplayerManager()
@@ -184,6 +191,10 @@ export class WorldScene extends Phaser.Scene {
       if (saveData.discoveredItems) {
         for (const id of saveData.discoveredItems) this.player.inventory.discoveredItems.add(id)
       }
+      // Restore portals
+      if (saveData.portals) {
+        this.chunkManager.restorePortals(saveData.portals)
+      }
       this.registry.remove('saveData')
     }
 
@@ -244,6 +255,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Boss summon key & ESC (registered once, checked per-frame via JustDown)
     this.keyF = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F)
+    this.keyG = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G)
     this.keyESC = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC)
 
     // Disable right-click context menu so RMB works for placement
@@ -257,6 +269,11 @@ export class WorldScene extends Phaser.Scene {
 
     this.runestonePromptText = this.add.text(0, 0, '', {
       fontSize: '11px', color: '#88ccff', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 3, align: 'center',
+    }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
+
+    this.portalPromptText = this.add.text(0, 0, '', {
+      fontSize: '11px', color: '#bb88ff', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 3, align: 'center',
     }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
 
@@ -451,10 +468,11 @@ export class WorldScene extends Phaser.Scene {
 
       this.player.update(dt, this.chunkManager, this.combat, allTargets)
 
-      // Check altar/runestone/NPC interactions
+      // Check altar/runestone/NPC/portal interactions
       this.checkAltarInteraction()
       this.checkRunestoneInteraction()
       this.checkNPCInteraction()
+      this.checkPortalInteraction()
 
       // Build list of all player positions for spawning, enemy AI, and despawn checks
       const allPlayerPositions: { x: number; y: number; id: number }[] = [
@@ -775,6 +793,9 @@ export class WorldScene extends Phaser.Scene {
 
       // Altar prompt — client sends BOSS_SUMMON request to host
       this.checkAltarInteraction()
+
+      // Portal interaction (works locally for clients)
+      this.checkPortalInteraction()
 
       // Client-side attack detection — send attack requests to host
       this.checkClientAttack(dt)
@@ -1212,6 +1233,156 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  // ── Portal Interaction ──────────────────────────────────
+
+  private getNearbyPortal(): import('../world/ChunkManager').PortalData | null {
+    const ptx = Math.floor(this.player.sprite.x / TILE_SIZE)
+    const pty = Math.floor(this.player.sprite.y / TILE_SIZE)
+    for (const portal of this.chunkManager.getPortals()) {
+      // Check if player is within or adjacent to the 4x4 portal area
+      const cx = portal.tx + 2 // center x
+      const cy = portal.ty + 2 // center y
+      if (Math.abs(ptx - cx) <= 3 && Math.abs(pty - cy) <= 3) {
+        return portal
+      }
+    }
+    return null
+  }
+
+  private checkPortalInteraction() {
+    if (this.player.dead) return
+
+    // If naming UI is active, handle text input
+    if (this.portalNamingActive) {
+      this.updatePortalNaming()
+      return
+    }
+
+    const portal = this.getNearbyPortal()
+
+    if (portal && this.portalPromptText) {
+      const px = portal.tx * TILE_SIZE + 2 * TILE_SIZE
+      const py = portal.ty * TILE_SIZE - TILE_SIZE
+
+      const linked = this.chunkManager.getLinkedPortal(portal)
+      const lines: string[] = []
+
+      if (portal.name) {
+        lines.push(`Portal: "${portal.name}"`)
+        if (linked) {
+          lines.push('[F] Teleport  [G] Rename')
+        } else {
+          lines.push('No matching portal found')
+          lines.push('[G] Rename')
+        }
+      } else {
+        lines.push('Unnamed Portal')
+        lines.push('[F] Set name')
+      }
+
+      this.portalPromptText.setText(lines.join('\n'))
+      this.portalPromptText.setPosition(px, py)
+      this.portalPromptText.setVisible(true)
+
+      // F key: teleport (if named+linked) or start naming (if unnamed)
+      if (Phaser.Input.Keyboard.JustDown(this.keyF)) {
+        if (portal.name && linked) {
+          this.teleportToPortal(linked)
+        } else if (!portal.name) {
+          this.startPortalNaming(portal)
+        }
+      }
+
+      // G key: rename an already-named portal
+      if (portal.name && Phaser.Input.Keyboard.JustDown(this.keyG)) {
+        this.startPortalNaming(portal)
+      }
+    } else if (this.portalPromptText) {
+      this.portalPromptText.setVisible(false)
+    }
+  }
+
+  private startPortalNaming(portal: import('../world/ChunkManager').PortalData) {
+    this.portalNamingActive = true
+    this.portalNamingInput = portal.name || ''
+    this.portalNamingTarget = portal
+    this.player.portalNamingOpen = true
+
+    if (this.portalPromptText) {
+      const px = portal.tx * TILE_SIZE + 2 * TILE_SIZE
+      const py = portal.ty * TILE_SIZE - TILE_SIZE
+      this.portalPromptText.setText(`Name: ${this.portalNamingInput}_\n[Enter] confirm  [Esc] cancel`)
+      this.portalPromptText.setPosition(px, py)
+      this.portalPromptText.setVisible(true)
+    }
+
+    // Capture keyboard input for naming
+    this.input.keyboard!.on('keydown', this.handlePortalKeyInput, this)
+  }
+
+  private handlePortalKeyInput = (event: KeyboardEvent) => {
+    if (!this.portalNamingActive) return
+
+    if (event.key === 'Enter') {
+      // Confirm name
+      if (this.portalNamingInput.trim() && this.portalNamingTarget) {
+        this.chunkManager.setPortalName(this.portalNamingTarget, this.portalNamingInput.trim())
+        AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+      }
+      this.stopPortalNaming()
+    } else if (event.key === 'Escape') {
+      this.stopPortalNaming()
+    } else if (event.key === 'Backspace') {
+      this.portalNamingInput = this.portalNamingInput.slice(0, -1)
+    } else if (event.key.length === 1 && this.portalNamingInput.length < 16) {
+      this.portalNamingInput += event.key
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  private updatePortalNaming() {
+    if (!this.portalNamingTarget || !this.portalPromptText) return
+    const px = this.portalNamingTarget.tx * TILE_SIZE + 2 * TILE_SIZE
+    const py = this.portalNamingTarget.ty * TILE_SIZE - TILE_SIZE
+    this.portalPromptText.setText(`Name: ${this.portalNamingInput}_\n[Enter] confirm  [Esc] cancel`)
+    this.portalPromptText.setPosition(px, py)
+    this.portalPromptText.setVisible(true)
+  }
+
+  private stopPortalNaming() {
+    this.portalNamingActive = false
+    this.portalNamingInput = ''
+    this.portalNamingTarget = null
+    this.player.portalNamingOpen = false
+    this.input.keyboard!.off('keydown', this.handlePortalKeyInput, this)
+    if (this.portalPromptText) this.portalPromptText.setVisible(false)
+  }
+
+  private teleportToPortal(target: import('../world/ChunkManager').PortalData) {
+    // Teleport player to center of the target portal
+    const destX = (target.tx + 2) * TILE_SIZE
+    const destY = (target.ty + 2) * TILE_SIZE
+    this.player.sprite.x = destX
+    this.player.sprite.y = destY
+    this.player.vy = 0
+
+    // Visual/audio feedback
+    AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+
+    const text = this.add.text(
+      this.cameras.main.centerX, this.cameras.main.centerY - 60,
+      'Teleported!',
+      {
+        fontSize: '18px', color: '#bb88ff', fontFamily: 'monospace',
+        stroke: '#000000', strokeThickness: 4,
+      }
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
+
+    this.tweens.add({ targets: text, alpha: 0, duration: 1000, delay: 1000, onComplete: () => text.destroy() })
+  }
+
   /** Host: handle a remote client's boss summon request */
   private handleRemoteBossSummon(req: BossSummonRequest) {
     if (this.activeBoss?.alive) return // already fighting a boss
@@ -1599,7 +1770,8 @@ export class WorldScene extends Phaser.Scene {
       this.npcShopPosition ?? undefined,
       this.chunkManager.getChestInventories(),
       Array.from(this.player.inventory.discoveredItems),
-      waypoints
+      waypoints,
+      this.chunkManager.getPortalData()
     )
   }
 
