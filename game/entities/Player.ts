@@ -1400,7 +1400,52 @@ export class Player {
     const item = this.inventory.getSelectedItem()
     if (!item) return
 
-    // Vine ropes can attach to other vines (above) or solid blocks
+    const itemDef = ITEMS[item.id]
+    const stationTile = STATION_TILE_TYPE[item.id]
+
+    // Portal: 4x4 multi-tile placement — has its own adjacency check
+    if (itemDef && stationTile && stationTile === TileType.PORTAL) {
+      // Validate all 16 tiles are AIR and in bounds
+      for (let dx = 0; dx < 4; dx++) {
+        for (let dy = 0; dy < 4; dy++) {
+          const px = tx + dx
+          const py = ty + dy
+          if (px >= WORLD_WIDTH || py >= WORLD_HEIGHT) return
+          if (chunks.getTile(px, py) !== TileType.AIR) return
+        }
+      }
+      // Check adjacency: any tile along the 4x4 border must neighbor a solid block
+      let portalAdjacent = false
+      for (let dx = 0; dx < 4 && !portalAdjacent; dx++) {
+        if (chunks.isSolid(tx + dx, ty - 1)) portalAdjacent = true
+        if (chunks.isSolid(tx + dx, ty + 4)) portalAdjacent = true
+      }
+      for (let dy = 0; dy < 4 && !portalAdjacent; dy++) {
+        if (chunks.isSolid(tx - 1, ty + dy)) portalAdjacent = true
+        if (chunks.isSolid(tx + 4, ty + dy)) portalAdjacent = true
+      }
+      if (!portalAdjacent) return
+      // Check player doesn't overlap any of the 4x4 tiles
+      for (let dx = 0; dx < 4; dx++) {
+        for (let dy = 0; dy < 4; dy++) {
+          if (this.overlapsPlayer(tx + dx, ty + dy)) return
+        }
+      }
+      // Place all 16 tiles
+      for (let dx = 0; dx < 4; dx++) {
+        for (let dy = 0; dy < 4; dy++) {
+          this.onTileChange?.(tx + dx, ty + dy, TileType.PORTAL, TileType.AIR)
+          chunks.setTile(tx + dx, ty + dy, TileType.PORTAL)
+        }
+      }
+      chunks.placeStation(tx, ty, item.id)
+      chunks.placePortal(tx, ty)
+      this.inventory.consumeSelected()
+      AudioManager.get()?.play(SoundId.PLACE_BLOCK)
+      return
+    }
+
+    // Standard adjacency check for all other placements
     const isVinePlacement = item.id === TileType.VINE
     const adjacent =
       chunks.isSolid(tx - 1, ty) || chunks.isSolid(tx + 1, ty) ||
@@ -1413,41 +1458,7 @@ export class Player {
 
     if (this.overlapsPlayer(tx, ty)) return
 
-    const itemDef = ITEMS[item.id]
-
-    const stationTile = STATION_TILE_TYPE[item.id]
     if (itemDef && stationTile) {
-      // Portal: 4x4 multi-tile placement (tx,ty = top-left corner)
-      if (stationTile === TileType.PORTAL) {
-        // tx,ty is where player clicked — use it as top-left of 4x4
-        for (let dx = 0; dx < 4; dx++) {
-          for (let dy = 0; dy < 4; dy++) {
-            const px = tx + dx
-            const py = ty + dy
-            if (px >= WORLD_WIDTH || py >= WORLD_HEIGHT) return
-            if (chunks.getTile(px, py) !== TileType.AIR) return
-          }
-        }
-        // Check player doesn't overlap any of the 4x4 tiles
-        for (let dx = 0; dx < 4; dx++) {
-          for (let dy = 0; dy < 4; dy++) {
-            if (this.overlapsPlayer(tx + dx, ty + dy)) return
-          }
-        }
-        // Place all 16 tiles
-        for (let dx = 0; dx < 4; dx++) {
-          for (let dy = 0; dy < 4; dy++) {
-            this.onTileChange?.(tx + dx, ty + dy, TileType.PORTAL, TileType.AIR)
-            chunks.setTile(tx + dx, ty + dy, TileType.PORTAL)
-          }
-        }
-        chunks.placeStation(tx, ty, item.id)
-        chunks.placePortal(tx, ty)
-        this.inventory.consumeSelected()
-        AudioManager.get()?.play(SoundId.PLACE_BLOCK)
-        return
-      }
-
       this.onTileChange?.(tx, ty, stationTile, TileType.AIR)
       chunks.setTile(tx, ty, stationTile)
       chunks.placeStation(tx, ty, item.id)
