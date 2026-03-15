@@ -266,6 +266,12 @@ export class UIScene extends Phaser.Scene {
     if (this.miniMap) {
       this.miniMap.update(player.sprite.x, player.sprite.y)
       this.updateBossMarkers(worldScene)
+
+      // LMB click on minimap cycles zoom
+      if (this.pointerJustDown && pointer.leftButtonDown() &&
+          this.miniMap.hitTest(pointer.x, pointer.y)) {
+        this.miniMap.cycleZoom()
+      }
     }
 
     // Full-screen world map

@@ -371,6 +371,22 @@ export class MiniMap {
     this.canvasTex.setPixel(cx, cy, r, g, b)
   }
 
+  /** Check if screen coordinates are within the minimap display area */
+  hitTest(sx: number, sy: number): boolean {
+    if (!this._visible) return false
+    const displayW = this.cropW * this.currentScale
+    const displayH = this.cropH * this.currentScale
+    return sx >= this.imgX && sx <= this.imgX + displayW &&
+           sy >= this.imgY && sy <= this.imgY + displayH
+  }
+
+  /** Cycle zoom: 1x → 2x → 4x → 1x */
+  cycleZoom() {
+    if (!this._visible) return
+    this.zoomIdx = (this.zoomIdx + 1) % SCALES.length
+    this.applyZoom()
+  }
+
   getExplored(): number[] {
     return Array.from(this.explored)
   }
