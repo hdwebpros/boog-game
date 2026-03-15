@@ -40,6 +40,9 @@ export class UIScene extends Phaser.Scene {
   private visitedZones = new Set<string>()
   private currentZoneName = ''
 
+  // Coordinate display
+  private coordText!: Phaser.GameObjects.Text
+
   // Chat overlay (multiplayer)
   private chatOverlay: ChatOverlay | null = null
 
@@ -137,6 +140,12 @@ export class UIScene extends Phaser.Scene {
         this.registry.remove('waypoints')
       }
     }
+
+    // Coordinate display (top-left, below any sky elements)
+    this.coordText = this.add.text(6, 6, '', {
+      fontSize: '11px', color: '#dddddd', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 3,
+    }).setDepth(210).setAlpha(0.8)
 
     // Biome banner
     const { width } = this.scale
@@ -280,6 +289,11 @@ export class UIScene extends Phaser.Scene {
       this.worldMap.setExplored(this.miniMap.getExploredArray())
       this.worldMap.update(pos.x, pos.y, this.cachedBossMarkers)
     }
+
+    // Update coordinate display
+    const ptx = Math.floor(player.sprite.x / TILE_SIZE)
+    const pty = Math.floor(player.sprite.y / TILE_SIZE)
+    this.coordText.setText(`X: ${ptx}  Y: ${pty}`)
 
     this.updateBiomeBanner(player)
     this.chatOverlay?.update()
