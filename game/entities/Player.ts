@@ -571,6 +571,7 @@ export class Player {
     const item = this.inventory.getSelectedItem()
     if (!item) return
     const id = item.id
+    const enchantment = item.enchantment
     if (!this.inventory.consumeSelected()) return
 
     // In client mode, send drop request to host instead of spawning locally
@@ -583,7 +584,7 @@ export class Player {
     const ws = this.scene as any
     if (typeof ws.spawnDrop === 'function') {
       const dir = this.facingRight ? 1 : -1
-      ws.spawnDrop(this.sprite.x + dir * 48, this.sprite.y, id, 1)
+      ws.spawnDrop(this.sprite.x + dir * 48, this.sprite.y, id, 1, enchantment)
     }
   }
 

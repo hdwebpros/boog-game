@@ -100,7 +100,7 @@ export class MultiplayerManager {
   private pendingLocalPlayerCorrection: PlayerSnapshot | null = null
 
   /** Pending item pickups from host (for client mode) */
-  private pendingItemPickups: { itemId: number; count: number }[] = []
+  private pendingItemPickups: { itemId: number; count: number; enchantment?: string }[] = []
 
   /** Pending chest contents from host (for client mode) */
   private pendingChestContents: { tx: number; ty: number; items: any[] } | null = null
@@ -338,7 +338,7 @@ export class MultiplayerManager {
   }
 
   /** Consume pending item pickups (client mode) */
-  consumeItemPickups(): { itemId: number; count: number }[] {
+  consumeItemPickups(): { itemId: number; count: number; enchantment?: string }[] {
     const data = this.pendingItemPickups
     this.pendingItemPickups = []
     return data
@@ -564,9 +564,9 @@ export class MultiplayerManager {
 
     // Item pickup notification (host → client)
     this.network.on(MessageType.ITEM_PICKUP, (msg) => {
-      const data = msg.data as { playerId: number; itemId: number; count: number }
+      const data = msg.data as { playerId: number; itemId: number; count: number; enchantment?: string }
       if (data.playerId === this._localPlayerId) {
-        this.pendingItemPickups.push({ itemId: data.itemId, count: data.count })
+        this.pendingItemPickups.push({ itemId: data.itemId, count: data.count, enchantment: data.enchantment })
       }
     })
 

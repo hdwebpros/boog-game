@@ -36,13 +36,13 @@ export class InventoryManager {
   onNewItemDiscovered: ((id: number) => void) | null = null
 
   /** Add item — tries hotbar first, then main inventory. Returns true if added. */
-  addItem(id: number, count = 1): boolean {
+  addItem(id: number, count = 1, enchantment?: EnchantmentType): boolean {
     const isNew = !this.discoveredItems.has(id)
     const cap = maxStackFor(id)
     // Try stacking with existing matching slots in hotbar
     for (let i = 0; i < HOTBAR_SIZE; i++) {
       const slot = this.hotbar[i]
-      if (slot && slot.id === id && slot.count < cap) {
+      if (slot && slot.id === id && slot.enchantment === enchantment && slot.count < cap) {
         const canAdd = Math.min(count, cap - slot.count)
         slot.count += canAdd
         count -= canAdd
@@ -53,7 +53,7 @@ export class InventoryManager {
     // Try stacking in main inventory
     for (let i = 0; i < MAIN_INV_SIZE; i++) {
       const slot = this.mainInventory[i]
-      if (slot && slot.id === id && slot.count < cap) {
+      if (slot && slot.id === id && slot.enchantment === enchantment && slot.count < cap) {
         const canAdd = Math.min(count, cap - slot.count)
         slot.count += canAdd
         count -= canAdd
@@ -66,14 +66,14 @@ export class InventoryManager {
       const hotbarEmpty = this.hotbar.indexOf(null)
       if (hotbarEmpty !== -1) {
         const toAdd = Math.min(count, cap)
-        this.hotbar[hotbarEmpty] = { id, count: toAdd }
+        this.hotbar[hotbarEmpty] = { id, count: toAdd, enchantment }
         count -= toAdd
         continue
       }
       const mainEmpty = this.mainInventory.indexOf(null)
       if (mainEmpty !== -1) {
         const toAdd = Math.min(count, cap)
-        this.mainInventory[mainEmpty] = { id, count: toAdd }
+        this.mainInventory[mainEmpty] = { id, count: toAdd, enchantment }
         count -= toAdd
         continue
       }

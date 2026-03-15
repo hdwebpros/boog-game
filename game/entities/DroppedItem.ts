@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { TILE_SIZE } from '../world/TileRegistry'
-import { getItemDef } from '../data/items'
+import { getItemDef, ENCHANTMENT_COLORS } from '../data/items'
+import type { EnchantmentType } from '../data/items'
 
 const PICKUP_RADIUS = 24
 const PICKUP_DELAY = 500 // ms before item can be picked up (prevents instant re-grab)
@@ -14,6 +15,7 @@ export class DroppedItem {
   sprite: Phaser.GameObjects.Graphics
   itemId: number
   count: number
+  enchantment?: EnchantmentType
   x: number
   y: number
   vx: number
@@ -25,9 +27,10 @@ export class DroppedItem {
   private bobOffset: number
   private onGround = false
 
-  constructor(scene: Phaser.Scene, x: number, y: number, itemId: number, count: number, vx = 0, vy = -150) {
+  constructor(scene: Phaser.Scene, x: number, y: number, itemId: number, count: number, vx = 0, vy = -150, enchantment?: EnchantmentType) {
     this.itemId = itemId
     this.count = count
+    this.enchantment = enchantment
     this.x = x
     this.y = y
     this.vx = vx
@@ -37,7 +40,7 @@ export class DroppedItem {
 
     // Draw a small item icon (8x8 colored square with border)
     const def = getItemDef(itemId)
-    const color = def?.color ?? 0xffffff
+    const color = enchantment ? ENCHANTMENT_COLORS[enchantment] : (def?.color ?? 0xffffff)
 
     this.sprite = scene.add.graphics()
     this.sprite.setDepth(5)

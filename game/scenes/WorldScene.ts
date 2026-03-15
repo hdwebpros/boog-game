@@ -1504,9 +1504,9 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  spawnDrop(x: number, y: number, itemId: number, count: number) {
+  spawnDrop(x: number, y: number, itemId: number, count: number, enchantment?: string) {
     const spread = (Math.random() - 0.5) * 120
-    const drop = new DroppedItem(this, x, y, itemId, count, spread)
+    const drop = new DroppedItem(this, x, y, itemId, count, spread, -150, enchantment as any)
     drop.entityId = this.mp.entities.register('droppedItem', drop)
     this.droppedItems.push(drop)
   }
@@ -1535,7 +1535,7 @@ export class WorldScene extends Phaser.Scene {
         isNear = dx * dx + dy * dy < magnetR * magnetR
       }
       if (drop.canPickup() && isNear) {
-        if (this.player.inventory.addItem(drop.itemId, drop.count)) {
+        if (this.player.inventory.addItem(drop.itemId, drop.count, drop.enchantment)) {
           AudioManager.get()?.play(SoundId.PICKUP)
           this.mp.entities.unregister(drop.entityId)
           drop.destroy()
@@ -1553,7 +1553,7 @@ export class WorldScene extends Phaser.Scene {
             this.mp.getHostSession()!.broadcast({
               type: MessageType.ITEM_PICKUP,
               senderId: 0,
-              data: { playerId: rpId, itemId: drop.itemId, count: drop.count },
+              data: { playerId: rpId, itemId: drop.itemId, count: drop.count, enchantment: drop.enchantment },
             })
             this.mp.entities.unregister(drop.entityId)
             drop.destroy()
@@ -1658,6 +1658,7 @@ export class WorldScene extends Phaser.Scene {
       y: d.y,
       itemId: d.itemId,
       count: d.count,
+      enchantment: d.enchantment,
     }))
 
     // Build projectile snapshots (Fix #2)
@@ -2209,7 +2210,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Apply item pickups from host
     for (const pickup of this.mp.consumeItemPickups()) {
-      if (this.player.inventory.addItem(pickup.itemId, pickup.count)) {
+      if (this.player.inventory.addItem(pickup.itemId, pickup.count, pickup.enchantment as any)) {
         AudioManager.get()?.play(SoundId.PICKUP)
       }
     }

@@ -200,6 +200,7 @@ export interface DroppedItemSnapshot {
   y: number
   itemId: number
   count: number
+  enchantment?: string
 }
 
 export interface CombatEvent {
