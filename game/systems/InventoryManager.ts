@@ -91,6 +91,30 @@ export class InventoryManager {
     }
   }
 
+  /** Check if at least `count` of item `id` can be added (without modifying inventory) */
+  canAddItem(id: number, count = 1): boolean {
+    const cap = maxStackFor(id)
+    let remaining = count
+    for (let i = 0; i < HOTBAR_SIZE; i++) {
+      const slot = this.hotbar[i]
+      if (slot && slot.id === id && slot.count < cap) remaining -= (cap - slot.count)
+      if (remaining <= 0) return true
+    }
+    for (let i = 0; i < MAIN_INV_SIZE; i++) {
+      const slot = this.mainInventory[i]
+      if (slot && slot.id === id && slot.count < cap) remaining -= (cap - slot.count)
+      if (remaining <= 0) return true
+    }
+    // Count empty slots
+    for (let i = 0; i < HOTBAR_SIZE; i++) {
+      if (!this.hotbar[i]) { remaining -= cap; if (remaining <= 0) return true }
+    }
+    for (let i = 0; i < MAIN_INV_SIZE; i++) {
+      if (!this.mainInventory[i]) { remaining -= cap; if (remaining <= 0) return true }
+    }
+    return false
+  }
+
   getSelectedItem(): ItemStack | null {
     return this.hotbar[this.selectedSlot] ?? null
   }

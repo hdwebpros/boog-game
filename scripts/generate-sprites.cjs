@@ -133,6 +133,10 @@ const TILES = [
     desc: 'seamless tileable upgraded workbench block texture for a 2D side-scrolling platformer. Polished tan-brown wooden workbench filling the entire square with metal reinforcements, organized tools, drawers, and a small vise on top. Terraria style.',
   },
   {
+    name: 'tile_36', label: 'station_arcane_anvil',
+    desc: 'seamless tileable arcane anvil block texture for a 2D side-scrolling platformer. Dark purple-black magical anvil filling the entire square with glowing violet rune engravings on the surface, ethereal purple energy wisps rising from the striking face, crystalline accents embedded in the heavy base. Terraria style.',
+  },
+  {
     name: 'tile_42', label: 'chest',
     desc: 'wooden treasure chest block texture for a 2D side-scrolling platformer. Brown wooden chest with darker wood plank bands, gold metal latch and hinges, slightly rounded lid on top. Fills the entire square. Terraria style.',
   },

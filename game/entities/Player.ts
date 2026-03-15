@@ -1304,6 +1304,7 @@ export class Player {
 
             // Portal: mine any tile in the 4x4 → remove entire portal
             if (bt === TileType.PORTAL) {
+              if (!this.inventory.canAddItem(117)) continue
               const portal = chunks.getPortalAt(bx, by)
               if (portal) {
                 for (let dx = 0; dx < 4; dx++) {
@@ -1321,6 +1322,8 @@ export class Player {
 
             const bStation = chunks.getPlacedStations().find(s => s.tx === bx && s.ty === by)
             if (bStation) {
+              // Check inventory space before breaking
+              if (!this.inventory.canAddItem(bStation.itemId)) continue
               // If it's a chest, retrieve stored items
               if (bStation.itemId === 116) {
                 const chestInv = chunks.getChestInventory(bx, by)
@@ -1341,9 +1344,7 @@ export class Player {
               chunks.setTile(bx, by, TileType.AIR)
               this.inventory.addItem(bStation.itemId)
             } else {
-              this.onTileChange?.(bx, by, TileType.AIR, bt)
-              chunks.setTile(bx, by, TileType.AIR)
-              // Crystal tiles drop shards + arcane dust instead of the block
+              // Check inventory space before breaking the tile
               const crystalShardMap: Partial<Record<TileType, number>> = {
                 [TileType.CRYSTAL_EMBER]: 230,
                 [TileType.CRYSTAL_FROST]: 231,
@@ -1352,12 +1353,17 @@ export class Player {
                 [TileType.CRYSTAL_LIFE]:  234,
               }
               const shardId = crystalShardMap[bt]
+              const dropId = shardId ?? (TILE_TO_ITEM[bt] ?? bt)
+              const dropCount = doubleDrop ? 2 : 1
+              if (!this.inventory.canAddItem(dropId, dropCount)) continue
+
+              this.onTileChange?.(bx, by, TileType.AIR, bt)
+              chunks.setTile(bx, by, TileType.AIR)
               if (shardId) {
-                this.inventory.addItem(shardId, doubleDrop ? 2 : 1)
+                this.inventory.addItem(shardId, dropCount)
                 if (Math.random() < 0.5) this.inventory.addItem(235, 1)
               } else {
-                const dropId = TILE_TO_ITEM[bt] ?? bt
-                this.inventory.addItem(dropId, doubleDrop ? 2 : 1)
+                this.inventory.addItem(dropId, dropCount)
               }
             }
           }

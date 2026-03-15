@@ -20,6 +20,7 @@ export class BootScene extends Phaser.Scene {
     for (let i = 1; i <= 19; i++) {
       this.load.image(`tile_${i}`, `/sprites/tile_${i}.png`)
     }
+    this.load.image('tile_36', '/sprites/tile_36.png')
     this.load.image('tile_42', '/sprites/tile_42.png')
     this.load.image('tile_48', '/sprites/tile_48.png')
 
