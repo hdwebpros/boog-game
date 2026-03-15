@@ -18,10 +18,10 @@ const ENEMIES_PER_EXTRA_PLAYER_DAY = 10
 const ENEMIES_PER_EXTRA_PLAYER_NIGHT = 14
 
 // Void dimension spawn parameters
-const VOID_MAX_ENEMIES_DAY = 25
-const VOID_MAX_ENEMIES_NIGHT = 35
-const VOID_SPAWN_INTERVAL_DAY = 1500
-const VOID_SPAWN_INTERVAL_NIGHT = 800
+const VOID_MAX_ENEMIES_DAY = 18
+const VOID_MAX_ENEMIES_NIGHT = 24
+const VOID_SPAWN_INTERVAL_DAY = 2150
+const VOID_SPAWN_INTERVAL_NIGHT = 1150
 
 // Post-portal spawn parameters (20x normal — world becomes insanely dangerous)
 const POST_PORTAL_MAX_ENEMIES_DAY = 300
