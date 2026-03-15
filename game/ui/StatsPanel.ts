@@ -147,7 +147,7 @@ export class StatsPanel {
       this.statsGfx.strokePoints(pts, true, true)
     }
 
-    const totalDef = player.inventory.getTotalDefense()
+    const totalDef = typeof player.getEffectiveDefense === 'function' ? player.getEffectiveDefense() : player.inventory.getTotalDefense()
     this.hpText.setPosition(textX, hpY)
     this.hpText.setText(`${Math.ceil(player.hp)}/${player.maxHp}`)
 

@@ -1544,6 +1544,13 @@ export class Player {
     return bonuses
   }
 
+  /** Total effective defense (base armor + skills + enchantments) */
+  getEffectiveDefense(): number {
+    const mods = this.skills.getModifiers()
+    const armorEnch = this.getArmorEnchantmentBonuses()
+    return this.inventory.getTotalDefense() + mods.defenseBonus + armorEnch.defenseBonus
+  }
+
   getPosition() {
     return { x: this.sprite.x, y: this.sprite.y }
   }

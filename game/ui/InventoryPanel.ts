@@ -356,11 +356,11 @@ export class InventoryPanel {
       this.invTooltipText.setVisible(true)
     }
 
-    this.updateArmorPanel(inv, invX, invY, pointer, pointerJustDown)
+    this.updateArmorPanel(player, inv, invX, invY, pointer, pointerJustDown)
     this.updateHeldItem(inv)
   }
 
-  private updateArmorPanel(inv: InventoryManager, invX: number, invY: number, pointer: Phaser.Input.Pointer, pointerJustDown: boolean) {
+  private updateArmorPanel(player: any, inv: InventoryManager, invX: number, invY: number, pointer: Phaser.Input.Pointer, pointerJustDown: boolean) {
     const armorPanelX = invX + INV_W + 6
     const armorPanelW = SLOT_SIZE + INV_PAD * 2
     const armorPanelH = INV_PAD + INV_TITLE_H + 4 * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP + INV_PAD + 16
@@ -439,7 +439,7 @@ export class InventoryPanel {
       }
     }
 
-    const totalDef = inv.getTotalDefense()
+    const totalDef = typeof player.getEffectiveDefense === 'function' ? player.getEffectiveDefense() : inv.getTotalDefense()
     this.armorDefenseText.setText(`DEF ${totalDef}`)
     this.armorDefenseText.setPosition(
       armorPanelX + armorPanelW / 2,
