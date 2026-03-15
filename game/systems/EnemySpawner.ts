@@ -17,11 +17,25 @@ const OCEAN_WIDTH = 500
 const ENEMIES_PER_EXTRA_PLAYER_DAY = 10
 const ENEMIES_PER_EXTRA_PLAYER_NIGHT = 14
 
+// Void dimension spawn parameters
+const VOID_MAX_ENEMIES_DAY = 25
+const VOID_MAX_ENEMIES_NIGHT = 35
+const VOID_SPAWN_INTERVAL_DAY = 1500
+const VOID_SPAWN_INTERVAL_NIGHT = 800
+
+// Post-portal spawn parameters (20x normal — world becomes insanely dangerous)
+const POST_PORTAL_MAX_ENEMIES_DAY = 300
+const POST_PORTAL_MAX_ENEMIES_NIGHT = 440
+const POST_PORTAL_SPAWN_INTERVAL_DAY = 100
+const POST_PORTAL_SPAWN_INTERVAL_NIGHT = 60
+
 export class EnemySpawner {
   private scene: Phaser.Scene
   private timer = 0
   private enemyTypes: EnemyDef[]
   private surfaceBiomes: Uint8Array | null = null
+  voidDimension: boolean = false
+  postPortal: boolean = false
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -33,6 +47,14 @@ export class EnemySpawner {
     this.surfaceBiomes = biomes
   }
 
+  setVoidDimension(val: boolean) {
+    this.voidDimension = val
+  }
+
+  setPostPortal(val: boolean) {
+    this.postPortal = val
+  }
+
   update(
     dt: number,
     chunks: ChunkManager,
@@ -42,11 +64,20 @@ export class EnemySpawner {
   ) {
     if (playerPositions.length === 0) return
 
-    const spawnInterval = isNight ? SPAWN_INTERVAL_NIGHT : SPAWN_INTERVAL_DAY
+    let spawnInterval: number
+    let baseMax: number
+    if (this.postPortal) {
+      spawnInterval = isNight ? POST_PORTAL_SPAWN_INTERVAL_NIGHT : POST_PORTAL_SPAWN_INTERVAL_DAY
+      baseMax = isNight ? POST_PORTAL_MAX_ENEMIES_NIGHT : POST_PORTAL_MAX_ENEMIES_DAY
+    } else if (this.voidDimension) {
+      spawnInterval = isNight ? VOID_SPAWN_INTERVAL_NIGHT : VOID_SPAWN_INTERVAL_DAY
+      baseMax = isNight ? VOID_MAX_ENEMIES_NIGHT : VOID_MAX_ENEMIES_DAY
+    } else {
+      spawnInterval = isNight ? SPAWN_INTERVAL_NIGHT : SPAWN_INTERVAL_DAY
+      baseMax = isNight ? MAX_ENEMIES_NIGHT : MAX_ENEMIES_DAY
+    }
     const extraPlayers = Math.max(0, playerPositions.length - 1)
-    const maxEnemies = isNight
-      ? MAX_ENEMIES_NIGHT + extraPlayers * ENEMIES_PER_EXTRA_PLAYER_NIGHT
-      : MAX_ENEMIES_DAY + extraPlayers * ENEMIES_PER_EXTRA_PLAYER_DAY
+    const maxEnemies = baseMax + extraPlayers * (isNight ? ENEMIES_PER_EXTRA_PLAYER_NIGHT : ENEMIES_PER_EXTRA_PLAYER_DAY)
 
     this.timer -= dt * 1000
     if (this.timer > 0) return
@@ -96,6 +127,12 @@ export class EnemySpawner {
 
     // Find valid enemy types for this position
     const valid = this.enemyTypes.filter(def => {
+      // Void dimension filter: only spawn void enemies in void, and non-void in normal world
+      if (this.voidDimension) {
+        if (!def.voidDimension) return false
+      } else {
+        if (def.voidDimension) return false
+      }
       if (spawnTY < def.biomeYMin || spawnTY > def.biomeYMax) return false
       if (def.oceanOnly && !isOcean) return false
       if (!def.oceanOnly && isOcean) return false

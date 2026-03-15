@@ -5,6 +5,7 @@ export enum BossType {
   MAGMA_WYRM = 'magma_wyrm',
   CORE_SENTINEL = 'core_sentinel',
   MOTHERSHIP = 'mothership',
+  VOID_LORD = 'void_lord',
 }
 
 export enum BossAI {
@@ -14,6 +15,7 @@ export enum BossAI {
   WYRM = 'wyrm',           // flying serpent, fire breath + dive
   SENTINEL = 'sentinel',   // flying, laser + shield phases
   MOTHERSHIP = 'mothership', // flying, drone spawns + beam
+  VOID_LORD = 'void_lord',   // final boss, multi-phase void attacks
 }
 
 export interface BossPhase {
@@ -167,6 +169,26 @@ export const BOSS_DEFS: Record<BossType, BossDef> = {
     summonItemId: 175, // Signal Beacon
     xp: 600,
   },
+  [BossType.VOID_LORD]: {
+    type: BossType.VOID_LORD,
+    name: 'The Void Lord',
+    maxHp: 5000,
+    damage: 80,
+    speed: 100,
+    color: 0x9900ff,
+    width: 128,
+    height: 192,
+    ai: BossAI.VOID_LORD,
+    phases: [
+      { hpThreshold: 1.0, speed: 100, damage: 80, attackInterval: 2000 },
+      { hpThreshold: 0.75, speed: 120, damage: 100, attackInterval: 1600 },
+      { hpThreshold: 0.5, speed: 140, damage: 120, attackInterval: 1200 },
+      { hpThreshold: 0.25, speed: 160, damage: 150, attackInterval: 800 },
+    ],
+    dropItemId: 380, // Trophy of the Void Lord
+    summonItemId: 370, // Void Lord Summon Token
+    xp: 5000,
+  },
 }
 
 import { TileType, WORLD_HEIGHT, SURFACE_Y, UNDERGROUND_Y, DEEP_UNDERGROUND_Y, CORE_Y } from '../world/TileRegistry'
@@ -177,7 +199,7 @@ const DEEP = DEEP_UNDERGROUND_Y
 const CORE = CORE_Y
 
 // Altar definitions — one altar per boss, placed during world gen
-export const ALTAR_DEFS: Record<BossType, AltarDef> = {
+export const ALTAR_DEFS: Partial<Record<BossType, AltarDef>> = {
   [BossType.VINE_GUARDIAN]: {
     bossType: BossType.VINE_GUARDIAN,
     biomeYMin: SURFACE - 20,

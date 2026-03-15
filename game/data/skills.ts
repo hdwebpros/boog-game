@@ -4,6 +4,7 @@ export enum SkillBranch {
   MINING = 'mining',
   MAGIC = 'magic',
   MOBILITY = 'mobility',
+  ASCENSION = 'ascension',
 }
 
 export interface SkillDef {
@@ -14,7 +15,9 @@ export interface SkillDef {
   tier: number          // 1-3 normal, 4 = super tier
   cost: number          // skill points to unlock
   requires?: string     // prerequisite skill id
+  prerequisites?: string[]  // multiple prerequisite skill ids (all required)
   superTree?: string    // if set, belongs to a super tree (requires both branches maxed)
+  requiredSuperTrees?: number  // number of super trees that must be completed
   // Stat modifiers (multipliers are 1.0 = no change)
   meleeDamageMult?: number
   rangedDamageMult?: number
@@ -42,6 +45,13 @@ export interface SkillDef {
   arcaneStrikes?: boolean    // melee releases magic shockwave
   manaOverload?: boolean     // mana >75%: +100% dmg, drains mana per hit
   aoeMining?: boolean        // mine 3x3 area
+  // Ascension modifiers
+  voidDamageMultiplier?: number
+  killHealPercent?: number
+  dodgeChance?: number
+  allDamageMultiplier?: number
+  damageReduction?: number
+  allStatsMultiplier?: number
 }
 
 // ── Super Tree Definitions ───────────────────────────
@@ -369,6 +379,71 @@ export const SKILLS: SkillDef[] = [
     moveSpeedMult: 1.5,
     fallDamageMult: 0,
   },
+
+  // ── Ascension (God Tier — requires 2+ super trees) ────
+  {
+    id: 'void_strike',
+    name: 'Void Strike',
+    description: '+100% damage to void dimension enemies',
+    branch: SkillBranch.ASCENSION,
+    tier: 5,
+    cost: 5,
+    requiredSuperTrees: 2,
+    voidDamageMultiplier: 2.0,
+  },
+  {
+    id: 'soul_harvest',
+    name: 'Soul Harvest',
+    description: 'Kills heal 5% max HP',
+    branch: SkillBranch.ASCENSION,
+    tier: 5,
+    cost: 5,
+    requiredSuperTrees: 2,
+    killHealPercent: 0.05,
+  },
+  {
+    id: 'dimensional_shift',
+    name: 'Dimensional Shift',
+    description: '20% chance to dodge attacks',
+    branch: SkillBranch.ASCENSION,
+    tier: 5,
+    cost: 5,
+    requiredSuperTrees: 2,
+    dodgeChance: 0.2,
+  },
+  {
+    id: 'chaos_mastery',
+    name: 'Chaos Mastery',
+    description: 'All damage +50%',
+    branch: SkillBranch.ASCENSION,
+    tier: 5,
+    cost: 8,
+    prerequisites: ['void_strike', 'soul_harvest'],
+    requiredSuperTrees: 2,
+    allDamageMultiplier: 1.5,
+  },
+  {
+    id: 'void_armor',
+    name: 'Void Armor',
+    description: '-30% damage taken',
+    branch: SkillBranch.ASCENSION,
+    tier: 5,
+    cost: 8,
+    requires: 'dimensional_shift',
+    requiredSuperTrees: 2,
+    damageReduction: 0.3,
+  },
+  {
+    id: 'ascendant',
+    name: 'Ascendant',
+    description: 'All stats +25%, permanent void aura',
+    branch: SkillBranch.ASCENSION,
+    tier: 5,
+    cost: 15,
+    prerequisites: ['chaos_mastery', 'void_armor'],
+    requiredSuperTrees: 2,
+    allStatsMultiplier: 1.25,
+  },
 ]
 
 export const SKILL_MAP: Record<string, SkillDef> = {}
@@ -383,6 +458,7 @@ export const BRANCH_INFO: Record<SkillBranch, { name: string; icon: string; colo
   [SkillBranch.MINING]: { name: 'Mining', icon: '*', color: 0xffaa44, colorStr: '#ffaa44' },
   [SkillBranch.MAGIC]: { name: 'Magic', icon: '~', color: 0x4488ff, colorStr: '#4488ff' },
   [SkillBranch.MOBILITY]: { name: 'Mobility', icon: '>', color: 0xffff44, colorStr: '#ffff44' },
+  [SkillBranch.ASCENSION]: { name: 'Ascension', icon: '@', color: 0xaa00ff, colorStr: '#aa00ff' },
 }
 
 export const BRANCH_ORDER: SkillBranch[] = [
@@ -391,4 +467,5 @@ export const BRANCH_ORDER: SkillBranch[] = [
   SkillBranch.MINING,
   SkillBranch.MAGIC,
   SkillBranch.MOBILITY,
+  SkillBranch.ASCENSION,
 ]

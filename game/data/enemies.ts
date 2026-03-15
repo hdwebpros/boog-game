@@ -24,6 +24,15 @@ export enum EnemyType {
   JUNGLE_SPIDER = 'jungle_spider',
   VINE_STRANGLER = 'vine_strangler',
   MOUNTAIN_HAWK = 'mountain_hawk',
+  // Void dimension enemies
+  VOID_WRAITH = 'void_wraith',
+  SHADOW_STALKER = 'shadow_stalker',
+  HELLFIRE_IMP = 'hellfire_imp',
+  NETHER_GOLEM = 'nether_golem',
+  SOUL_EATER = 'soul_eater',
+  VOID_SERPENT = 'void_serpent',
+  CHAOS_ELEMENTAL = 'chaos_elemental',
+  DARK_KNIGHT = 'dark_knight',
 }
 
 export enum EnemyAI {
@@ -49,6 +58,7 @@ export interface EnemyDef {
   ai: EnemyAI
   biomeYMin: number   // min Y tile coord for spawning
   biomeYMax: number   // max Y tile coord for spawning
+  voidDimension?: boolean // only spawns in void dimension
   oceanOnly?: boolean // only spawn in ocean biome edges
   nightOnly?: boolean // only spawn at night
   surfaceBiome?: SurfaceBiome // only spawn in this surface biome (surface enemies)
@@ -488,5 +498,168 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
       { itemId: 105, count: 2, chance: 0.3 },   // plant fiber
     ],
     knockbackResist: 0.1,
+  },
+
+  // ── Void Dimension Enemies ──────────────────────────────
+
+  [EnemyType.VOID_WRAITH]: {
+    type: EnemyType.VOID_WRAITH,
+    name: 'Void Wraith',
+    hp: 120,
+    damage: 35,
+    speed: 180,
+    color: 0x9933ff,
+    width: 28,
+    height: 36,
+    ai: EnemyAI.PHASE,
+    biomeYMin: 0,
+    biomeYMax: WORLD_HEIGHT,
+    voidDimension: true,
+    xp: 80,
+    loot: [
+      { itemId: 350, count: 3, chance: 0.6 },   // Void Essence
+      { itemId: 352, count: 2, chance: 0.3 },   // Soul Fragment
+    ],
+    knockbackResist: 0,
+  },
+  [EnemyType.SHADOW_STALKER]: {
+    type: EnemyType.SHADOW_STALKER,
+    name: 'Shadow Stalker',
+    hp: 200,
+    damage: 50,
+    speed: 140,
+    color: 0x1a0033,
+    width: 32,
+    height: 40,
+    ai: EnemyAI.AMBUSH,
+    biomeYMin: 0,
+    biomeYMax: WORLD_HEIGHT,
+    voidDimension: true,
+    xp: 120,
+    loot: [
+      { itemId: 352, count: 3, chance: 0.5 },   // Soul Fragment
+      { itemId: 353, count: 1, chance: 0.1 },   // Chaos Shard
+    ],
+    knockbackResist: 0.5,
+  },
+  [EnemyType.HELLFIRE_IMP]: {
+    type: EnemyType.HELLFIRE_IMP,
+    name: 'Hellfire Imp',
+    hp: 80,
+    damage: 30,
+    speed: 200,
+    color: 0xff4400,
+    width: 20,
+    height: 24,
+    ai: EnemyAI.RANGED,
+    biomeYMin: 0,
+    biomeYMax: WORLD_HEIGHT,
+    voidDimension: true,
+    xp: 60,
+    loot: [
+      { itemId: 350, count: 2, chance: 0.5 },   // Void Essence
+      { itemId: 351, count: 1, chance: 0.2 },   // Hellfire Core
+    ],
+    knockbackResist: 0,
+  },
+  [EnemyType.NETHER_GOLEM]: {
+    type: EnemyType.NETHER_GOLEM,
+    name: 'Nether Golem',
+    hp: 400,
+    damage: 60,
+    speed: 80,
+    color: 0x4a1a2a,
+    width: 40,
+    height: 48,
+    ai: EnemyAI.CHARGE,
+    biomeYMin: 0,
+    biomeYMax: WORLD_HEIGHT,
+    voidDimension: true,
+    xp: 200,
+    loot: [
+      { itemId: 354, count: 2, chance: 0.3 },   // Abyssal Ingot
+      { itemId: 353, count: 1, chance: 0.15 },  // Chaos Shard
+    ],
+    knockbackResist: 0.8,
+  },
+  [EnemyType.SOUL_EATER]: {
+    type: EnemyType.SOUL_EATER,
+    name: 'Soul Eater',
+    hp: 150,
+    damage: 25,
+    speed: 160,
+    color: 0x66ccff,
+    width: 30,
+    height: 34,
+    ai: EnemyAI.SWOOP,
+    biomeYMin: 0,
+    biomeYMax: WORLD_HEIGHT,
+    voidDimension: true,
+    xp: 90,
+    loot: [
+      { itemId: 352, count: 4, chance: 0.7 },   // Soul Fragment
+    ],
+    knockbackResist: 0,
+  },
+  [EnemyType.VOID_SERPENT]: {
+    type: EnemyType.VOID_SERPENT,
+    name: 'Void Serpent',
+    hp: 300,
+    damage: 45,
+    speed: 120,
+    color: 0x2a1040,
+    width: 48,
+    height: 24,
+    ai: EnemyAI.EMERGE,
+    biomeYMin: 0,
+    biomeYMax: WORLD_HEIGHT,
+    voidDimension: true,
+    xp: 150,
+    loot: [
+      { itemId: 350, count: 5, chance: 0.8 },   // Void Essence
+      { itemId: 355, count: 1, chance: 0.05 },  // Dimensional Fabric
+    ],
+    knockbackResist: 0,
+  },
+  [EnemyType.CHAOS_ELEMENTAL]: {
+    type: EnemyType.CHAOS_ELEMENTAL,
+    name: 'Chaos Elemental',
+    hp: 250,
+    damage: 55,
+    speed: 150,
+    color: 0xff00ff,
+    width: 32,
+    height: 38,
+    ai: EnemyAI.RANGED,
+    biomeYMin: 0,
+    biomeYMax: WORLD_HEIGHT,
+    voidDimension: true,
+    xp: 180,
+    loot: [
+      { itemId: 353, count: 2, chance: 0.25 },  // Chaos Shard
+      { itemId: 355, count: 1, chance: 0.08 },  // Dimensional Fabric
+    ],
+    knockbackResist: 0,
+  },
+  [EnemyType.DARK_KNIGHT]: {
+    type: EnemyType.DARK_KNIGHT,
+    name: 'Dark Knight',
+    hp: 350,
+    damage: 70,
+    speed: 100,
+    color: 0x1a0a2e,
+    width: 36,
+    height: 48,
+    ai: EnemyAI.PATROL,
+    biomeYMin: 0,
+    biomeYMax: WORLD_HEIGHT,
+    voidDimension: true,
+    xp: 220,
+    loot: [
+      { itemId: 354, count: 2, chance: 0.4 },   // Abyssal Ingot
+      { itemId: 353, count: 1, chance: 0.2 },   // Chaos Shard
+      { itemId: 355, count: 1, chance: 0.1 },   // Dimensional Fabric
+    ],
+    knockbackResist: 0.6,
   },
 }

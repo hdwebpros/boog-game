@@ -9,6 +9,7 @@ export enum StationType {
   TECH_BENCH = 'tech_bench',
   FUSION_STATION = 'fusion_station',
   ARCANE_ANVIL = 'arcane_anvil',
+  VOID_FORGE = 'void_forge',
 }
 
 export interface Recipe {
@@ -111,6 +112,29 @@ export const RECIPES: Recipe[] = [
 
   // ── Mystical Compass (crafted at Arcane Anvil) ───────
   { id: 'mystical_compass', station: StationType.ARCANE_ANVIL, inputs: [{ itemId: 235, count: 8 }, { itemId: 101, count: 3 }, { itemId: 100, count: 5 }], output: { itemId: 242, count: 1 } },
+
+  // ── Super Portal (crafted at Fusion Station) ────────
+  { id: 'super_portal', station: StationType.FUSION_STATION, inputs: [{ itemId: TileType.OBSIDIAN, count: 99 }, { itemId: 235, count: 40 }, { itemId: 102, count: 30 }], output: { itemId: 320, count: 1 } },
+
+  // ── Void Forge (crafted at Fusion Station) ──────────
+  { id: 'void_forge', station: StationType.FUSION_STATION, inputs: [{ itemId: TileType.BRIMSTONE, count: 20 }, { itemId: 351, count: 10 }], output: { itemId: 321, count: 1 } },
+
+  // ── Void Forge Recipes ──────────────────────────────
+  { id: 'abyssal_ingot',       station: StationType.VOID_FORGE, inputs: [{ itemId: 350, count: 5 }, { itemId: 351, count: 3 }], output: { itemId: 354, count: 1 } },
+  { id: 'dimensional_fabric',  station: StationType.VOID_FORGE, inputs: [{ itemId: 353, count: 3 }, { itemId: 354, count: 2 }], output: { itemId: 355, count: 1 } },
+  { id: 'void_blade',          station: StationType.VOID_FORGE, inputs: [{ itemId: 354, count: 8 }, { itemId: 352, count: 10 }], output: { itemId: 330, count: 1 } },
+  { id: 'abyssal_scythe',      station: StationType.VOID_FORGE, inputs: [{ itemId: 354, count: 12 }, { itemId: 353, count: 5 }], output: { itemId: 331, count: 1 } },
+  { id: 'hellfire_bow',        station: StationType.VOID_FORGE, inputs: [{ itemId: 351, count: 10 }, { itemId: 354, count: 6 }], output: { itemId: 332, count: 1 } },
+  { id: 'void_staff',          station: StationType.VOID_FORGE, inputs: [{ itemId: 353, count: 8 }, { itemId: 352, count: 15 }], output: { itemId: 333, count: 1 } },
+  { id: 'soul_reaver',         station: StationType.VOID_FORGE, inputs: [{ itemId: 352, count: 20 }, { itemId: 355, count: 3 }], output: { itemId: 334, count: 1 } },
+  { id: 'chaos_edge',          station: StationType.VOID_FORGE, inputs: [{ itemId: 355, count: 5 }, { itemId: 353, count: 10 }, { itemId: 354, count: 15 }], output: { itemId: 335, count: 1 } },
+  { id: 'dimensional_rifle',   station: StationType.VOID_FORGE, inputs: [{ itemId: 355, count: 5 }, { itemId: 351, count: 15 }, { itemId: 354, count: 10 }], output: { itemId: 336, count: 1 } },
+  { id: 'arcane_annihilator',  station: StationType.VOID_FORGE, inputs: [{ itemId: 355, count: 5 }, { itemId: 353, count: 15 }, { itemId: 352, count: 20 }], output: { itemId: 337, count: 1 } },
+  { id: 'void_helmet',         station: StationType.VOID_FORGE, inputs: [{ itemId: 354, count: 6 }, { itemId: 352, count: 5 }], output: { itemId: 340, count: 1 } },
+  { id: 'void_chestplate',     station: StationType.VOID_FORGE, inputs: [{ itemId: 354, count: 10 }, { itemId: 355, count: 2 }], output: { itemId: 341, count: 1 } },
+  { id: 'void_leggings',       station: StationType.VOID_FORGE, inputs: [{ itemId: 354, count: 8 }, { itemId: 352, count: 8 }], output: { itemId: 342, count: 1 } },
+  { id: 'void_boots',          station: StationType.VOID_FORGE, inputs: [{ itemId: 354, count: 5 }, { itemId: 352, count: 4 }], output: { itemId: 343, count: 1 } },
+  { id: 'void_lord_summon',    station: StationType.VOID_FORGE, inputs: [{ itemId: 353, count: 10 }, { itemId: 355, count: 3 }, { itemId: 354, count: 5 }], output: { itemId: 370, count: 1 } },
 ]
 
 // Station item ID → StationType mapping
@@ -122,4 +146,5 @@ export const STATION_ITEM_MAP: Record<number, StationType> = {
   114: StationType.FUSION_STATION,
   115: StationType.WORKBENCH_2,
   236: StationType.ARCANE_ANVIL,
+  321: StationType.VOID_FORGE,
 }

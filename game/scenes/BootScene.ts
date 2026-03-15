@@ -5,6 +5,7 @@ import { generateAllSprites } from '../assets/SpriteGenerator'
 import { AudioManager } from '../systems/AudioManager'
 import { WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 import { NetworkManager, type JoinAccepted } from '../multiplayer'
+import { generateVoidWorld } from '../world/VoidWorldGenerator'
 
 export class BootScene extends Phaser.Scene {
   private barFill!: Phaser.GameObjects.Rectangle
@@ -57,6 +58,27 @@ export class BootScene extends Phaser.Scene {
     for (const id of itemPngs) {
       this.load.image(`item_${id}`, `/sprites/item_${id}.png`)
     }
+
+    // Load void dimension tile PNGs (49-60)
+    for (let i = 49; i <= 60; i++) {
+      this.load.image(`tile_${i}`, `/sprites/tile_${i}.png`)
+    }
+
+    // Load void dimension enemy PNGs
+    const voidEnemies = [
+      'void_wraith', 'shadow_stalker', 'hellfire_imp', 'nether_golem',
+      'soul_eater', 'void_serpent', 'chaos_elemental', 'dark_knight',
+    ]
+    for (const e of voidEnemies) {
+      this.load.image(`enemy_${e}`, `/sprites/enemy_${e}.png`)
+    }
+
+    // Load Void Lord boss PNG
+    this.load.image('boss_void_lord', '/sprites/boss_void_lord.png')
+
+    // Load void dimension item PNGs
+    this.load.image('item_320', '/sprites/item_320.png')
+    this.load.image('item_321', '/sprites/item_321.png')
   }
 
   create() {
@@ -214,6 +236,31 @@ export class BootScene extends Phaser.Scene {
           // Pass slot info so WorldScene knows which slot to auto-save to
           this.registry.set('loadSlotId', loadSlotId)
           this.registry.set('loadSlotName', saveData.name)
+        },
+      })
+    } else if (this.registry.get('voidDimension')) {
+      steps.push({
+        label: 'Generating void dimension...',
+        weight: 60,
+        fn: () => {
+          const seedStr = this.registry.get('worldSeed') as string | undefined
+          // Convert string seed to number for void world generator
+          const numSeed = seedStr ? parseInt(seedStr, 36) || Date.now() : Date.now()
+          const voidData = generateVoidWorld(numSeed)
+          // Wrap as WorldData-compatible format
+          const worldData = {
+            tiles: voidData.tiles,
+            width: voidData.width,
+            height: voidData.height,
+            seed: seedStr ?? String(numSeed),
+            spawnX: voidData.spawnX,
+            spawnY: voidData.spawnY,
+            altars: [] as any[],
+            runestones: [] as any[],
+          }
+          this.registry.set('worldData', worldData)
+          this.registry.set('voidDimension', true)
+          this.registry.remove('saveData')
         },
       })
     } else {

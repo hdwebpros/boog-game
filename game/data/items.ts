@@ -225,6 +225,46 @@ export const ITEMS: Record<number, ItemDef> = {
   311: { id: 311, name: 'Celestial Banner',   category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0x6655cc },
   312: { id: 312, name: 'Starfall Flower',    category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xff66aa },
   313: { id: 313, name: 'Sky Crystal Lamp',   category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0x44ccff },
+
+  // ── Void Stations ──────────────────────────────────────
+  320: { id: 320, name: 'Super Portal',  category: ItemCategory.STATION, stackSize: 1, tier: 5, color: 0x9900ff, tileType: TileType.VOID_PORTAL_BLOCK },
+  321: { id: 321, name: 'Void Forge',    category: ItemCategory.STATION, stackSize: 1, tier: 5, color: 0x4a0080, tileType: TileType.NETHER_BRICK },
+
+  // ── Void Weapons ───────────────────────────────────────
+  330: { id: 330, name: 'Void Blade',          category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0x9933ff, damage: 85,  weaponStyle: 'melee' as WeaponStyle,  attackSpeed: 1.4 },
+  331: { id: 331, name: 'Abyssal Scythe',      category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0x6600cc, damage: 110, weaponStyle: 'melee' as WeaponStyle,  attackSpeed: 0.9 },
+  332: { id: 332, name: 'Hellfire Bow',        category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0xff4400, damage: 70,  weaponStyle: 'ranged' as WeaponStyle, attackSpeed: 1.6, projectileSpeed: 500 },
+  333: { id: 333, name: 'Void Staff',          category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0xcc00ff, damage: 95,  weaponStyle: 'magic' as WeaponStyle,  attackSpeed: 1.2, manaCost: 25 },
+  334: { id: 334, name: 'Soul Reaver',         category: ItemCategory.WEAPON, stackSize: 1, tier: 5, color: 0x66ccff, damage: 60,  weaponStyle: 'summon' as WeaponStyle, attackSpeed: 0.5, manaCost: 40 },
+  335: { id: 335, name: 'Chaos Edge',          category: ItemCategory.WEAPON, stackSize: 1, tier: 6, color: 0xff00ff, damage: 150, weaponStyle: 'melee' as WeaponStyle,  attackSpeed: 1.6 },
+  336: { id: 336, name: 'Dimensional Rifle',   category: ItemCategory.WEAPON, stackSize: 1, tier: 6, color: 0x00ffcc, damage: 120, weaponStyle: 'ranged' as WeaponStyle, attackSpeed: 2.0, projectileSpeed: 600 },
+  337: { id: 337, name: 'Arcane Annihilator',  category: ItemCategory.WEAPON, stackSize: 1, tier: 6, color: 0xffcc00, damage: 130, weaponStyle: 'magic' as WeaponStyle,  attackSpeed: 1.5, manaCost: 35 },
+
+  // ── Void Armor (Tier 5) ────────────────────────────────
+  340: { id: 340, name: 'Void Helmet',     category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 18, armorSlot: 'helmet' as ArmorSlot },
+  341: { id: 341, name: 'Void Chestplate', category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 28, armorSlot: 'chestplate' as ArmorSlot },
+  342: { id: 342, name: 'Void Leggings',   category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 22, armorSlot: 'leggings' as ArmorSlot },
+  343: { id: 343, name: 'Void Boots',       category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 14, armorSlot: 'boots' as ArmorSlot },
+
+  // ── Void Materials ─────────────────────────────────────
+  350: { id: 350, name: 'Void Essence',        category: ItemCategory.MATERIAL, stackSize: 99, tier: 5, color: 0x9933ff },
+  351: { id: 351, name: 'Hellfire Core',       category: ItemCategory.MATERIAL, stackSize: 99, tier: 5, color: 0xff4400 },
+  352: { id: 352, name: 'Soul Fragment',       category: ItemCategory.MATERIAL, stackSize: 99, tier: 5, color: 0x66ccff },
+  353: { id: 353, name: 'Chaos Shard',         category: ItemCategory.MATERIAL, stackSize: 50, tier: 5, color: 0xff00ff },
+  354: { id: 354, name: 'Abyssal Ingot',       category: ItemCategory.MATERIAL, stackSize: 99, tier: 5, color: 0x4a0080 },
+  355: { id: 355, name: 'Dimensional Fabric',  category: ItemCategory.MATERIAL, stackSize: 30, tier: 5, color: 0xcc66ff },
+
+  // ── Void Artifacts (Accessories) ───────────────────────
+  360: { id: 360, name: 'Warp Crystal',        category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0x00ffcc },
+  361: { id: 361, name: 'Soul Lantern',        category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0x66ccff },
+  362: { id: 362, name: 'Chaos Heart',         category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0xff0066 },
+  363: { id: 363, name: 'Void Eye',            category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0x9933ff },
+  364: { id: 364, name: 'Temporal Shard',      category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0xffcc00 },
+  365: { id: 365, name: 'Dimensional Anchor',  category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0xcc6600 },
+
+  // ── Void Special Items ─────────────────────────────────
+  370: { id: 370, name: 'Void Lord Summon Token',  category: ItemCategory.SPECIAL, stackSize: 1, tier: 6, color: 0xff00ff },
+  380: { id: 380, name: 'Trophy of the Void Lord', category: ItemCategory.SPECIAL, stackSize: 1, tier: 6, color: 0xffcc00 },
 }
 
 export function getItemDef(id: number): ItemDef | undefined {

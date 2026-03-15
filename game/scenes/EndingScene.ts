@@ -315,9 +315,18 @@ export class EndingScene extends Phaser.Scene {
 
   /** Resume the game world — player keeps jetpack and can fly around */
   private continuePlaying() {
+    // Set flag so WorldScene knows the regular ending has been seen
+    this.registry.set('hasCompletedGame', true)
     this.scene.stop('EndingScene')
     this.scene.resume('WorldScene')
     this.scene.launch('UIScene')
+
+    // Show post-game message about new content
+    const worldScene = this.scene.get('WorldScene') as any
+    if (worldScene?.showNotification) {
+      worldScene.hasCompletedGame = true
+      worldScene.showNotification('New recipe unlocked: Super Portal', 0xff88ff)
+    }
   }
 
   /** Start fresh from the title screen */

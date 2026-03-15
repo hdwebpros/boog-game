@@ -3,6 +3,7 @@ import { ChunkManager } from '../world/ChunkManager'
 import { Player } from '../entities/Player'
 import { Enemy } from '../entities/Enemy'
 import { Boss } from '../entities/Boss'
+import { FinalBoss } from '../entities/FinalBoss'
 import type { WorldData, AltarPlacement, RunestonePlacement } from '../world/WorldGenerator'
 import { TileType, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT, UNDERGROUND_Y as UNDERGROUND_TILE_Y, DEEP_UNDERGROUND_Y, STATION_TILE_TYPE } from '../world/TileRegistry'
 import { CombatSystem } from '../systems/CombatSystem'
@@ -90,12 +91,36 @@ export class WorldScene extends Phaser.Scene {
   /** Client-side projectile sprites (rendered from host sync data) */
   private clientProjectileSprites = new Map<number, Phaser.GameObjects.Rectangle>()
 
+  // Void dimension
+  isVoidDimension: boolean = false
+  postPortal: boolean = false
+  hasCompletedGame: boolean = false
+  finalBoss: FinalBoss | null = null
+  private voidPortalPromptText: Phaser.GameObjects.Text | null = null
+  private worldSeed: string = ''
+
   constructor() {
     super({ key: 'WorldScene' })
   }
 
   create() {
     this.worldData = this.registry.get('worldData') as WorldData
+    this.worldSeed = this.worldData.seed
+
+    // Check if this is a void dimension world
+    if (this.registry.get('voidDimension')) {
+      this.isVoidDimension = true
+    }
+    // Check if player has returned from void dimension (post-portal flag)
+    if (this.registry.get('postPortal')) {
+      this.postPortal = true
+      this.registry.remove('postPortal')
+    }
+    // Check if player has completed the regular ending
+    if (this.registry.get('hasCompletedGame')) {
+      this.hasCompletedGame = true
+      this.registry.remove('hasCompletedGame')
+    }
 
     // Sky gradient background
     this.createSkyBackground()
@@ -122,6 +147,12 @@ export class WorldScene extends Phaser.Scene {
     this.enemySpawner = new EnemySpawner(this)
     if (this.worldData.surfaceBiomes) {
       this.enemySpawner.setSurfaceBiomes(this.worldData.surfaceBiomes)
+    }
+    if (this.isVoidDimension) {
+      this.enemySpawner.setVoidDimension(true)
+    }
+    if (this.postPortal) {
+      this.enemySpawner.setPostPortal(true)
     }
 
     // Spawn player
@@ -214,11 +245,13 @@ export class WorldScene extends Phaser.Scene {
       this.showNewItemFlash(def.name)
     }
 
-    // Spawn NPC at cloud city shop position
-    const npcPos = this.npcShopPosition ?? this.worldData.npcShopPosition
-    if (npcPos) {
-      this.npcShopPosition = npcPos
-      this.npc = new NPC(this, npcPos.tx, npcPos.ty)
+    // Spawn NPC at cloud city shop position (not in void dimension)
+    if (!this.isVoidDimension) {
+      const npcPos = this.npcShopPosition ?? this.worldData.npcShopPosition
+      if (npcPos) {
+        this.npcShopPosition = npcPos
+        this.npc = new NPC(this, npcPos.tx, npcPos.ty)
+      }
     }
 
     // Initialize multiplayer (default: offline/single-player)
@@ -283,6 +316,12 @@ export class WorldScene extends Phaser.Scene {
 
     this.portalPromptText = this.add.text(0, 0, '', {
       fontSize: '11px', color: '#bb88ff', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 3, align: 'center',
+    }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
+
+    // Void portal prompt text (for Super Portal and void return portal)
+    this.voidPortalPromptText = this.add.text(0, 0, '', {
+      fontSize: '11px', color: '#ff44ff', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 3, align: 'center',
     }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
 
@@ -429,12 +468,14 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    // Advance day/night cycle
-    this.dayNight.update(dt)
+    // Advance day/night cycle (skip in void dimension — always dark)
+    if (!this.isVoidDimension) {
+      this.dayNight.update(dt)
+    }
 
-    // Night transition notifications
-    const nowNight = this.dayNight.isNight
-    if (nowNight && !this.wasNight) {
+    // Night transition notifications (skip in void dimension)
+    const nowNight = this.isVoidDimension ? true : this.dayNight.isNight
+    if (!this.isVoidDimension && nowNight && !this.wasNight) {
       const text = this.add.text(
         this.cameras.main.centerX, this.cameras.main.centerY - 100,
         'Night falls... beware!',
@@ -444,7 +485,7 @@ export class WorldScene extends Phaser.Scene {
         }
       ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
       this.tweens.add({ targets: text, alpha: 0, duration: 1500, delay: 2000, onComplete: () => text.destroy() })
-    } else if (!nowNight && this.wasNight) {
+    } else if (!this.isVoidDimension && !nowNight && this.wasNight) {
       const text = this.add.text(
         this.cameras.main.centerX, this.cameras.main.centerY - 100,
         'Dawn breaks...',
@@ -462,20 +503,28 @@ export class WorldScene extends Phaser.Scene {
 
     // Simple darkness overlay — single rectangle, no per-tile work
     const playerTY = Math.floor(this.player.sprite.y / TILE_SIZE)
-    const undergroundDarkness = playerTY > 100
-      ? Math.min(0.55, (playerTY - 100) / 200 * 0.55)
-      : 0
-    const surfaceDarkness = this.dayNight.darkness
-    const effectiveDarkness = Math.max(surfaceDarkness, undergroundDarkness)
-    this.darknessOverlay.setAlpha(effectiveDarkness)
-    this.darknessOverlay.setFillStyle(this.dayNight.tintColor || 0x000000, 1)
+    let effectiveDarkness: number
+    if (this.isVoidDimension) {
+      // Void dimension: constant dark red ambient
+      effectiveDarkness = 0.35
+      this.darknessOverlay.setAlpha(effectiveDarkness)
+      this.darknessOverlay.setFillStyle(0x330000, 1)
+    } else {
+      const undergroundDarkness = playerTY > 100
+        ? Math.min(0.55, (playerTY - 100) / 200 * 0.55)
+        : 0
+      const surfaceDarkness = this.dayNight.darkness
+      effectiveDarkness = Math.max(surfaceDarkness, undergroundDarkness)
+      this.darknessOverlay.setAlpha(effectiveDarkness)
+      this.darknessOverlay.setFillStyle(this.dayNight.tintColor || 0x000000, 1)
+    }
 
     // Local player always updates (client-predicted movement)
     if (!this.mp.isClient) {
       // Host/offline: full authoritative update
-      const allTargets = this.activeBoss && this.activeBoss.alive
-        ? [...this.enemies, this.activeBoss as any]
-        : this.enemies
+      const allTargets: Enemy[] = [...this.enemies]
+      if (this.activeBoss && this.activeBoss.alive) allTargets.push(this.activeBoss as any)
+      if (this.finalBoss && this.finalBoss.alive) allTargets.push(this.finalBoss as any)
 
       this.player.update(dt, this.chunkManager, this.combat, allTargets)
 
@@ -486,6 +535,8 @@ export class WorldScene extends Phaser.Scene {
       this.updateMysticalCompass()
       this.checkNPCInteraction()
       this.checkPortalInteraction()
+      this.checkVoidPortalInteraction()
+      this.checkVoidLordSummon()
 
       // Build list of all player positions for spawning, enemy AI, and despawn checks
       const allPlayerPositions: { x: number; y: number; id: number }[] = [
@@ -644,6 +695,27 @@ export class WorldScene extends Phaser.Scene {
         // Check boss death
         if (!this.activeBoss.alive) {
           this.onBossDefeated()
+        }
+      }
+
+      // Update FinalBoss (Void Lord)
+      if (this.finalBoss && this.finalBoss.alive) {
+        this.finalBoss.update(dt, this.chunkManager, this.player.sprite.x, this.player.sprite.y)
+
+        // FinalBoss collision damage
+        if (!this.player.dead) {
+          const fb = this.finalBoss.getBounds()
+          const px = this.player.sprite.x - 6
+          const py = this.player.sprite.y - 14
+          if (px < fb.x + fb.w && px + 12 > fb.x && py < fb.y + fb.h && py + 28 > fb.y) {
+            const kbx = (this.player.sprite.x - this.finalBoss.sprite.x) > 0 ? 250 : -250
+            this.player.takeDamage(this.finalBoss.def.damage, kbx, -180, this.combat)
+          }
+        }
+
+        // Check FinalBoss death
+        if (!this.finalBoss.alive) {
+          this.onVoidLordDefeated()
         }
       }
 
@@ -852,9 +924,15 @@ export class WorldScene extends Phaser.Scene {
     const audio = AudioManager.get()
     if (!audio) return
 
-    // Boss music overrides everything
-    if (this.activeBoss && this.activeBoss.alive) {
+    // Boss music overrides everything (including FinalBoss)
+    if ((this.activeBoss && this.activeBoss.alive) || (this.finalBoss && this.finalBoss.alive)) {
       audio.playMusic(MusicTrack.BOSS)
+      return
+    }
+
+    // Void dimension: use deep/underground music (dark ambient)
+    if (this.isVoidDimension) {
+      audio.playMusic(MusicTrack.DEEP)
       return
     }
 
@@ -1161,6 +1239,8 @@ export class WorldScene extends Phaser.Scene {
       return
     }
 
+    if (!altarDef) return
+
     // Host/offline: consume ingredients and spawn boss
     const inv = this.player.inventory
     for (const ing of altarDef.ingredients) {
@@ -1446,6 +1526,182 @@ export class WorldScene extends Phaser.Scene {
     this.tweens.add({ targets: text, alpha: 0, duration: 1000, delay: 1000, onComplete: () => text.destroy() })
   }
 
+  // ── Void Portal Interaction ──────────────────────────────
+
+  /** Check if player is near a placed Super Portal (VOID_PORTAL_BLOCK=60) or void return portal */
+  private checkVoidPortalInteraction() {
+    if (this.player.dead || this.mp.isClient) return
+
+    const ptx = Math.floor(this.player.sprite.x / TILE_SIZE)
+    const pty = Math.floor(this.player.sprite.y / TILE_SIZE)
+
+    if (this.isVoidDimension) {
+      // In void dimension: check for return portal at spawn point
+      const spawnTX = this.worldData.spawnX
+      const spawnTY = this.worldData.spawnY
+      const dx = Math.abs(ptx - spawnTX)
+      const dy = Math.abs(pty - spawnTY)
+      if (dx <= 3 && dy <= 3) {
+        if (this.voidPortalPromptText) {
+          const px = spawnTX * TILE_SIZE + TILE_SIZE / 2
+          const py = spawnTY * TILE_SIZE - TILE_SIZE * 2
+          this.voidPortalPromptText.setText('[F] Return to original world')
+          this.voidPortalPromptText.setPosition(px, py)
+          this.voidPortalPromptText.setVisible(true)
+
+          if (Phaser.Input.Keyboard.JustDown(this.keyF)) {
+            this.returnFromVoidDimension()
+          }
+        }
+      } else if (this.voidPortalPromptText) {
+        this.voidPortalPromptText.setVisible(false)
+      }
+      return
+    }
+
+    // In regular world: check for placed Super Portals (VOID_PORTAL_BLOCK tiles)
+    // Look for VOID_PORTAL_BLOCK tiles near the player
+    let foundPortal = false
+    for (let dy = -3; dy <= 3; dy++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const tx = ptx + dx
+        const ty = pty + dy
+        if (this.chunkManager.getTile(tx, ty) === TileType.VOID_PORTAL_BLOCK) {
+          foundPortal = true
+          if (this.voidPortalPromptText) {
+            const px = tx * TILE_SIZE + TILE_SIZE / 2
+            const py = ty * TILE_SIZE - TILE_SIZE * 2
+            this.voidPortalPromptText.setText('[F] Enter the Void Dimension')
+            this.voidPortalPromptText.setPosition(px, py)
+            this.voidPortalPromptText.setVisible(true)
+
+            if (Phaser.Input.Keyboard.JustDown(this.keyF)) {
+              this.enterVoidDimension()
+            }
+          }
+          break
+        }
+      }
+      if (foundPortal) break
+    }
+    if (!foundPortal && this.voidPortalPromptText) {
+      this.voidPortalPromptText.setVisible(false)
+    }
+  }
+
+  /** Save current state and transition to void dimension */
+  private enterVoidDimension() {
+    // Save current game state
+    this.performSave()
+
+    // Store data needed to return
+    this.registry.set('originalWorldSeed', this.worldSeed)
+    this.registry.set('originalSaveSlotId', this.saveSlotId)
+    this.registry.set('originalSaveSlotName', this.saveSlotName)
+
+    // Transition to VoidCutsceneScene
+    AudioManager.get()?.stopMusic()
+    this.scene.stop('UIScene')
+    this.scene.start('VoidCutsceneScene', {
+      seed: this.worldSeed,
+      saveData: {
+        slotId: this.saveSlotId,
+        slotName: this.saveSlotName,
+      },
+    })
+  }
+
+  /** Return from void dimension to original world */
+  private returnFromVoidDimension() {
+    // Set postPortal flag so original world becomes dangerous
+    this.registry.set('postPortal', true)
+    this.registry.remove('voidDimension')
+
+    // Restore original world
+    const originalSlotId = this.registry.get('originalSaveSlotId') as string | undefined
+    if (originalSlotId) {
+      this.registry.set('loadSlotId', originalSlotId)
+      this.registry.set('loadSlotName', this.registry.get('originalSaveSlotName'))
+    } else {
+      this.registry.set('worldSeed', this.registry.get('originalWorldSeed'))
+    }
+    this.registry.remove('originalWorldSeed')
+    this.registry.remove('originalSaveSlotId')
+    this.registry.remove('originalSaveSlotName')
+
+    AudioManager.get()?.stopMusic()
+    this.scene.stop('UIScene')
+    this.scene.start('BootScene')
+  }
+
+  // ── Void Lord Boss Summon ──────────────────────────────
+
+  /** Check if player uses Void Lord Summon Token (item 370) */
+  private checkVoidLordSummon() {
+    if (this.player.dead || this.mp.isClient) return
+    if (this.activeBoss?.alive || this.finalBoss?.alive) return
+
+    // Check if the player has used item 370 (Void Lord Summon Token)
+    // The player presses F while holding the token in their hotbar
+    const selectedItem = this.player.inventory.getSelectedItem()
+    if (!selectedItem || selectedItem.id !== 370) return
+
+    // Need to have visited the void (postPortal flag)
+    if (!this.postPortal) return
+
+    if (Phaser.Input.Keyboard.JustDown(this.keyF)) {
+      // Consume the token
+      this.player.inventory.removeItem(370, 1)
+
+      // Spawn the Void Lord as a FinalBoss
+      const bx = this.player.sprite.x
+      const by = this.player.sprite.y - 100
+      const voidLordDef = BOSS_DEFS[BossType.VOID_LORD]
+      this.finalBoss = new FinalBoss(this, bx, by, voidLordDef)
+      this.finalBoss.entityId = this.mp.entities.register('boss', this.finalBoss)
+
+      AudioManager.get()?.play(SoundId.BOSS_APPEAR)
+
+      // Boss announcement
+      const text = this.add.text(
+        this.cameras.main.centerX, this.cameras.main.centerY - 100,
+        'THE VOID LORD HAS ARRIVED!',
+        {
+          fontSize: '24px', color: '#ff00ff', fontFamily: 'monospace',
+          stroke: '#000000', strokeThickness: 4,
+        }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
+
+      this.time.delayedCall(3000, () => text.destroy())
+    }
+  }
+
+  /** Handle Void Lord (FinalBoss) being defeated — trigger true ending */
+  private onVoidLordDefeated() {
+    if (!this.finalBoss) return
+
+    AudioManager.get()?.play(SoundId.BOSS_DIE)
+    this.grantXP(this.finalBoss.def.xp, this.finalBoss.sprite.x, this.finalBoss.sprite.y)
+
+    // Drop the boss item
+    this.spawnDrop(this.finalBoss.sprite.x, this.finalBoss.sprite.y, this.finalBoss.def.dropItemId, 1)
+
+    this.mp.entities.unregister(this.finalBoss.entityId)
+    this.finalBoss.destroy()
+    this.finalBoss = null
+
+    // Trigger true ending
+    AudioManager.get()?.stopMusic()
+    this.scene.pause('WorldScene')
+    this.scene.stop('UIScene')
+    this.scene.start('TrueEndingScene', {
+      stats: {
+        hasCompletedGame: this.hasCompletedGame,
+        postPortal: this.postPortal,
+      },
+    })
+  }
+
   /** Host: handle a remote client's boss summon request */
   private handleRemoteBossSummon(req: BossSummonRequest) {
     if (this.activeBoss?.alive) return // already fighting a boss
@@ -1536,6 +1792,21 @@ export class WorldScene extends Phaser.Scene {
 
     const { width, height } = this.scale
     const steps = 20
+
+    // Void dimension: always dark red/purple sky, no day/night cycle
+    if (this.isVoidDimension) {
+      for (let i = 0; i < steps; i++) {
+        const s = i / steps
+        const r = Math.floor(Phaser.Math.Linear(0x15, 0x2a, s))
+        const g = Math.floor(Phaser.Math.Linear(0x00, 0x05, s))
+        const b = Math.floor(Phaser.Math.Linear(0x10, 0x20, s))
+        const color = (r << 16) | (g << 8) | b
+        gfx.fillStyle(color)
+        gfx.fillRect(0, (i / steps) * height, width, height / steps + 1)
+      }
+      return
+    }
+
     const t = this.dayNight.time
 
     // Blend factor: 0 = night sky, 1 = day sky

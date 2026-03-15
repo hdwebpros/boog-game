@@ -16,6 +16,12 @@ export const SHOP_INVENTORY: ShopItem[] = [
   { itemId: 311, price: 20 },   // Celestial Banner
   { itemId: 312, price: 10 },   // Starfall Flower
   { itemId: 313, price: 25 },   // Sky Crystal Lamp
+  { itemId: 360, price: 500 },  // Warp Crystal
+  { itemId: 361, price: 500 },  // Soul Lantern
+  { itemId: 362, price: 750 },  // Chaos Heart
+  { itemId: 363, price: 750 },  // Void Eye
+  { itemId: 364, price: 600 },  // Temporal Shard
+  { itemId: 365, price: 1000 }, // Dimensional Anchor
 ]
 
 export const SELL_PRICES: Record<number, number> = {
@@ -73,4 +79,12 @@ export const SELL_PRICES: Record<number, number> = {
   311: 7,   // Celestial Banner
   312: 3,   // Starfall Flower
   313: 8,   // Sky Crystal Lamp
+
+  // Void materials
+  350: 15,   // Void Essence
+  351: 25,   // Hellfire Core
+  352: 10,   // Soul Fragment
+  353: 50,   // Chaos Shard
+  354: 40,   // Abyssal Ingot
+  355: 100,  // Dimensional Fabric
 }

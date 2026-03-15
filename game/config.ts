@@ -4,6 +4,8 @@ import { WorldScene } from './scenes/WorldScene'
 import { UIScene } from './scenes/UIScene'
 import { MenuScene } from './scenes/MenuScene'
 import { EndingScene } from './scenes/EndingScene'
+import { VoidCutsceneScene } from './scenes/VoidCutsceneScene'
+import { TrueEndingScene } from './scenes/TrueEndingScene'
 
 export function createGameConfig(parent: HTMLElement): Phaser.Types.Core.GameConfig {
   return {
@@ -20,7 +22,7 @@ export function createGameConfig(parent: HTMLElement): Phaser.Types.Core.GameCon
         debug: false,
       },
     },
-    scene: [MenuScene, BootScene, WorldScene, UIScene, EndingScene],
+    scene: [MenuScene, BootScene, WorldScene, UIScene, EndingScene, VoidCutsceneScene, TrueEndingScene],
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,

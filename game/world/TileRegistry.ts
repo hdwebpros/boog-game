@@ -48,6 +48,18 @@ export enum TileType {
   STARFALL_FLOWER = 46,
   SKY_CRYSTAL_LAMP = 47,
   PORTAL = 48,
+  VOID_STONE = 49,
+  VOID_DIRT = 50,
+  VOID_GRASS = 51,
+  HELLFIRE_ORE = 52,
+  VOID_CRYSTAL = 53,
+  BRIMSTONE = 54,
+  VOID_WOOD = 55,
+  VOID_LEAVES = 56,
+  ASH_BLOCK = 57,
+  NETHER_BRICK = 58,
+  SOUL_SAND = 59,
+  VOID_PORTAL_BLOCK = 60,
 }
 
 export interface TileProperties {
@@ -115,6 +127,18 @@ export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
   [TileType.STARFALL_FLOWER]:    { name: 'Starfall Flower', color: 0xff66aa, hardness: 0.3, solid: false, mineable: true, tier: 0, transparent: true, lightRadius: 48, lightColor: 0xff88cc },
   [TileType.SKY_CRYSTAL_LAMP]:   { name: 'Sky Crystal Lamp', color: 0x44ccff, hardness: 0.3, solid: false, mineable: true, tier: 0, transparent: true, lightRadius: 128, lightColor: 0x88ddff },
   [TileType.PORTAL]:             { name: 'Portal', color: 0x7744ff, hardness: 4, solid: false, mineable: true, tier: 3, transparent: true, lightRadius: 96, lightColor: 0x7744ff },
+  [TileType.VOID_STONE]:         { name: 'Void Stone',    color: 0x2a1040, hardness: 4,  solid: true,  mineable: true,  tier: 3 },
+  [TileType.VOID_DIRT]:          { name: 'Void Dirt',     color: 0x1a0a2e, hardness: 1,  solid: true,  mineable: true,  tier: 0 },
+  [TileType.VOID_GRASS]:         { name: 'Void Grass',    color: 0x6b1fb1, hardness: 1,  solid: true,  mineable: true,  tier: 0 },
+  [TileType.HELLFIRE_ORE]:       { name: 'Hellfire Ore',  color: 0xff4400, hardness: 5,  solid: true,  mineable: true,  tier: 3 },
+  [TileType.VOID_CRYSTAL]:       { name: 'Void Crystal',  color: 0x9933ff, hardness: 6,  solid: true,  mineable: true,  tier: 4 },
+  [TileType.BRIMSTONE]:          { name: 'Brimstone',     color: 0x8b4513, hardness: 3,  solid: true,  mineable: true,  tier: 2 },
+  [TileType.VOID_WOOD]:          { name: 'Void Wood',     color: 0x2d1b4e, hardness: 2,  solid: true,  mineable: true,  tier: 0 },
+  [TileType.VOID_LEAVES]:        { name: 'Void Leaves',   color: 0x7b2fbe, hardness: 1,  solid: false, mineable: true,  tier: 0, transparent: true },
+  [TileType.ASH_BLOCK]:          { name: 'Ash Block',     color: 0x3a3a3a, hardness: 2,  solid: true,  mineable: true,  tier: 1 },
+  [TileType.NETHER_BRICK]:       { name: 'Nether Brick',  color: 0x4a1a2a, hardness: 4,  solid: true,  mineable: true,  tier: 2 },
+  [TileType.SOUL_SAND]:          { name: 'Soul Sand',     color: 0x5a4a3a, hardness: 1,  solid: true,  mineable: true,  tier: 0 },
+  [TileType.VOID_PORTAL_BLOCK]:  { name: 'Void Portal',   color: 0x9900ff, hardness: 99, solid: false, mineable: true,  tier: 99, transparent: true },
 }
 
 /** Map station item IDs to their tile types */
@@ -128,6 +152,8 @@ export const STATION_TILE_TYPE: Record<number, TileType> = {
   236: TileType.STATION_ARCANE_ANVIL,
   116: TileType.CHEST,
   117: TileType.PORTAL,
+  320: TileType.VOID_PORTAL_BLOCK,
+  321: TileType.NETHER_BRICK,
 }
 
 /** Map non-station item IDs (100+) to their tile types for placement */
