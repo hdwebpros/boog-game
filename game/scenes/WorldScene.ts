@@ -107,6 +107,14 @@ export class WorldScene extends Phaser.Scene {
     this.worldData = this.registry.get('worldData') as WorldData
     this.worldSeed = this.worldData.seed
 
+    // Reset flags — Phaser reuses scene instances, so these persist across restarts
+    this.isVoidDimension = false
+    this.postPortal = false
+    this.hasCompletedGame = false
+    this.finalBoss = null
+    this.npc = null
+    this.npcShopPosition = null
+
     // Check if this is a void dimension world
     if (this.registry.get('voidDimension')) {
       this.isVoidDimension = true
