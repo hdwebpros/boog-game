@@ -1324,10 +1324,7 @@ export class WorldScene extends Phaser.Scene {
     if (darkness <= 0.01) return // no darkness = skip entirely
 
     const tintColor = this.dayNight.tintColor
-    const r = (tintColor >> 16) & 0xff
-    const g = (tintColor >> 8) & 0xff
-    const b = tintColor & 0xff
-    rt.fill(r, g, b, darkness * 255)
+    rt.fill(tintColor, darkness)
 
     // Determine visible tile range
     const camL = cam.scrollX
