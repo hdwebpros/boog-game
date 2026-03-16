@@ -474,6 +474,28 @@ const ITEMS = [
     desc: 'trophy of the void lord inventory icon for a 2D side-scrolling game. Ornate dark purple crystalline trophy with a miniature void lord skull on top, glowing magenta base with arcane inscriptions, ultimate victory reward. Pixel art item sprite.',
   },
 
+  // ─── SHARD COMPASSES ────────────────────────────────────────
+  {
+    name: 'item_385', label: 'ember_shard_compass',
+    desc: 'ember shard compass item for a 2D side-scrolling game inventory icon. Ornate dark iron compass with a glowing red-orange ember crystal needle in the center, fiery orange runes etched around the rim, smoldering embers glow within the casing, dark metal frame with heat-warped edges.',
+  },
+  {
+    name: 'item_386', label: 'frost_shard_compass',
+    desc: 'frost shard compass item for a 2D side-scrolling game inventory icon. Elegant silver compass with a glowing ice-blue crystal needle in the center, frost patterns and snowflake engravings around the rim, frozen crystalline casing with a cold blue glow, icy mist emanating from edges.',
+  },
+  {
+    name: 'item_387', label: 'storm_shard_compass',
+    desc: 'storm shard compass item for a 2D side-scrolling game inventory icon. Electrified bronze compass with a crackling yellow lightning crystal needle in the center, tiny lightning bolt symbols etched around the rim, sparking golden energy arcing across the surface, copper and brass casing.',
+  },
+  {
+    name: 'item_388', label: 'void_shard_compass',
+    desc: 'void shard compass item for a 2D side-scrolling game inventory icon. Otherworldly obsidian compass with a glowing deep purple void crystal needle in the center, swirling dark energy tendrils around the rim, shadowy particles orbiting the casing, black metal frame with purple void glow.',
+  },
+  {
+    name: 'item_389', label: 'life_shard_compass',
+    desc: 'life shard compass item for a 2D side-scrolling game inventory icon. Living wooden compass with a glowing bright green life crystal needle in the center, tiny vines and leaves growing around the rim, emerald green glow pulsing from within, natural wood and living bark casing.',
+  },
+
   // ─── MATERIALS ──────────────────────────────────────────────
   {
     name: 'item_100', label: 'iron_bar',

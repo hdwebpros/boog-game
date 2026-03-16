@@ -143,6 +143,13 @@ export const RECIPES: Recipe[] = [
   // ── Mystical Compass (crafted at Arcane Anvil) ───────
   { id: 'mystical_compass', station: StationType.ARCANE_ANVIL, inputs: [{ itemId: 235, count: 8 }, { itemId: 101, count: 3 }, { itemId: 100, count: 5 }], output: { itemId: 242, count: 1 } },
 
+  // ── Shard Compasses (crafted at Void Forge) ─────────
+  { id: 'ember_shard_compass', station: StationType.VOID_FORGE, inputs: [{ itemId: 230, count: 10 }, { itemId: 351, count: 5 }, { itemId: 354, count: 2 }], output: { itemId: 385, count: 1 } },
+  { id: 'frost_shard_compass', station: StationType.VOID_FORGE, inputs: [{ itemId: 231, count: 10 }, { itemId: 352, count: 5 }, { itemId: 354, count: 2 }], output: { itemId: 386, count: 1 } },
+  { id: 'storm_shard_compass', station: StationType.VOID_FORGE, inputs: [{ itemId: 232, count: 10 }, { itemId: 353, count: 3 }, { itemId: 354, count: 2 }], output: { itemId: 387, count: 1 } },
+  { id: 'void_shard_compass',  station: StationType.VOID_FORGE, inputs: [{ itemId: 233, count: 10 }, { itemId: 355, count: 2 }, { itemId: 354, count: 3 }], output: { itemId: 388, count: 1 } },
+  { id: 'life_shard_compass',  station: StationType.VOID_FORGE, inputs: [{ itemId: 234, count: 10 }, { itemId: 350, count: 5 }, { itemId: 354, count: 2 }], output: { itemId: 389, count: 1 } },
+
   // ── Super Portal (crafted at Fusion Station) ────────
   { id: 'super_portal', station: StationType.FUSION_STATION, inputs: [{ itemId: TileType.OBSIDIAN, count: 99 }, { itemId: 235, count: 40 }, { itemId: 102, count: 30 }], output: { itemId: 320, count: 1 } },
 
