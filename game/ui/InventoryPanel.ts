@@ -6,7 +6,7 @@ import { getItemDef, ENCHANTMENT_NAMES, ENCHANTMENT_COLORS } from '../data/items
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 import { ACCESSORY_EFFECTS } from '../data/accessories'
-import { SLOT_SIZE, SLOT_GAP, getItemTexKey, drawEnchantGradient } from './UIContext'
+import { SLOT_SIZE, SLOT_GAP, getItemTexKey, drawEnchantGradient, drawEternalStars } from './UIContext'
 
 const INV_COLS = 10
 const INV_PAD = 12
@@ -343,8 +343,7 @@ export class InventoryPanel {
           const enchColor = ENCHANTMENT_COLORS[item.enchantment] ?? 0xffffff
           drawEnchantGradient(this.invGfx, sx, sy, enchColor)
           if (item.enchantment === 'eternal') {
-            this.invGfx.lineStyle(2, 0xffffff, 1)
-            this.invGfx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+            drawEternalStars(this.invGfx, sx, sy)
           }
         }
       } else {

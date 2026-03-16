@@ -50,3 +50,40 @@ export function drawEnchantGradient(
   gfx.lineStyle(1, color, borderPulse)
   gfx.strokeRect(x + 1, y + 1, SLOT_SIZE - 2, SLOT_SIZE - 2)
 }
+
+/**
+ * Draw animated twinkling stars over an eternal-enchanted item slot.
+ * Stars drift slowly, fade in/out, and have a golden sparkle.
+ */
+export function drawEternalStars(
+  gfx: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+) {
+  const t = Date.now() * 0.001
+  // 6 star particles, each with unique phase/position cycle
+  for (let i = 0; i < 6; i++) {
+    const seed = i * 1.7 + 0.3
+    // Slow drift within slot bounds (inset by 4px)
+    const px = x + 4 + ((Math.sin(t * 0.6 * seed + seed * 5) * 0.5 + 0.5) * (SLOT_SIZE - 8))
+    const py = y + 4 + ((Math.cos(t * 0.5 * seed + seed * 3) * 0.5 + 0.5) * (SLOT_SIZE - 8))
+    // Twinkle: fade in and out on different cycles
+    const alpha = Math.max(0, Math.sin(t * 2.2 + i * 1.05)) * 0.9
+    if (alpha < 0.05) continue
+    const size = 1.2 + 0.8 * Math.sin(t * 3 + i * 2)
+
+    // Draw a 4-pointed star (cross shape)
+    gfx.fillStyle(0xffffff, alpha)
+    gfx.fillRect(px - size, py - 0.5, size * 2, 1) // horizontal
+    gfx.fillRect(px - 0.5, py - size, 1, size * 2) // vertical
+
+    // Tiny gold glow dot in center
+    gfx.fillStyle(0xffd700, alpha * 0.7)
+    gfx.fillRect(px - 0.5, py - 0.5, 1, 1)
+  }
+
+  // Golden pulsing border (thicker than normal enchant border)
+  const borderAlpha = 0.5 + 0.4 * Math.sin(t * 2.5)
+  gfx.lineStyle(2, 0xffd700, borderAlpha)
+  gfx.strokeRect(x + 1, y + 1, SLOT_SIZE - 2, SLOT_SIZE - 2)
+}
