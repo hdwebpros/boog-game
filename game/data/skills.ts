@@ -485,7 +485,7 @@ export interface ParagonCategory {
   /** Per-point bonus values */
   perPoint: Partial<Pick<SkillDef,
     'maxHpBonus' | 'meleeDamageMult' | 'rangedDamageMult' | 'magicDamageMult' |
-    'mineSpeedMult' | 'maxManaBonus' | 'defenseBonus' | 'moveSpeedMult'
+    'mineSpeedMult' | 'maxManaBonus' | 'defenseBonus' | 'moveSpeedMult' | 'dodgeChance'
   >>
   /** Human-readable per-point description */
   perPointLabel: string
@@ -531,6 +531,16 @@ export const PARAGON_CATEGORIES: ParagonCategory[] = [
     icon: '>',
     perPoint: { moveSpeedMult: 1.005 },
     perPointLabel: '+0.5% Move Speed',
+  },
+  {
+    id: 'evasion',
+    name: 'Evasion',
+    description: 'Increase dodge chance',
+    color: 0xcc66ff,
+    colorStr: '#cc66ff',
+    icon: '~',
+    perPoint: { dodgeChance: 0.01 },
+    perPointLabel: '+1% Dodge Chance',
   },
 ]
 

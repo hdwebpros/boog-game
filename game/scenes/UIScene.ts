@@ -53,6 +53,10 @@ export class UIScene extends Phaser.Scene {
   private compassGfx!: Phaser.GameObjects.Graphics
   private compassDistText!: Phaser.GameObjects.Text
 
+  // Shard Compass HUD (up to 5 shard compasses stacked)
+  private shardCompassGfx!: Phaser.GameObjects.Graphics
+  private shardCompassTexts: Phaser.GameObjects.Text[] = []
+
   constructor() {
     super({ key: 'UIScene' })
   }
@@ -157,6 +161,16 @@ export class UIScene extends Phaser.Scene {
       fontSize: '10px', color: '#88ccff', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 3, align: 'center',
     }).setOrigin(0.5, 0).setDepth(210).setVisible(false)
+
+    // Shard Compass HUD
+    this.shardCompassGfx = this.add.graphics().setDepth(210).setVisible(false)
+    for (let i = 0; i < 5; i++) {
+      const txt = this.add.text(0, 0, '', {
+        fontSize: '9px', color: '#ffffff', fontFamily: 'monospace',
+        stroke: '#000000', strokeThickness: 3, align: 'center',
+      }).setOrigin(0.5, 0).setDepth(210).setVisible(false)
+      this.shardCompassTexts.push(txt)
+    }
 
     // Biome banner
     const { width } = this.scale
@@ -314,6 +328,7 @@ export class UIScene extends Phaser.Scene {
     this.coordText.setText(`X: ${ptx}  Y: ${pty}`)
 
     this.updateCompass(worldScene)
+    this.updateShardCompasses(worldScene)
     this.updateBiomeBanner(player)
     this.chatOverlay?.update()
   }
@@ -437,6 +452,70 @@ export class UIScene extends Phaser.Scene {
     this.compassDistText.setText(`${tileDist}m`)
     this.compassDistText.setPosition(cx, cy + radius + 8)
     this.compassDistText.setVisible(true)
+  }
+
+  private updateShardCompasses(worldScene: any) {
+    const targets = worldScene?.getShardCompassTargets?.() as
+      Array<{ angle: number; dist: number; color: number; label: string }> | null
+
+    if (!targets || targets.length === 0) {
+      this.shardCompassGfx.setVisible(false)
+      for (const txt of this.shardCompassTexts) txt.setVisible(false)
+      return
+    }
+
+    this.shardCompassGfx.clear()
+
+    const baseX = 760
+    // Stack below the mystical compass area (y=140 is mystical compass center)
+    const baseY = 190
+    const radius = 14
+    const spacing = 42
+
+    for (let i = 0; i < targets.length && i < 5; i++) {
+      const t = targets[i]!
+      const cx = baseX
+      const cy = baseY + i * spacing
+
+      // Outer ring (tinted with shard color)
+      this.shardCompassGfx.lineStyle(2, t.color, 0.8)
+      this.shardCompassGfx.strokeCircle(cx, cy, radius + 3)
+
+      // Inner fill
+      this.shardCompassGfx.fillStyle(0x112233, 0.7)
+      this.shardCompassGfx.fillCircle(cx, cy, radius + 1)
+
+      // Arrow pointing toward shard
+      const arrowLen = radius - 2
+      const tipX = cx + Math.cos(t.angle) * arrowLen
+      const tipY = cy + Math.sin(t.angle) * arrowLen
+      const baseL = cx + Math.cos(t.angle + 2.6) * 6
+      const baseR = cx + Math.cos(t.angle - 2.6) * 6
+      const baseLY = cy + Math.sin(t.angle + 2.6) * 6
+      const baseRY = cy + Math.sin(t.angle - 2.6) * 6
+
+      this.shardCompassGfx.fillStyle(t.color, 1)
+      this.shardCompassGfx.fillTriangle(tipX, tipY, baseL, baseLY, baseR, baseRY)
+
+      // Center dot
+      this.shardCompassGfx.fillStyle(0xffffff, 0.8)
+      this.shardCompassGfx.fillCircle(cx, cy, 1.5)
+
+      // Label + distance
+      const tileDist = Math.round(t.dist / TILE_SIZE)
+      const txt = this.shardCompassTexts[i]!
+      txt.setText(`${t.label} ${tileDist}m`)
+      txt.setPosition(cx, cy + radius + 5)
+      txt.setColor(`#${t.color.toString(16).padStart(6, '0')}`)
+      txt.setVisible(true)
+    }
+
+    // Hide unused text labels
+    for (let i = targets.length; i < 5; i++) {
+      this.shardCompassTexts[i]!.setVisible(false)
+    }
+
+    this.shardCompassGfx.setVisible(true)
   }
 
   /** Close the world map if open (called by WorldScene ESC handler) */

@@ -6,11 +6,11 @@ import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 
 const SKILL_W = 520
-const SKILL_H = 580
-const SKILL_NODE_SIZE = 36
-const SKILL_NODE_GAP_X = 56
-const SKILL_NODE_GAP_Y = 70
-const SUPER_ROW_Y_OFFSET = 235
+const SKILL_H = 510
+const SKILL_NODE_SIZE = 28
+const SKILL_NODE_GAP_X = 46
+const SKILL_NODE_GAP_Y = 56
+const SUPER_ROW_Y_OFFSET = 185
 
 export class SkillTreePanel {
   private scene: Phaser.Scene
@@ -98,7 +98,7 @@ export class SkillTreePanel {
 
         const abbr = skill.name.split(' ').map(w => w[0]).join('').substring(0, 3)
         const nodeText = this.scene.add.text(cx, cy - 2, abbr, {
-          fontSize: '11px', color: '#ffffff', fontFamily: 'monospace',
+          fontSize: '9px', color: '#ffffff', fontFamily: 'monospace',
           stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5).setDepth(322).setVisible(false)
         this.skillNodeTexts.push(nodeText)
@@ -143,7 +143,7 @@ export class SkillTreePanel {
 
         const abbr = skill.name.split(' ').map(w => w[0]).join('').substring(0, 3)
         const nodeText = this.scene.add.text(cx, cy - 2, abbr, {
-          fontSize: '11px', color: '#ffffff', fontFamily: 'monospace',
+          fontSize: '9px', color: '#ffffff', fontFamily: 'monospace',
           stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5).setDepth(322).setVisible(false)
         this.skillNodeTexts.push(nodeText)
@@ -199,7 +199,7 @@ export class SkillTreePanel {
 
         const abbr = skill.name.split(' ').map(w => w[0]).join('').substring(0, 3)
         const nodeText = this.scene.add.text(cx, cy - 2, abbr, {
-          fontSize: '11px', color: '#ffffff', fontFamily: 'monospace',
+          fontSize: '9px', color: '#ffffff', fontFamily: 'monospace',
           stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5).setDepth(322).setVisible(false)
         this.skillNodeTexts.push(nodeText)
@@ -213,9 +213,9 @@ export class SkillTreePanel {
 
     // ── Paragon nodes ─────────────────────────────────────
     const paragonY = ascY + 3 * (SKILL_NODE_GAP_Y - 10) + 10
-    const paragonNodeW = 80
-    const paragonNodeH = 36
-    const paragonGap = 16
+    const paragonNodeW = 72
+    const paragonNodeH = 30
+    const paragonGap = 14
     const totalParagonW = PARAGON_CATEGORIES.length * paragonNodeW + (PARAGON_CATEGORIES.length - 1) * paragonGap
     const paragonStartX = panelX + (SKILL_W - totalParagonW) / 2
 
@@ -235,7 +235,7 @@ export class SkillTreePanel {
       this.paragonZones.push(zone)
 
       const nodeText = this.scene.add.text(cx, cy, `[${cat.icon}] ${cat.name}\n0`, {
-        fontSize: '8px', color: cat.colorStr, fontFamily: 'monospace',
+        fontSize: '7px', color: cat.colorStr, fontFamily: 'monospace',
         align: 'center', stroke: '#000000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(322).setVisible(false)
       this.paragonTexts.push(nodeText)
@@ -483,8 +483,8 @@ export class SkillTreePanel {
         const cat = PARAGON_CATEGORIES[i]!
         const zone = this.paragonZones[i]!
         const pts = skills.paragonPoints[cat.id] ?? 0
-        const nodeW = 80
-        const nodeH = 36
+        const nodeW = 72
+        const nodeH = 30
         const nx = zone.x - nodeW / 2
         const ny = zone.y - nodeH / 2
 

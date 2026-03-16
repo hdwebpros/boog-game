@@ -288,6 +288,13 @@ export const ITEMS: Record<number, ItemDef> = {
   // ── Void Special Items ─────────────────────────────────
   370: { id: 370, name: 'Void Lord Summon Token',  category: ItemCategory.SPECIAL, stackSize: 1, tier: 6, color: 0xff00ff },
   380: { id: 380, name: 'Trophy of the Void Lord', category: ItemCategory.SPECIAL, stackSize: 1, tier: 6, color: 0xffcc00 },
+
+  // ── Shard Compasses ──────────────────────────────────
+  385: { id: 385, name: 'Ember Shard Compass',  category: ItemCategory.SPECIAL, stackSize: 1, tier: 3, color: 0xff6633 },
+  386: { id: 386, name: 'Frost Shard Compass',  category: ItemCategory.SPECIAL, stackSize: 1, tier: 3, color: 0x66ccff },
+  387: { id: 387, name: 'Storm Shard Compass',  category: ItemCategory.SPECIAL, stackSize: 1, tier: 3, color: 0xffee44 },
+  388: { id: 388, name: 'Void Shard Compass',   category: ItemCategory.SPECIAL, stackSize: 1, tier: 4, color: 0x9933ff },
+  389: { id: 389, name: 'Life Shard Compass',   category: ItemCategory.SPECIAL, stackSize: 1, tier: 3, color: 0x33ff66 },
 }
 
 export function getItemDef(id: number): ItemDef | undefined {

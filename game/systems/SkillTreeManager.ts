@@ -244,6 +244,7 @@ export class SkillTreeManager {
       if (pp.magicDamageMult) mods.magicDamageMult *= Math.pow(pp.magicDamageMult, pts)
       if (pp.mineSpeedMult) mods.mineSpeedMult *= Math.pow(pp.mineSpeedMult, pts)
       if (pp.moveSpeedMult) mods.moveSpeedMult *= Math.pow(pp.moveSpeedMult, pts)
+      if (pp.dodgeChance) mods.dodgeChance += pp.dodgeChance * pts
     }
 
     this.cachedModifiers = mods

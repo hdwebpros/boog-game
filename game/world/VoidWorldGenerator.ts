@@ -73,6 +73,9 @@ export function generateVoidWorld(seed: number): VoidWorldData {
   // Pass 11: Generate nether brick structures in citadel zone
   placeNetherBrickStructures(tiles, width, height, structureNoise, rng)
 
+  // Pass 12: Scatter starshard crystal deposits across void biomes
+  placeVoidCrystals(tiles, width, height, oreNoise, detailNoise)
+
   // Find spawn point near center
   const { spawnX, spawnY } = findSpawnPoint(tiles, width, height)
 
@@ -571,6 +574,62 @@ function placeNetherRoom(
         if (y < CEILING_BOTTOM || y >= FLOOR_TOP) continue
         tiles[y * width + x] = TileType.NETHER_BRICK
       }
+    }
+  }
+}
+
+function placeVoidCrystals(
+  tiles: Uint8Array, width: number, _height: number,
+  oreNoise: (x: number, y: number) => number,
+  detailNoise: (x: number, y: number) => number
+) {
+  // Starshard crystals in void — each type concentrated in a biome zone
+  // Ember → Hellfire Caverns, Frost → Ashen Wastes, Storm → throughout,
+  // Life → Void Forest, Void → Dark Citadel (rarest)
+  for (let x = 0; x < width; x++) {
+    for (let y = CEILING_BOTTOM; y < FLOOR_TOP; y++) {
+      const idx = y * width + x
+      const tile = tiles[idx]!
+      if (tile !== TileType.VOID_STONE) continue
+
+      // Must be adjacent to air (cave wall placement)
+      const hasAirNeighbor =
+        (x > 0 && tiles[idx - 1] === TileType.AIR) ||
+        (x < width - 1 && tiles[idx + 1] === TileType.AIR) ||
+        (y > CEILING_BOTTOM && tiles[(y - 1) * width + x] === TileType.AIR) ||
+        (y < FLOOR_TOP - 1 && tiles[(y + 1) * width + x] === TileType.AIR)
+      if (!hasAirNeighbor) continue
+
+      const cn = oreNoise(x * 0.07, y * 0.07)
+      const detail = detailNoise(x * 0.12, y * 0.12)
+      const val = cn * 0.6 + detail * 0.4
+      if (val < 0.65) continue // rare clusters only
+
+      const biome = getBiomeZone(x)
+      let ct: TileType | null = null
+
+      switch (biome) {
+        case 'hellfire':
+          ct = TileType.CRYSTAL_EMBER
+          break
+        case 'ashen':
+          ct = TileType.CRYSTAL_FROST
+          break
+        case 'forest':
+          ct = TileType.CRYSTAL_LIFE
+          break
+        case 'citadel':
+          // Void crystals rarest — need higher threshold
+          if (val > 0.72) ct = TileType.CRYSTAL_VOID
+          break
+      }
+
+      // Storm crystals scatter across all biomes at very high threshold
+      if (!ct && val > 0.75) {
+        ct = TileType.CRYSTAL_STORM
+      }
+
+      if (ct) tiles[idx] = ct
     }
   }
 }

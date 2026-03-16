@@ -2298,6 +2298,76 @@ export class WorldScene extends Phaser.Scene {
     return { angle: Math.atan2(nearest.ry - py, nearest.rx - px), dist: nearest.dist }
   }
 
+  /** Shard compass item → crystal tile type mapping */
+  private static readonly SHARD_COMPASS_MAP: Array<{ itemId: number; tileType: TileType; color: number; label: string }> = [
+    { itemId: 385, tileType: TileType.CRYSTAL_EMBER, color: 0xff6633, label: 'Ember' },
+    { itemId: 386, tileType: TileType.CRYSTAL_FROST, color: 0x66ccff, label: 'Frost' },
+    { itemId: 387, tileType: TileType.CRYSTAL_STORM, color: 0xffee44, label: 'Storm' },
+    { itemId: 388, tileType: TileType.CRYSTAL_VOID,  color: 0x9933ff, label: 'Void' },
+    { itemId: 389, tileType: TileType.CRYSTAL_LIFE,  color: 0x33ff66, label: 'Life' },
+  ]
+
+  /** Cache for shard compass tile scanning — re-scans every 60 frames */
+  private shardCompassCache: Array<{ angle: number; dist: number; color: number; label: string }> = []
+  private shardCompassCacheTick = 0
+
+  /** Get all active shard compass targets */
+  getShardCompassTargets(): Array<{ angle: number; dist: number; color: number; label: string }> {
+    // Only re-scan every 60 frames (≈1 second) for performance
+    if (this.time.now - this.shardCompassCacheTick < 1000) return this.shardCompassCache
+
+    this.shardCompassCacheTick = this.time.now
+    this.shardCompassCache = []
+
+    const inv = this.player.inventory
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    const ptx = Math.floor(px / TILE_SIZE)
+    const pty = Math.floor(py / TILE_SIZE)
+
+    // Scan radius in tiles (search a large area)
+    const scanRadius = 200
+
+    for (const entry of WorldScene.SHARD_COMPASS_MAP) {
+      if (inv.getCount(entry.itemId) <= 0) continue
+
+      let nearestDist = Infinity
+      let nearestX = 0
+      let nearestY = 0
+
+      const minX = Math.max(0, ptx - scanRadius)
+      const maxX = Math.min(this.worldData.width - 1, ptx + scanRadius)
+      const minY = Math.max(0, pty - scanRadius)
+      const maxY = Math.min(this.worldData.height - 1, pty + scanRadius)
+
+      for (let ty = minY; ty <= maxY; ty++) {
+        for (let tx = minX; tx <= maxX; tx++) {
+          if (this.worldData.tiles[ty * this.worldData.width + tx] === entry.tileType) {
+            const wx = tx * TILE_SIZE + TILE_SIZE / 2
+            const wy = ty * TILE_SIZE + TILE_SIZE / 2
+            const dist = Math.sqrt((wx - px) ** 2 + (wy - py) ** 2)
+            if (dist < nearestDist) {
+              nearestDist = dist
+              nearestX = wx
+              nearestY = wy
+            }
+          }
+        }
+      }
+
+      if (nearestDist < Infinity) {
+        this.shardCompassCache.push({
+          angle: Math.atan2(nearestY - py, nearestX - px),
+          dist: nearestDist,
+          color: entry.color,
+          label: entry.label,
+        })
+      }
+    }
+
+    return this.shardCompassCache
+  }
+
   // ── Host: Handle messages from remote players ──────────
 
   private handleHostMessage(msg: NetworkMessage) {
