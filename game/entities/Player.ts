@@ -1111,8 +1111,11 @@ export class Player {
       }
     }
 
-    this.sprite.x = Phaser.Math.Clamp(this.sprite.x, hw, WORLD_WIDTH * TILE_SIZE - hw)
-    const clampedY = Phaser.Math.Clamp(this.sprite.y, hh, WORLD_HEIGHT * TILE_SIZE - hh)
+    const ws = this.scene as any
+    const wWidth = ws.worldData?.width ?? WORLD_WIDTH
+    const wHeight = ws.worldData?.height ?? WORLD_HEIGHT
+    this.sprite.x = Phaser.Math.Clamp(this.sprite.x, hw, wWidth * TILE_SIZE - hw)
+    const clampedY = Phaser.Math.Clamp(this.sprite.y, hh, wHeight * TILE_SIZE - hh)
     if (clampedY !== this.sprite.y && this.sprite.y > clampedY) {
       // Hit bottom of world — treat as ground
       this.isGrounded = true
@@ -1514,7 +1517,8 @@ export class Player {
         for (let dy = 0; dy < 4; dy++) {
           const px = tx + dx
           const py = ty + dy
-          if (px >= WORLD_WIDTH || py >= WORLD_HEIGHT) return
+          const ws2 = this.scene as any
+          if (px >= (ws2.worldData?.width ?? WORLD_WIDTH) || py >= (ws2.worldData?.height ?? WORLD_HEIGHT)) return
           if (chunks.getTile(px, py) !== TileType.AIR) return
         }
       }
@@ -1614,7 +1618,8 @@ export class Player {
     this.overlay.clear()
     const { tx, ty, inRange } = this.getCursorTile()
 
-    if (tx < 0 || ty < 0 || tx >= WORLD_WIDTH || ty >= WORLD_HEIGHT) return
+    const ws3 = this.scene as any
+    if (tx < 0 || ty < 0 || tx >= (ws3.worldData?.width ?? WORLD_WIDTH) || ty >= (ws3.worldData?.height ?? WORLD_HEIGHT)) return
 
     const px = tx * TILE_SIZE
     const py = ty * TILE_SIZE

@@ -4,6 +4,7 @@ import type { EnemyDef } from '../data/enemies'
 import { ENEMY_DEFS } from '../data/enemies'
 import { ChunkManager } from '../world/ChunkManager'
 import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT, TileType } from '../world/TileRegistry'
+import { VOID_WORLD_WIDTH, VOID_WORLD_HEIGHT } from '../world/VoidWorldGenerator'
 
 const MAX_ENEMIES_DAY = 15
 const MAX_ENEMIES_NIGHT = 22
@@ -117,10 +118,12 @@ export class EnemySpawner {
     const spawnTY = Math.floor(spawnY / TILE_SIZE)
 
     // Must be in world bounds
-    if (spawnTX < 0 || spawnTX >= WORLD_WIDTH || spawnTY < 0 || spawnTY >= WORLD_HEIGHT) return
+    const boundW = this.voidDimension ? VOID_WORLD_WIDTH : WORLD_WIDTH
+    const boundH = this.voidDimension ? VOID_WORLD_HEIGHT : WORLD_HEIGHT
+    if (spawnTX < 0 || spawnTX >= boundW || spawnTY < 0 || spawnTY >= boundH) return
 
     // Determine biome info
-    const isOcean = spawnTX < OCEAN_WIDTH || spawnTX >= WORLD_WIDTH - OCEAN_WIDTH
+    const isOcean = !this.voidDimension && (spawnTX < OCEAN_WIDTH || spawnTX >= WORLD_WIDTH - OCEAN_WIDTH)
     const surfBiome = this.surfaceBiomes && spawnTX >= 0 && spawnTX < this.surfaceBiomes.length
       ? this.surfaceBiomes[spawnTX]!
       : -1

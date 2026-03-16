@@ -5,7 +5,7 @@ import { Enemy } from '../entities/Enemy'
 import { Boss } from '../entities/Boss'
 import { FinalBoss } from '../entities/FinalBoss'
 import type { WorldData, AltarPlacement, RunestonePlacement } from '../world/WorldGenerator'
-import { TileType, TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT, UNDERGROUND_Y as UNDERGROUND_TILE_Y, DEEP_UNDERGROUND_Y, STATION_TILE_TYPE } from '../world/TileRegistry'
+import { TileType, TILE_SIZE, WORLD_WIDTH, UNDERGROUND_Y as UNDERGROUND_TILE_Y, DEEP_UNDERGROUND_Y, STATION_TILE_TYPE } from '../world/TileRegistry'
 import { CombatSystem } from '../systems/CombatSystem'
 import { EnemySpawner } from '../systems/EnemySpawner'
 import { BOSS_DEFS, ALTAR_DEFS, BossType } from '../data/bosses'
@@ -111,9 +111,15 @@ export class WorldScene extends Phaser.Scene {
     this.isVoidDimension = false
     this.postPortal = false
     this.hasCompletedGame = false
+    this.endingTriggered = false
     this.finalBoss = null
     this.npc = null
     this.npcShopPosition = null
+    this.autoSaveTimer = 0
+    this.saveFailed = false
+    this.discoveredAltars = new Set()
+    this.usedRunestones = new Set()
+    this.discoveredPOIs = new Set()
 
     // Check if this is a void dimension world
     if (this.registry.get('voidDimension')) {
@@ -139,13 +145,21 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(50)
     // Reset cycle on new game
     this.dayNight = new DayNightCycle()
+    this.wasNight = false
+
+    // Clear enemies/items from previous scene run (Phaser reuses scene instances)
+    for (const e of this.enemies) { if (e.sprite.active) e.sprite.destroy() }
+    this.enemies = []
+    for (const d of this.droppedItems) { if (d.sprite?.active) d.sprite.destroy() }
+    this.droppedItems = []
+    this.activeBoss = null
 
     // Chunk-based tile rendering
     this.chunkManager = new ChunkManager(this, this.worldData)
 
-    // World bounds
-    const worldPxW = WORLD_WIDTH * TILE_SIZE
-    const worldPxH = WORLD_HEIGHT * TILE_SIZE
+    // World bounds — use actual world dimensions (void world is smaller)
+    const worldPxW = this.worldData.width * TILE_SIZE
+    const worldPxH = this.worldData.height * TILE_SIZE
     this.cameras.main.setBounds(0, 0, worldPxW, worldPxH)
 
     // Combat system
@@ -591,10 +605,13 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
+      // Void dimension is always "night" for spawning/AI purposes
+      const isNightForSpawning = this.isVoidDimension ? true : this.dayNight.isNight
+
       // Spawn enemies near all players (not during boss fight)
       if (!this.activeBoss || !this.activeBoss.alive) {
         const prevCount = this.enemies.length
-        this.enemySpawner.update(dt, this.chunkManager, allPlayerPositions, this.enemies, this.dayNight.isNight)
+        this.enemySpawner.update(dt, this.chunkManager, allPlayerPositions, this.enemies, isNightForSpawning)
         // Register any newly spawned enemies
         for (let i = prevCount; i < this.enemies.length; i++) {
           this.registerEnemy(this.enemies[i]!)
@@ -623,7 +640,7 @@ export class WorldScene extends Phaser.Scene {
           }
         }
 
-        const result = enemy.update(dt, this.chunkManager, nearestX, nearestY, this.dayNight.isNight, effectiveDarkness)
+        const result = enemy.update(dt, this.chunkManager, nearestX, nearestY, isNightForSpawning, effectiveDarkness)
 
         if (result.shootAtPlayer) {
           this.combat.fireEnemyProjectile(
@@ -814,8 +831,8 @@ export class WorldScene extends Phaser.Scene {
         this.onBossDefeated()
       }
 
-      // Kill night-only enemies when day arrives
-      if (!this.dayNight.isNight) {
+      // Kill night-only enemies when day arrives (skip in void — always "night")
+      if (!this.isVoidDimension && !this.dayNight.isNight) {
         for (const enemy of this.enemies) {
           if (enemy.alive && enemy.def.nightOnly) {
             enemy.alive = false
@@ -1021,7 +1038,7 @@ export class WorldScene extends Phaser.Scene {
   private checkJetpack() {
     if (this.player.hasJetpack) {
       // Check if player has reached the sky (top of world)
-      if (this.player.sprite.y < 32 && !this.endingTriggered) {
+      if (this.player.sprite.y < 32 && !this.endingTriggered && !this.isVoidDimension) {
         // Trigger ending cutscene — save world then pause so data persists
         this.endingTriggered = true
         this.performSave()
@@ -1679,6 +1696,22 @@ export class WorldScene extends Phaser.Scene {
     // Set postPortal flag so original world becomes dangerous
     this.registry.set('postPortal', true)
     this.registry.remove('voidDimension')
+
+    // Capture current player state (including void loot) to carry back
+    const playerState = {
+      hp: this.player.hp,
+      mana: this.player.mana,
+      hotbar: this.player.inventory.hotbar,
+      mainInventory: this.player.inventory.mainInventory,
+      selectedSlot: this.player.inventory.selectedSlot,
+      hasJetpack: this.player.hasJetpack,
+      hasRebreather: this.player.hasRebreather,
+      armorSlots: this.player.inventory.armorSlots,
+      accessorySlots: this.player.inventory.accessorySlots,
+      skills: this.player.skills.toSaveData(),
+      discoveredItems: Array.from(this.player.inventory.discoveredItems),
+    }
+    this.registry.set('voidPlayerState', playerState)
 
     // Restore original world
     const originalSlotId = this.registry.get('originalSaveSlotId') as string | undefined
