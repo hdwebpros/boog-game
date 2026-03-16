@@ -20,6 +20,7 @@ import { SurfaceBiome } from '../world/WorldGenerator'
 import { getBiomeZone } from '../world/VoidWorldGenerator'
 import { DayNightCycle } from '../systems/DayNightCycle'
 import { NPC } from '../entities/NPC'
+import { ParticleManager } from '../systems/ParticleManager'
 import { MultiplayerManager, RoomConnector, RemotePlayerSim, REMOTE_COL_W, REMOTE_COL_H, encodeMessage, MessageType } from '../multiplayer'
 import type { NetworkManager } from '../multiplayer'
 import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, ProjectileSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage, AttackRequest, CombatEvent, BossSummonRequest } from '../multiplayer'
@@ -93,6 +94,7 @@ export class WorldScene extends Phaser.Scene {
   private clientProjectileSprites = new Map<number, Phaser.GameObjects.Rectangle>()
 
   // Void dimension
+  particles!: ParticleManager
   isVoidDimension: boolean = false
   hasVisitedVoid: boolean = false
   hasCompletedGame: boolean = false
@@ -162,6 +164,9 @@ export class WorldScene extends Phaser.Scene {
     const worldPxW = this.worldData.width * TILE_SIZE
     const worldPxH = this.worldData.height * TILE_SIZE
     this.cameras.main.setBounds(0, 0, worldPxW, worldPxH)
+
+    // Particle effects
+    this.particles = new ParticleManager(this)
 
     // Combat system
     this.combat = new CombatSystem(this)
@@ -491,6 +496,7 @@ export class WorldScene extends Phaser.Scene {
       if (this.clientBossSprite) { this.clientBossSprite.destroy(); this.clientBossSprite = null }
       this.remotePlayerSims.clear()
       this.mp.destroy()
+      this.particles.destroy()
     })
 
     // Reset auto-save timer
@@ -911,6 +917,7 @@ export class WorldScene extends Phaser.Scene {
             })
           }
           this.mp.entities.unregister(enemy.entityId)
+          this.particles.deathBurst(enemy.sprite.x, enemy.sprite.y, enemy.def.color)
           if (enemy.sprite.active) enemy.sprite.destroy()
           this.enemies.splice(i, 1)
         }
@@ -971,6 +978,7 @@ export class WorldScene extends Phaser.Scene {
     }
 
     this.chunkManager.update()
+    this.updatePortalParticles()
     this.updateMusic()
 
     // Host: simulate remote players and broadcast state
@@ -1483,6 +1491,55 @@ export class WorldScene extends Phaser.Scene {
       }
     }
     return null
+  }
+
+  /** Emit ambient particles for portals visible on-screen (throttled to every 3rd frame) */
+  private portalParticleFrame = 0
+  private updatePortalParticles() {
+    this.portalParticleFrame++
+    if (this.portalParticleFrame % 3 !== 0) return
+
+    const cam = this.cameras.main
+    const camL = cam.scrollX - 64
+    const camR = cam.scrollX + cam.width + 64
+    const camT = cam.scrollY - 64
+    const camB = cam.scrollY + cam.height + 64
+
+    // Regular portals
+    for (const portal of this.chunkManager.getPortals()) {
+      const px = portal.tx * TILE_SIZE + 2 * TILE_SIZE
+      const py = portal.ty * TILE_SIZE + 2 * TILE_SIZE
+      if (px > camL && px < camR && py > camT && py < camB) {
+        this.particles.portalAmbient(px, py, 28)
+      }
+    }
+
+    // Void portal blocks near camera (scan visible tile range)
+    const tileL = Math.max(0, Math.floor(cam.scrollX / TILE_SIZE) - 1)
+    const tileR = Math.min(this.worldData.width - 1, Math.ceil((cam.scrollX + cam.width) / TILE_SIZE) + 1)
+    const tileT = Math.max(0, Math.floor(cam.scrollY / TILE_SIZE) - 1)
+    const tileB = Math.min(this.worldData.height - 1, Math.ceil((cam.scrollY + cam.height) / TILE_SIZE) + 1)
+    // Only check every 4th tile to reduce scan cost
+    for (let ty = tileT; ty <= tileB; ty += 4) {
+      for (let tx = tileL; tx <= tileR; tx += 4) {
+        if (this.chunkManager.getTile(tx, ty) === TileType.VOID_PORTAL_BLOCK) {
+          this.particles.voidPortalAmbient(
+            tx * TILE_SIZE + TILE_SIZE / 2,
+            ty * TILE_SIZE + TILE_SIZE / 2,
+            24
+          )
+        }
+      }
+    }
+
+    // Void dimension return portal at spawn
+    if (this.isVoidDimension) {
+      const spawnPx = this.worldData.spawnX * TILE_SIZE + TILE_SIZE / 2
+      const spawnPy = this.worldData.spawnY * TILE_SIZE + TILE_SIZE / 2
+      if (spawnPx > camL && spawnPx < camR && spawnPy > camT && spawnPy < camB) {
+        this.particles.voidPortalAmbient(spawnPx, spawnPy, 32)
+      }
+    }
   }
 
   private checkPortalInteraction() {

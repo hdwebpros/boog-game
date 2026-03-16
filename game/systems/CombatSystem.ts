@@ -7,6 +7,7 @@ import { ChunkManager } from '../world/ChunkManager'
 import type { ItemDef } from '../data/items'
 import { AudioManager } from './AudioManager'
 import { SoundId } from '../data/sounds'
+import type { ParticleManager } from './ParticleManager'
 
 const MELEE_RANGE = 72 // px (~4.5 tiles, Minecraft-style reach)
 const MELEE_ARC = Math.PI * 0.7 // swing arc width (126°)
@@ -45,6 +46,10 @@ export class CombatSystem {
     this.meleeGfx = scene.add.graphics().setDepth(13)
   }
 
+  private get particles(): ParticleManager | null {
+    return (this.scene as any).particles ?? null
+  }
+
   update(
     dt: number,
     chunks: ChunkManager,
@@ -79,6 +84,7 @@ export class CombatSystem {
           const kbx = (e.sprite.x - playerX) > 0 ? 150 : -150
           e.takeDamage(p.damage, kbx, -80)
           this.spawnDamageNumber(e.sprite.x, e.sprite.y - e.def.height / 2, p.damage, 0xffff00)
+          this.particles?.hitSparks(e.sprite.x, e.sprite.y, 0xffff00)
           p.destroy()
           break
         }
@@ -291,6 +297,7 @@ export class CombatSystem {
         e.takeDamage(finalDmg, kbx, -100)
         const dmgColor = damageMult >= 2 ? 0xff4444 : 0xffff00 // red for crits
         this.spawnDamageNumber(e.sprite.x, e.sprite.y - e.def.height / 2, finalDmg, dmgColor)
+        this.particles?.hitSparks(e.sprite.x, e.sprite.y, dmgColor)
         totalDamage += finalDmg
         this.lastHitEnemies.push(e)
       }

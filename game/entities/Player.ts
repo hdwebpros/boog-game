@@ -3,6 +3,7 @@ import { ChunkManager } from '../world/ChunkManager'
 import { TileType, TILE_SIZE, TILE_PROPERTIES, WORLD_WIDTH, WORLD_HEIGHT, STATION_TILE_TYPE, ITEM_TO_TILE, TILE_TO_ITEM } from '../world/TileRegistry'
 import { InventoryManager } from '../systems/InventoryManager'
 import { CombatSystem } from '../systems/CombatSystem'
+import type { ParticleManager } from '../systems/ParticleManager'
 import { Enemy } from './Enemy'
 import { ITEMS, ItemCategory, getItemDef, ENCHANTMENT_NAMES, ENCHANTMENT_COLORS } from '../data/items'
 import type { EnchantmentType } from '../data/items'
@@ -1067,6 +1068,8 @@ export class Player {
         }
         this.jetpackFlame.setPosition(this.sprite.x, this.sprite.y + 17)
         this.jetpackFlame.fillColor = Math.random() > 0.5 ? 0xff6600 : 0xffaa00
+        const jp = (this.scene as any).particles as ParticleManager | undefined
+        jp?.jetpackExhaust(this.sprite.x + (Math.random() - 0.5) * 4, this.sprite.y + 22)
       } else {
         if (this.jetpackFlame) {
           this.jetpackFlame.destroy()
@@ -1471,6 +1474,8 @@ export class Player {
 
               this.onTileChange?.(bx, by, TileType.AIR, bt)
               chunks.setTile(bx, by, TileType.AIR)
+              const particles = (this.scene as any).particles as ParticleManager | undefined
+              particles?.burst(bx * TILE_SIZE + TILE_SIZE / 2, by * TILE_SIZE + TILE_SIZE / 2, TILE_PROPERTIES[bt]!.color)
               if (shardId) {
                 this.inventory.addItem(shardId, dropCount)
                 if (Math.random() < 0.5) this.inventory.addItem(235, 1)
