@@ -24,29 +24,30 @@ async function generate(endpoint, body) {
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)) }
 
-// Exact character description matching idle1 appearance
+// Exact character description matching idle1 appearance — NO WEAPONS in sprites
+// Weapons are rendered separately as held item sprites in-game
 const CHAR = 'small pixel art astronaut character with dark gray space suit, round cyan teal glowing visor helmet, dark boots, standing upright, side view facing right, for a 2D platformer game'
 
 async function main() {
   const frames = [
     {
       name: 'player_mine1',
-      desc: `${CHAR}, holding a small pickaxe raised above head with right arm`,
+      desc: `${CHAR}, right arm raised above head with empty fist clenched, preparing to swing downward, no tool or weapon in hand`,
       w: 48, h: 64,
     },
     {
       name: 'player_mine2',
-      desc: `${CHAR}, swinging a small pickaxe downward with right arm`,
+      desc: `${CHAR}, right arm swinging downward in a striking motion, empty fist, no tool or weapon in hand`,
       w: 48, h: 64,
     },
     {
       name: 'player_attack1',
-      desc: `${CHAR}, holding a small sword raised behind with right arm`,
+      desc: `${CHAR}, right arm raised behind ready to slash, empty fist clenched, no weapon or sword in hand`,
       w: 48, h: 64,
     },
     {
       name: 'player_attack2',
-      desc: `${CHAR}, slashing a small sword forward with right arm extended`,
+      desc: `${CHAR}, right arm extended forward in a slash motion, empty fist, no weapon or sword in hand`,
       w: 48, h: 64,
     },
   ]

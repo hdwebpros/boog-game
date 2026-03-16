@@ -1277,24 +1277,25 @@ export class Player {
         this.heldItemSprite.setVisible(true)
         const dir = this.facingRight ? 1 : -1
 
-        const isSwinging = this.actionAnim === 'attacking' && selDef.weaponStyle === 'melee'
+        const isSwinging = (this.actionAnim === 'attacking' && selDef.weaponStyle === 'melee')
+          || (this.actionAnim === 'mining' && selDef.category === ItemCategory.TOOL)
         if (isSwinging) {
-          // Swing the sword outward — animate from raised to swept down
-          // t goes from 1 (windup) to 0 (end of slash)
+          // Swing the held item — animate from raised to swept down
+          // t goes from 1 (windup) to 0 (end of swing)
           const t = this.actionAnimTimer / 300
           // Swing arc: from -60° (raised) to +60° (swept down), relative to facing direction
           const swingAngle = (-60 + 120 * (1 - t)) * (Math.PI / 180)
           const baseAngle = this.facingRight ? 0 : Math.PI
           const worldAngle = baseAngle + swingAngle * dir
 
-          // Position sword tip further out during swing (reach ~3 blocks)
+          // Position item further out during swing (reach ~3 blocks)
           const reachDist = 20 + 24 * (1 - t) // 20px at start, 44px at full extension
           const offsetX = Math.cos(worldAngle) * reachDist
           const offsetY = Math.sin(worldAngle) * reachDist
           this.heldItemSprite.setPosition(this.sprite.x + offsetX, this.sprite.y + offsetY)
 
           // Rotate the sprite to match the swing angle
-          // Swords point diagonally — add 45° base rotation
+          // Items point diagonally — add 45° base rotation
           const spriteRot = this.facingRight
             ? swingAngle + Math.PI / 4
             : Math.PI - swingAngle - Math.PI / 4
