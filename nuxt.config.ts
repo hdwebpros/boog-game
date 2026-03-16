@@ -12,6 +12,10 @@ export default defineNuxtConfig({
       websocket: true,
     },
   },
-
-  modules: [],
+  content: {
+    experimental: {
+      sqliteConnector: 'native'
+    }
+  },
+  modules: ['@nuxt/content'],
 })
