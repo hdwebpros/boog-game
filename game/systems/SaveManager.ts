@@ -149,6 +149,7 @@ export interface SaveData {
   activeBuffs?: { type: string; remaining: number; duration: number }[]
   hasVisitedVoid?: boolean
   hasCompletedGame?: boolean
+  trashFilter?: number[]
   timestamp: number
 }
 
@@ -180,7 +181,8 @@ export class SaveManager {
     discoveredPOIs?: string[],
     activeBuffs?: { type: string; remaining: number; duration: number }[],
     hasVisitedVoid?: boolean,
-    hasCompletedGame?: boolean
+    hasCompletedGame?: boolean,
+    trashFilter?: number[]
   ): Promise<boolean> {
     try {
       const timestamp = Date.now()
@@ -215,6 +217,7 @@ export class SaveManager {
         activeBuffs,
         hasVisitedVoid,
         hasCompletedGame,
+        trashFilter,
         timestamp,
       }
       await idbPut(slotId, data)

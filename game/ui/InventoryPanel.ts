@@ -48,6 +48,9 @@ export class InventoryPanel {
   private trashZone!: Phaser.GameObjects.Zone
   private trashLabel!: Phaser.GameObjects.Text
 
+  // Auto-trash filter hint
+  private filterHintText!: Phaser.GameObjects.Text
+
   // Shop panel gfx (created here to share with shop)
   shopGfx!: Phaser.GameObjects.Graphics
   shopTitle!: Phaser.GameObjects.Text
@@ -177,6 +180,12 @@ export class InventoryPanel {
       fontSize: '16px', color: '#ff4444', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5, 0.5).setDepth(312).setVisible(false)
 
+    // Auto-trash filter hint text
+    this.filterHintText = this.scene.add.text(0, 0, '', {
+      fontSize: '9px', color: '#ff6666', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 1,
+    }).setDepth(312).setVisible(false)
+
     // Shop panel gfx (shared)
     this.shopGfx = this.scene.add.graphics().setDepth(330)
     this.shopTitle = this.scene.add.text(0, 0, '', {
@@ -234,6 +243,7 @@ export class InventoryPanel {
       if (this.heldImage) this.heldImage.setVisible(false)
       this.trashLabel?.setVisible(false)
       this.trashZone?.disableInteractive()
+      this.filterHintText?.setVisible(false)
       return
     }
 
@@ -346,6 +356,15 @@ export class InventoryPanel {
             drawEternalStars(this.invGfx, sx, sy)
           }
         }
+        // Auto-trash filter overlay
+        if (inv.trashFilter.has(item.id)) {
+          this.invGfx.fillStyle(0xff0000, 0.15)
+          this.invGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+          this.invGfx.lineStyle(2, 0xff4444, 0.7)
+          const m = 8
+          this.invGfx.lineBetween(sx + m, sy + m, sx + SLOT_SIZE - m, sy + SLOT_SIZE - m)
+          this.invGfx.lineBetween(sx + SLOT_SIZE - m, sy + m, sx + m, sy + SLOT_SIZE - m)
+        }
       } else {
         icon.fillAlpha = 0
         icon.setVisible(false)
@@ -373,10 +392,20 @@ export class InventoryPanel {
         this.invTooltipText.setColor('#ffffff')
       }
       if (def?.defense) name += ` (+${def.defense} def)`
+      if (inv.trashFilter.has(hoveredItem.id)) name += ' [AUTO-TRASH]'
       this.invTooltipText.setText(name)
       this.invTooltipText.setPosition(width / 2, invY - 4)
       this.invTooltipText.setVisible(true)
     }
+
+    // Auto-trash hint
+    this.filterHintText.setVisible(true)
+    if (inv.trashFilter.size > 0) {
+      this.filterHintText.setText(`Auto-trash: ${inv.trashFilter.size} item(s) | Shift+Click to toggle`)
+    } else {
+      this.filterHintText.setText('Shift+Click to auto-trash items')
+    }
+    this.filterHintText.setPosition(invX + INV_PAD, invY + invH + 8)
 
     this.updateArmorPanel(player, inv, invX, invY, invH, pointer, pointerJustDown)
     this.updateHeldItem(inv)
@@ -610,6 +639,21 @@ export class InventoryPanel {
     const inv: InventoryManager = player.inventory
     const area: 'hotbar' | 'main' = slotIndex >= INV_MAX_MAIN_SLOTS ? 'hotbar' : 'main'
     const idx = slotIndex >= INV_MAX_MAIN_SLOTS ? slotIndex - INV_MAX_MAIN_SLOTS : slotIndex
+
+    // Shift+click toggles auto-trash filter for that item
+    if (pointer.event?.shiftKey) {
+      const slots = area === 'hotbar' ? inv.hotbar : inv.mainInventory
+      const slot = slots[idx]
+      if (slot) {
+        if (inv.trashFilter.has(slot.id)) {
+          inv.trashFilter.delete(slot.id)
+        } else {
+          inv.trashFilter.add(slot.id)
+        }
+        AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+      }
+      return
+    }
 
     if (pointer.button === 2) {
       inv.rightClickSlot(area, idx)

@@ -249,6 +249,10 @@ export class WorldScene extends Phaser.Scene {
       if (saveData.discoveredItems) {
         for (const id of saveData.discoveredItems) this.player.inventory.discoveredItems.add(id)
       }
+      // Restore auto-trash filter
+      if (saveData.trashFilter) {
+        for (const id of saveData.trashFilter) this.player.inventory.trashFilter.add(id)
+      }
       // Restore portals
       if (saveData.portals) {
         this.chunkManager.restorePortals(saveData.portals)
@@ -2246,7 +2250,8 @@ export class WorldScene extends Phaser.Scene {
       Array.from(this.discoveredPOIs),
       this.player.buffs.serialize(),
       this.hasVisitedVoid,
-      this.hasCompletedGame
+      this.hasCompletedGame,
+      Array.from(this.player.inventory.trashFilter)
     )
   }
 

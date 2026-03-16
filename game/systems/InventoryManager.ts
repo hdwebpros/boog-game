@@ -35,6 +35,7 @@ export class InventoryManager {
   selectedSlot = 0
   heldItem: ItemStack | null = null
   discoveredItems: Set<number> = new Set()
+  trashFilter: Set<number> = new Set()
   onNewItemDiscovered: ((id: number) => void) | null = null
 
   /** Effective main inventory size — 30 base, +10 with Explorer's Belt */
@@ -50,6 +51,8 @@ export class InventoryManager {
 
   /** Add item — tries hotbar first, then main inventory. Returns true if added. */
   addItem(id: number, count = 1, enchantment?: EnchantmentType): boolean {
+    // Auto-trash filtered items (non-enchanted only)
+    if (!enchantment && this.trashFilter.has(id)) return true
     const isNew = !this.discoveredItems.has(id)
     const cap = maxStackFor(id)
     // Try stacking with existing matching slots in hotbar
