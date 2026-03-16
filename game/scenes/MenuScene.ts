@@ -118,6 +118,17 @@ export class MenuScene extends Phaser.Scene {
     this.add.text(width / 2, height - 60, 'WASD/Arrows: Move | Space: Jump | LMB: Mine/Attack\nRMB: Place | C: Craft | Q: Use Item | F: Boss Summon | M: Mute', {
       fontSize: '10px', color: '#555555', fontFamily: 'monospace', align: 'center',
     }).setOrigin(0.5)
+
+    // Wiki link
+    const wikiLink = this.add.text(width / 2, height - 30, '[ WIKI ]', {
+      fontSize: '12px', color: '#555555', fontFamily: 'monospace',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    wikiLink.on('pointerover', () => wikiLink.setColor('#00ffff'))
+    wikiLink.on('pointerout', () => wikiLink.setColor('#555555'))
+    wikiLink.on('pointerdown', () => {
+      window.open('/wiki', '_blank')
+    })
   }
 
   private showLoadScreen(width: number, height: number) {
