@@ -27,6 +27,14 @@ export enum MusicTrack {
   DEEP = 'deep',
   BOSS = 'boss',
   ENDING = 'ending',
+  VOID_ASHEN = 'void_ashen',
+  VOID_HELLFIRE = 'void_hellfire',
+  VOID_FOREST = 'void_forest',
+  VOID_CITADEL = 'void_citadel',
+  VOID_LORD_1 = 'void_lord_1',
+  VOID_LORD_2 = 'void_lord_2',
+  VOID_LORD_3 = 'void_lord_3',
+  VOID_LORD_4 = 'void_lord_4',
 }
 
 const MUSIC_PATHS: Record<MusicTrack, string> = {
@@ -45,6 +53,14 @@ const MUSIC_PATHS: Record<MusicTrack, string> = {
   [MusicTrack.DEEP]: '/music/deep.mp3',
   [MusicTrack.BOSS]: '/music/boss.mp3',
   [MusicTrack.ENDING]: '/music/ending.mp3',
+  [MusicTrack.VOID_ASHEN]: '/music/ashen_wastes.mp3',
+  [MusicTrack.VOID_HELLFIRE]: '/music/hellfire_caverns.mp3',
+  [MusicTrack.VOID_FOREST]: '/music/void_forest.mp3',
+  [MusicTrack.VOID_CITADEL]: '/music/void_citadel.mp3',
+  [MusicTrack.VOID_LORD_1]: '/music/void_lord_phase_1.mp3',
+  [MusicTrack.VOID_LORD_2]: '/music/void_lord_phase_2.mp3',
+  [MusicTrack.VOID_LORD_3]: '/music/void_lord_phase_3.mp3',
+  [MusicTrack.VOID_LORD_4]: '/music/void_lord_phase_4.mp3',
 }
 
 const MUSIC_VOLUME = 0.35

@@ -17,6 +17,7 @@ import type { SaveData } from '../systems/SaveManager'
 import { AudioManager, MusicTrack } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 import { SurfaceBiome } from '../world/WorldGenerator'
+import { getBiomeZone } from '../world/VoidWorldGenerator'
 import { DayNightCycle } from '../systems/DayNightCycle'
 import { NPC } from '../entities/NPC'
 import { MultiplayerManager, RoomConnector, RemotePlayerSim, REMOTE_COL_W, REMOTE_COL_H, encodeMessage, MessageType } from '../multiplayer'
@@ -588,7 +589,9 @@ export class WorldScene extends Phaser.Scene {
 
       this.player.update(dt, this.chunkManager, this.combat, allTargets)
 
-      // Check altar/runestone/NPC/portal interactions
+      // Void Lord summon MUST come first — JustDown(keyF) is consuming,
+      // so later checks (e.g. void portal nearby) would swallow the F press.
+      this.checkVoidLordSummon()
       this.checkAltarInteraction()
       this.checkRunestoneInteraction()
       this.checkPOIDiscovery()
@@ -596,7 +599,6 @@ export class WorldScene extends Phaser.Scene {
       this.checkNPCInteraction()
       this.checkPortalInteraction()
       this.checkVoidPortalInteraction()
-      this.checkVoidLordSummon()
 
       // Build list of all player positions for spawning, enemy AI, and despawn checks
       const allPlayerPositions: { x: number; y: number; id: number }[] = [
@@ -993,15 +995,30 @@ export class WorldScene extends Phaser.Scene {
     const audio = AudioManager.get()
     if (!audio) return
 
-    // Boss music overrides everything (including FinalBoss)
-    if ((this.activeBoss && this.activeBoss.alive) || (this.finalBoss && this.finalBoss.alive)) {
+    // Void Lord: phase-specific music
+    if (this.finalBoss && this.finalBoss.alive) {
+      const phase = this.finalBoss.getPhaseIndex()
+      const voidLordTracks = [MusicTrack.VOID_LORD_1, MusicTrack.VOID_LORD_2, MusicTrack.VOID_LORD_3, MusicTrack.VOID_LORD_4]
+      audio.playMusic(voidLordTracks[phase] ?? MusicTrack.VOID_LORD_4)
+      return
+    }
+
+    // Regular boss music
+    if (this.activeBoss && this.activeBoss.alive) {
       audio.playMusic(MusicTrack.BOSS)
       return
     }
 
-    // Void dimension: use deep/underground music (dark ambient)
+    // Void dimension: biome-zone music
     if (this.isVoidDimension) {
-      audio.playMusic(MusicTrack.DEEP)
+      const tileX = Math.floor(this.player.sprite.x / TILE_SIZE)
+      const zone = getBiomeZone(tileX)
+      switch (zone) {
+        case 'ashen':    audio.playMusic(MusicTrack.VOID_ASHEN);    break
+        case 'hellfire': audio.playMusic(MusicTrack.VOID_HELLFIRE); break
+        case 'forest':   audio.playMusic(MusicTrack.VOID_FOREST);   break
+        case 'citadel':  audio.playMusic(MusicTrack.VOID_CITADEL);  break
+      }
       return
     }
 

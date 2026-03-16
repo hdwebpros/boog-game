@@ -98,7 +98,7 @@ function mulberry32(seed: number): () => number {
   }
 }
 
-function getBiomeZone(x: number): 'ashen' | 'hellfire' | 'forest' | 'citadel' {
+export function getBiomeZone(x: number): 'ashen' | 'hellfire' | 'forest' | 'citadel' {
   if (x < ASHEN_WASTES_END) return 'ashen'
   if (x < HELLFIRE_CAVERNS_END) return 'hellfire'
   if (x < VOID_FOREST_END) return 'forest'
