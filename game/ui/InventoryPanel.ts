@@ -9,15 +9,15 @@ import { ACCESSORY_EFFECTS } from '../data/accessories'
 import { SLOT_SIZE, SLOT_GAP, getItemTexKey, drawEnchantGradient } from './UIContext'
 
 const INV_COLS = 10
-const INV_MAIN_ROWS = 3
 const INV_PAD = 12
 const INV_INNER_W = INV_COLS * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP
 const INV_W = INV_INNER_W + INV_PAD * 2
 const INV_TITLE_H = 28
-const INV_MAIN_H = INV_MAIN_ROWS * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP
 const INV_SEP = 10
-const INV_H = INV_PAD + INV_TITLE_H + INV_MAIN_H + INV_SEP + SLOT_SIZE + INV_PAD
-const INV_TOTAL_SLOTS = INV_COLS * INV_MAIN_ROWS + 10 // 40
+// Max rows/slots (4 rows = 40 main slots with Explorer's Belt)
+const INV_MAX_MAIN_ROWS = 4
+const INV_MAX_MAIN_SLOTS = INV_COLS * INV_MAX_MAIN_ROWS
+const INV_MAX_TOTAL_SLOTS = INV_MAX_MAIN_SLOTS + 10 // +hotbar
 
 export class InventoryPanel {
   private scene: Phaser.Scene
@@ -74,8 +74,11 @@ export class InventoryPanel {
     this.invVisible = false
 
     const { width, height } = this.scene.scale
+    // Use max size for initial layout — positions are updated dynamically in update()
+    const mainH = INV_MAX_MAIN_ROWS * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP
+    const invH = INV_PAD + INV_TITLE_H + mainH + INV_SEP + SLOT_SIZE + INV_PAD
     const invX = (width - INV_W) / 2
-    const invY = (height - INV_H) / 2
+    const invY = (height - invH) / 2
 
     this.invGfx = this.scene.add.graphics().setDepth(310)
     this.invTitle = this.scene.add.text(width / 2, invY + INV_PAD + 2, 'INVENTORY', {
@@ -83,17 +86,17 @@ export class InventoryPanel {
     }).setOrigin(0.5, 0).setDepth(311).setVisible(false)
 
     const mainStartY = invY + INV_PAD + INV_TITLE_H
-    const hotbarStartY = mainStartY + INV_MAIN_H + INV_SEP
+    const hotbarStartY = mainStartY + mainH + INV_SEP
 
-    for (let i = 0; i < INV_TOTAL_SLOTS; i++) {
+    for (let i = 0; i < INV_MAX_TOTAL_SLOTS; i++) {
       let sx: number, sy: number
-      if (i < 30) {
+      if (i < INV_MAX_MAIN_SLOTS) {
         const row = Math.floor(i / INV_COLS)
         const col = i % INV_COLS
         sx = invX + INV_PAD + col * (SLOT_SIZE + SLOT_GAP)
         sy = mainStartY + row * (SLOT_SIZE + SLOT_GAP)
       } else {
-        const col = i - 30
+        const col = i - INV_MAX_MAIN_SLOTS
         sx = invX + INV_PAD + col * (SLOT_SIZE + SLOT_GAP)
         sy = hotbarStartY
       }
@@ -166,7 +169,7 @@ export class InventoryPanel {
 
     // Trash slot
     const trashX = invX + INV_W - SLOT_SIZE - INV_PAD
-    const trashY = invY + INV_H + 4
+    const trashY = invY + invH + 4
     this.trashZone = this.scene.add.zone(trashX + SLOT_SIZE / 2, trashY + SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE)
       .setInteractive().setDepth(313)
     this.trashZone.on('pointerdown', () => this.onTrashClick())
@@ -200,8 +203,13 @@ export class InventoryPanel {
     this.invTitle.setVisible(this.invVisible)
     this.invTooltipText.setVisible(false)
 
+    // Dynamic row count based on effective inventory size
+    const effMainSize = inv.getEffectiveMainSize()
+    const mainRows = Math.ceil(effMainSize / INV_COLS)
+    const mainH = mainRows * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP
+    const invH = INV_PAD + INV_TITLE_H + mainH + INV_SEP + SLOT_SIZE + INV_PAD
     if (!this.invVisible) {
-      for (let i = 0; i < INV_TOTAL_SLOTS; i++) {
+      for (let i = 0; i < INV_MAX_TOTAL_SLOTS; i++) {
         this.invSlotIcons[i]?.setVisible(false)
         this.invSlotTexts[i]?.setVisible(false)
         this.invSlotZones[i]?.disableInteractive()
@@ -231,16 +239,17 @@ export class InventoryPanel {
 
     const { width, height } = this.scene.scale
     const invX = (width - INV_W) / 2
-    const invY = (height - INV_H) / 2
+    const invY = (height - invH) / 2
     const pointer = this.scene.input.activePointer
 
     this.invGfx.fillStyle(0x0a0a1a, 0.95)
-    this.invGfx.fillRect(invX, invY, INV_W, INV_H)
+    this.invGfx.fillRect(invX, invY, INV_W, invH)
     this.invGfx.lineStyle(2, 0x444466)
-    this.invGfx.strokeRect(invX, invY, INV_W, INV_H)
+    this.invGfx.strokeRect(invX, invY, INV_W, invH)
+    this.invTitle.setPosition(width / 2, invY + INV_PAD + 2)
 
     const mainStartY = invY + INV_PAD + INV_TITLE_H
-    const hotbarStartY = mainStartY + INV_MAIN_H + INV_SEP
+    const hotbarStartY = mainStartY + mainH + INV_SEP
 
     this.invGfx.lineStyle(1, 0x333355)
     this.invGfx.lineBetween(
@@ -250,17 +259,26 @@ export class InventoryPanel {
 
     let hoveredItem: ItemStack | null = null
 
-    for (let i = 0; i < INV_TOTAL_SLOTS; i++) {
+    for (let i = 0; i < INV_MAX_TOTAL_SLOTS; i++) {
+      // Hide inactive extra main slots (30-39 when belt not equipped)
+      if (i >= effMainSize && i < INV_MAX_MAIN_SLOTS) {
+        this.invSlotIcons[i]?.setVisible(false)
+        this.invSlotTexts[i]?.setVisible(false)
+        this.invSlotZones[i]?.disableInteractive()
+        if (this.invSlotImages[i]) this.invSlotImages[i]!.setVisible(false)
+        continue
+      }
+
       let sx: number, sy: number
       let item: ItemStack | null
-      if (i < 30) {
+      if (i < INV_MAX_MAIN_SLOTS) {
         const row = Math.floor(i / INV_COLS)
         const col = i % INV_COLS
         sx = invX + INV_PAD + col * (SLOT_SIZE + SLOT_GAP)
         sy = mainStartY + row * (SLOT_SIZE + SLOT_GAP)
         item = inv.mainInventory[i] ?? null
       } else {
-        const col = i - 30
+        const col = i - INV_MAX_MAIN_SLOTS
         sx = invX + INV_PAD + col * (SLOT_SIZE + SLOT_GAP)
         sy = hotbarStartY
         item = inv.hotbar[col] ?? null
@@ -271,7 +289,7 @@ export class InventoryPanel {
       this.invGfx.lineStyle(1, 0x444444, 0.9)
       this.invGfx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
 
-      if (i >= 30 && i - 30 === inv.selectedSlot) {
+      if (i >= INV_MAX_MAIN_SLOTS && i - INV_MAX_MAIN_SLOTS === inv.selectedSlot) {
         this.invGfx.lineStyle(2, 0xffff00, 1)
         this.invGfx.strokeRect(sx - 1, sy - 1, SLOT_SIZE + 2, SLOT_SIZE + 2)
       }
@@ -356,11 +374,11 @@ export class InventoryPanel {
       this.invTooltipText.setVisible(true)
     }
 
-    this.updateArmorPanel(player, inv, invX, invY, pointer, pointerJustDown)
+    this.updateArmorPanel(player, inv, invX, invY, invH, pointer, pointerJustDown)
     this.updateHeldItem(inv)
   }
 
-  private updateArmorPanel(player: any, inv: InventoryManager, invX: number, invY: number, pointer: Phaser.Input.Pointer, pointerJustDown: boolean) {
+  private updateArmorPanel(player: any, inv: InventoryManager, invX: number, invY: number, invH: number, pointer: Phaser.Input.Pointer, pointerJustDown: boolean) {
     const armorPanelX = invX + INV_W + 6
     const armorPanelW = SLOT_SIZE + INV_PAD * 2
     const armorPanelH = INV_PAD + INV_TITLE_H + 4 * (SLOT_SIZE + SLOT_GAP) - SLOT_GAP + INV_PAD + 16
@@ -518,7 +536,7 @@ export class InventoryPanel {
 
     // Trash slot
     const trashX = invX + INV_W - SLOT_SIZE - INV_PAD
-    const trashY = invY + INV_H + 4
+    const trashY = invY + invH + 4
     this.invGfx.fillStyle(0x1a0a0a, 0.95)
     this.invGfx.fillRect(trashX, trashY, SLOT_SIZE, SLOT_SIZE)
     this.invGfx.lineStyle(1, 0x884444, 0.9)
@@ -586,8 +604,8 @@ export class InventoryPanel {
     if (!player) return
 
     const inv: InventoryManager = player.inventory
-    const area: 'hotbar' | 'main' = slotIndex >= 30 ? 'hotbar' : 'main'
-    const idx = slotIndex >= 30 ? slotIndex - 30 : slotIndex
+    const area: 'hotbar' | 'main' = slotIndex >= INV_MAX_MAIN_SLOTS ? 'hotbar' : 'main'
+    const idx = slotIndex >= INV_MAX_MAIN_SLOTS ? slotIndex - INV_MAX_MAIN_SLOTS : slotIndex
 
     if (pointer.button === 2) {
       inv.rightClickSlot(area, idx)

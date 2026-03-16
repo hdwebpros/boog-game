@@ -18,17 +18,11 @@ const OCEAN_WIDTH = 500
 const ENEMIES_PER_EXTRA_PLAYER_DAY = 10
 const ENEMIES_PER_EXTRA_PLAYER_NIGHT = 14
 
-// Void dimension spawn parameters
-const VOID_MAX_ENEMIES_DAY = 18
-const VOID_MAX_ENEMIES_NIGHT = 24
-const VOID_SPAWN_INTERVAL_DAY = 2150
-const VOID_SPAWN_INTERVAL_NIGHT = 1150
-
-// Post-portal spawn parameters (20x normal — world becomes insanely dangerous)
-const POST_PORTAL_MAX_ENEMIES_DAY = 300
-const POST_PORTAL_MAX_ENEMIES_NIGHT = 440
-const POST_PORTAL_SPAWN_INTERVAL_DAY = 100
-const POST_PORTAL_SPAWN_INTERVAL_NIGHT = 60
+// Void dimension spawn parameters (dangerous realm — high spawn rates)
+const VOID_MAX_ENEMIES_DAY = 300
+const VOID_MAX_ENEMIES_NIGHT = 440
+const VOID_SPAWN_INTERVAL_DAY = 100
+const VOID_SPAWN_INTERVAL_NIGHT = 60
 
 export class EnemySpawner {
   private scene: Phaser.Scene
@@ -36,7 +30,6 @@ export class EnemySpawner {
   private enemyTypes: EnemyDef[]
   private surfaceBiomes: Uint8Array | null = null
   voidDimension: boolean = false
-  postPortal: boolean = false
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -52,9 +45,6 @@ export class EnemySpawner {
     this.voidDimension = val
   }
 
-  setPostPortal(val: boolean) {
-    this.postPortal = val
-  }
 
   update(
     dt: number,
@@ -67,10 +57,7 @@ export class EnemySpawner {
 
     let spawnInterval: number
     let baseMax: number
-    if (this.postPortal) {
-      spawnInterval = isNight ? POST_PORTAL_SPAWN_INTERVAL_NIGHT : POST_PORTAL_SPAWN_INTERVAL_DAY
-      baseMax = isNight ? POST_PORTAL_MAX_ENEMIES_NIGHT : POST_PORTAL_MAX_ENEMIES_DAY
-    } else if (this.voidDimension) {
+    if (this.voidDimension) {
       spawnInterval = isNight ? VOID_SPAWN_INTERVAL_NIGHT : VOID_SPAWN_INTERVAL_DAY
       baseMax = isNight ? VOID_MAX_ENEMIES_NIGHT : VOID_MAX_ENEMIES_DAY
     } else {

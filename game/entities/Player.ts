@@ -533,8 +533,8 @@ export class Player {
     const def = getItemDef(item.id)
     if (!def) return
 
-    // Chant Orb usage (IDs 237-241) — enchant first weapon/armor in hotbar
-    if (item.id >= 237 && item.id <= 241) {
+    // Chant Orb usage (IDs 237-241, 243) — enchant first weapon/armor in hotbar
+    if ((item.id >= 237 && item.id <= 241) || item.id === 243) {
       this.useChantOrb(item.id)
       return
     }
@@ -568,7 +568,7 @@ export class Player {
 
   private useChantOrb(orbId: number) {
     const enchantMap: Record<number, EnchantmentType> = {
-      237: 'ember', 238: 'frost', 239: 'storm', 240: 'void', 241: 'life',
+      237: 'ember', 238: 'frost', 239: 'storm', 240: 'void', 241: 'life', 243: 'eternal',
     }
     const enchType = enchantMap[orbId]
     if (!enchType) return
@@ -669,7 +669,7 @@ export class Player {
     const enchant = item.enchantment as EnchantmentType | undefined
 
     // Storm enchantment: +25% attack speed
-    const stormSpeedMult = enchant === 'storm' ? 0.75 : 1
+    const stormSpeedMult = (enchant === 'storm' || enchant === 'eternal') ? 0.75 : 1
     this.attackCooldown = (def.attackSpeed ?? 400) * mods.attackSpeedMult * stormSpeedMult
 
     const cam = this.scene.cameras.main
@@ -686,10 +686,10 @@ export class Player {
     // Calculate damage multiplier from skills
     const lowHpBonus = (this.hp / this.maxHp <= 0.3) ? mods.lowHpDamageMult : 1
     // Void enchantment: +15% crit chance
-    const enchantCritBonus = enchant === 'void' ? 0.15 : 0
+    const enchantCritBonus = (enchant === 'void' || enchant === 'eternal') ? 0.15 : 0
     const crit = Math.random() < (mods.critChance + enchantCritBonus) ? 2 : 1
     // Ember enchantment: +30% damage
-    const emberBonus = enchant === 'ember' ? 1.3 : 1
+    const emberBonus = (enchant === 'ember' || enchant === 'eternal') ? 1.3 : 1
 
     // Mana Overload: mana >75% grants +100% damage but drains 15% max mana per hit
     const manaOverloadBonus = (mods.manaOverload && this.mana > this.maxMana * 0.75) ? 2 : 1
@@ -755,7 +755,7 @@ export class Player {
     }
 
     // Lifesteal (skill + void enchantment)
-    const voidLifesteal = enchant === 'void' ? 0.15 : 0
+    const voidLifesteal = (enchant === 'void' || enchant === 'eternal') ? 0.15 : 0
     const totalLifesteal = mods.lifeStealPct + voidLifesteal
     if (dmgDealt > 0 && totalLifesteal > 0) {
       const heal = Math.round(dmgDealt * totalLifesteal)
@@ -784,6 +784,16 @@ export class Player {
         break
       case 'life':
         // Heal 3 HP per hit
+        this.hp = Math.min(this.maxHp, this.hp + 3)
+        combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 20, 3, 0x33ff66)
+        break
+      case 'eternal':
+        // All on-hit effects combined
+        combat.applyBurn(this.sprite.x, this.sprite.y, 4, 3000)
+        combat.applySlow(this.sprite.x, this.sprite.y, 0.4, 2000)
+        if (Math.random() < 0.2) {
+          combat.chainLightning(this.sprite.x, this.sprite.y, Math.round(dmgDealt * 0.5), enemies)
+        }
         this.hp = Math.min(this.maxHp, this.hp + 3)
         combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 20, 3, 0x33ff66)
         break
@@ -1682,6 +1692,10 @@ export class Player {
         case 'storm':  bonuses.moveSpeedMult *= 1.15; break
         case 'void':   bonuses.manaShieldPct += 0.05; break
         case 'life':   bonuses.hpRegen += 2; bonuses.maxHpBonus += 15; break
+        case 'eternal':
+          bonuses.defenseBonus += 7; bonuses.maxManaBonus += 20;
+          bonuses.moveSpeedMult *= 1.15; bonuses.manaShieldPct += 0.05;
+          bonuses.hpRegen += 2; bonuses.maxHpBonus += 15; break
       }
     }
     return bonuses

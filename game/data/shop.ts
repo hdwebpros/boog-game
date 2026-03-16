@@ -12,6 +12,7 @@ export const SHOP_INVENTORY: ShopItem[] = [
   { itemId: 303, price: 200 },  // Miner's Lantern
   { itemId: 304, price: 150 },  // Lucky Charm
   { itemId: 305, price: 300 },  // Celestial Cape
+  { itemId: 306, price: 200 },  // Explorer's Belt
   { itemId: 310, price: 15 },   // Star Lantern
   { itemId: 311, price: 20 },   // Celestial Banner
   { itemId: 312, price: 10 },   // Starfall Flower

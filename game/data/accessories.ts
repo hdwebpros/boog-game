@@ -13,6 +13,7 @@ export interface AccessoryEffect {
   noFallDamage?: boolean
   magnetRadius?: number
   luckyDropBonus?: number
+  extraInventorySlots?: number
 }
 
 export const ACCESSORY_EFFECTS: Record<number, AccessoryEffect> = {
@@ -45,5 +46,10 @@ export const ACCESSORY_EFFECTS: Record<number, AccessoryEffect> = {
     id: 305, name: 'Celestial Cape',
     description: '+30 max HP. +30 max mana. Magnetic pickup.',
     maxHpBonus: 30, maxManaBonus: 30, magnetRadius: 80,
+  },
+  306: {
+    id: 306, name: "Explorer's Belt",
+    description: '+10 inventory slots (extra row).',
+    extraInventorySlots: 10,
   },
 }

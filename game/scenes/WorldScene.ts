@@ -93,7 +93,7 @@ export class WorldScene extends Phaser.Scene {
 
   // Void dimension
   isVoidDimension: boolean = false
-  postPortal: boolean = false
+  hasVisitedVoid: boolean = false
   hasCompletedGame: boolean = false
   finalBoss: FinalBoss | null = null
   private voidPortalPromptText: Phaser.GameObjects.Text | null = null
@@ -109,7 +109,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Reset flags — Phaser reuses scene instances, so these persist across restarts
     this.isVoidDimension = false
-    this.postPortal = false
+    this.hasVisitedVoid = false
     this.hasCompletedGame = false
     this.endingTriggered = false
     this.finalBoss = null
@@ -125,9 +125,9 @@ export class WorldScene extends Phaser.Scene {
     if (this.registry.get('voidDimension')) {
       this.isVoidDimension = true
     }
-    // Check if player has returned from void dimension (post-portal flag)
+    // Check if player has returned from void dimension
     if (this.registry.get('postPortal')) {
-      this.postPortal = true
+      this.hasVisitedVoid = true
       this.registry.remove('postPortal')
     }
     // Check if player has completed the regular ending
@@ -173,9 +173,6 @@ export class WorldScene extends Phaser.Scene {
     if (this.isVoidDimension) {
       this.enemySpawner.setVoidDimension(true)
     }
-    if (this.postPortal) {
-      this.enemySpawner.setPostPortal(true)
-    }
 
     // Spawn player
     const spawnPx = this.worldData.spawnX * TILE_SIZE + TILE_SIZE / 2
@@ -197,6 +194,8 @@ export class WorldScene extends Phaser.Scene {
       this.player.mana = saveData.mana
       this.player.inventory.hotbar = saveData.hotbar
       if (saveData.mainInventory) {
+        // Pad old saves (30 slots) to current max (40 slots)
+        while (saveData.mainInventory.length < 40) saveData.mainInventory.push(null)
         this.player.inventory.mainInventory = saveData.mainInventory
       }
       this.player.inventory.selectedSlot = saveData.selectedSlot
@@ -271,6 +270,7 @@ export class WorldScene extends Phaser.Scene {
       this.player.mana = voidPlayerState.mana
       this.player.inventory.hotbar = voidPlayerState.hotbar
       if (voidPlayerState.mainInventory) {
+        while (voidPlayerState.mainInventory.length < 40) voidPlayerState.mainInventory.push(null)
         this.player.inventory.mainInventory = voidPlayerState.mainInventory
       }
       this.player.inventory.selectedSlot = voidPlayerState.selectedSlot
@@ -1698,7 +1698,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Return from void dimension to original world */
   private returnFromVoidDimension() {
-    // Set postPortal flag so original world becomes dangerous
+    // Set flag so main world knows player has visited the void
     this.registry.set('postPortal', true)
     this.registry.remove('voidDimension')
 
@@ -1747,8 +1747,8 @@ export class WorldScene extends Phaser.Scene {
     const selectedItem = this.player.inventory.getSelectedItem()
     if (!selectedItem || selectedItem.id !== 370) return
 
-    // Need to have visited the void (postPortal flag)
-    if (!this.postPortal) return
+    // Need to have visited the void
+    if (!this.hasVisitedVoid) return
 
     if (Phaser.Input.Keyboard.JustDown(this.keyF)) {
       // Consume the token
@@ -1801,7 +1801,7 @@ export class WorldScene extends Phaser.Scene {
     this.scene.start('TrueEndingScene', {
       stats: {
         hasCompletedGame: this.hasCompletedGame,
-        postPortal: this.postPortal,
+        postPortal: this.hasVisitedVoid,
       },
     })
   }

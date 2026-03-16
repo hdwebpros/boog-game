@@ -1,5 +1,6 @@
 import { getItemDef, ItemCategory } from '../data/items'
 import type { ArmorSlot, EnchantmentType } from '../data/items'
+import { ACCESSORY_EFFECTS } from '../data/accessories'
 
 export interface ItemStack {
   id: number
@@ -17,6 +18,7 @@ export interface ArmorSlots {
 const DEFAULT_MAX_STACK = 99
 const HOTBAR_SIZE = 10
 const MAIN_INV_SIZE = 30
+const MAIN_INV_MAX = 40 // max with Explorer's Belt (+10 slots)
 
 function maxStackFor(id: number): number {
   const def = getItemDef(id)
@@ -27,13 +29,24 @@ export const ARMOR_SLOT_ORDER: ArmorSlot[] = ['helmet', 'chestplate', 'leggings'
 
 export class InventoryManager {
   hotbar: (ItemStack | null)[] = new Array(HOTBAR_SIZE).fill(null)
-  mainInventory: (ItemStack | null)[] = new Array(MAIN_INV_SIZE).fill(null)
+  mainInventory: (ItemStack | null)[] = new Array(MAIN_INV_MAX).fill(null)
   armorSlots: ArmorSlots = { helmet: null, chestplate: null, leggings: null, boots: null }
   accessorySlots: (ItemStack | null)[] = [null, null, null]
   selectedSlot = 0
   heldItem: ItemStack | null = null
   discoveredItems: Set<number> = new Set()
   onNewItemDiscovered: ((id: number) => void) | null = null
+
+  /** Effective main inventory size — 30 base, +10 with Explorer's Belt */
+  getEffectiveMainSize(): number {
+    let extra = 0
+    for (const slot of this.accessorySlots) {
+      if (!slot) continue
+      const eff = ACCESSORY_EFFECTS[slot.id]
+      if (eff?.extraInventorySlots) extra += eff.extraInventorySlots
+    }
+    return Math.min(MAIN_INV_SIZE + extra, MAIN_INV_MAX)
+  }
 
   /** Add item — tries hotbar first, then main inventory. Returns true if added. */
   addItem(id: number, count = 1, enchantment?: EnchantmentType): boolean {
@@ -51,7 +64,8 @@ export class InventoryManager {
     }
 
     // Try stacking in main inventory
-    for (let i = 0; i < MAIN_INV_SIZE; i++) {
+    const effSize = this.getEffectiveMainSize()
+    for (let i = 0; i < effSize; i++) {
       const slot = this.mainInventory[i]
       if (slot && slot.id === id && slot.enchantment === enchantment && slot.count < cap) {
         const canAdd = Math.min(count, cap - slot.count)
@@ -70,7 +84,10 @@ export class InventoryManager {
         count -= toAdd
         continue
       }
-      const mainEmpty = this.mainInventory.indexOf(null)
+      let mainEmpty = -1
+      for (let i = 0; i < effSize; i++) {
+        if (!this.mainInventory[i]) { mainEmpty = i; break }
+      }
       if (mainEmpty !== -1) {
         const toAdd = Math.min(count, cap)
         this.mainInventory[mainEmpty] = { id, count: toAdd, enchantment }
@@ -94,13 +111,14 @@ export class InventoryManager {
   /** Check if at least `count` of item `id` can be added (without modifying inventory) */
   canAddItem(id: number, count = 1): boolean {
     const cap = maxStackFor(id)
+    const effSize = this.getEffectiveMainSize()
     let remaining = count
     for (let i = 0; i < HOTBAR_SIZE; i++) {
       const slot = this.hotbar[i]
       if (slot && slot.id === id && slot.count < cap) remaining -= (cap - slot.count)
       if (remaining <= 0) return true
     }
-    for (let i = 0; i < MAIN_INV_SIZE; i++) {
+    for (let i = 0; i < effSize; i++) {
       const slot = this.mainInventory[i]
       if (slot && slot.id === id && slot.count < cap) remaining -= (cap - slot.count)
       if (remaining <= 0) return true
@@ -109,7 +127,7 @@ export class InventoryManager {
     for (let i = 0; i < HOTBAR_SIZE; i++) {
       if (!this.hotbar[i]) { remaining -= cap; if (remaining <= 0) return true }
     }
-    for (let i = 0; i < MAIN_INV_SIZE; i++) {
+    for (let i = 0; i < effSize; i++) {
       if (!this.mainInventory[i]) { remaining -= cap; if (remaining <= 0) return true }
     }
     return false
@@ -175,7 +193,11 @@ export class InventoryManager {
       if (hotbarEmpty !== -1) {
         this.hotbar[hotbarEmpty] = { ...this.heldItem }
       } else {
-        const mainEmpty = this.mainInventory.indexOf(null)
+        const effSize = this.getEffectiveMainSize()
+        let mainEmpty = -1
+        for (let i = 0; i < effSize; i++) {
+          if (!this.mainInventory[i]) { mainEmpty = i; break }
+        }
         if (mainEmpty !== -1) {
           this.mainInventory[mainEmpty] = { ...this.heldItem }
         }

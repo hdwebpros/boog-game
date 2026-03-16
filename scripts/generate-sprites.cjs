@@ -140,6 +140,59 @@ const TILES = [
     name: 'tile_42', label: 'chest',
     desc: 'wooden treasure chest block texture for a 2D side-scrolling platformer. Brown wooden chest with darker wood plank bands, gold metal latch and hinges, slightly rounded lid on top. Fills the entire square. Terraria style.',
   },
+  // ─── VOID DIMENSION TILES ──────────────────────────────────
+  {
+    name: 'tile_49', label: 'void_stone',
+    desc: 'seamless tileable void stone block texture for a 2D side-scrolling platformer. Dark purple-black alien rock filling the entire square with faint glowing violet veins and cracks running through the surface, otherworldly corrupted stone. Terraria style.',
+  },
+  {
+    name: 'tile_50', label: 'void_dirt',
+    desc: 'seamless tileable void dirt block texture for a 2D side-scrolling platformer. Deep purple-tinted dark earth filling the entire square with small corrupted pebbles and faint magenta particle specks throughout. Terraria style.',
+  },
+  {
+    name: 'tile_51', label: 'void_grass',
+    desc: 'seamless tileable void grass block texture for a 2D side-scrolling platformer. Top 25% is vibrant purple-violet alien grass with jagged blade details on the top edge. Bottom 75% is dark purple void dirt. Fills the entire square. Terraria style.',
+  },
+  {
+    name: 'tile_52', label: 'hellfire_ore',
+    desc: 'seamless tileable hellfire ore block texture for a 2D side-scrolling platformer. Dark purple void stone base filling the entire square with clusters of bright orange-red fiery ore deposits that glow with intense heat, ember particles visible. Terraria style.',
+  },
+  {
+    name: 'tile_53', label: 'void_crystal',
+    desc: 'seamless tileable void crystal ore block texture for a 2D side-scrolling platformer. Dark purple void stone base filling the entire square with large glowing bright purple-magenta crystal formations embedded in the rock, radiating ethereal light. Terraria style.',
+  },
+  {
+    name: 'tile_54', label: 'brimstone',
+    desc: 'seamless tileable brimstone block texture for a 2D side-scrolling platformer. Dark brownish-red sulfurous rock filling the entire square with yellow-orange brimstone deposits and rough cracked surface texture, hellish volcanic material. Terraria style.',
+  },
+  {
+    name: 'tile_55', label: 'void_wood',
+    desc: 'seamless tileable void wood plank block texture for a 2D side-scrolling platformer. Very dark purple-black corrupted wood planks filling the entire square with faint glowing violet grain lines and twisted knot patterns. Terraria style.',
+  },
+  {
+    name: 'tile_56', label: 'void_leaves',
+    desc: 'seamless tileable void leaf foliage block texture for a 2D side-scrolling platformer. Dense cluster of dark purple and magenta alien leaves filling the entire square with faint ethereal glow between leaves, corrupted otherworldly foliage. Terraria style.',
+  },
+  {
+    name: 'tile_57', label: 'ash_block',
+    desc: 'seamless tileable ash block texture for a 2D side-scrolling platformer. Dark gray volcanic ash filling the entire square with fine grainy texture, subtle lighter gray streaks, and tiny charcoal fragments scattered throughout. Terraria style.',
+  },
+  {
+    name: 'tile_58', label: 'nether_brick',
+    desc: 'seamless tileable nether brick block texture for a 2D side-scrolling platformer. Dark red-maroon bricks filling the entire square in a stacked pattern with dark mortar lines between bricks, ancient demonic architecture material. Terraria style.',
+  },
+  {
+    name: 'tile_59', label: 'soul_sand',
+    desc: 'seamless tileable soul sand block texture for a 2D side-scrolling platformer. Dark brown-gray sand filling the entire square with faint ghostly face impressions in the surface, eerie wailing souls trapped within the sandy material. Terraria style.',
+  },
+  {
+    name: 'tile_60', label: 'void_portal_block',
+    desc: 'seamless tileable void portal block texture for a 2D side-scrolling platformer. Swirling deep purple and magenta energy filling the entire square with bright white-purple particle streaks, interdimensional rift energy, glowing portal material. Terraria style.',
+  },
+  {
+    name: 'tile_321', label: 'station_void_forge',
+    desc: 'seamless tileable void forge station block texture for a 2D side-scrolling platformer. Dark obsidian-purple forge filling the entire square with a glowing magenta flame in the center opening, corrupted metal framework, purple energy runes etched on the surface, void dimension crafting station. Terraria style.',
+  },
 ]
 
 // ─── ENEMY DEFINITIONS ──────────────────────────────────────
@@ -173,6 +226,39 @@ const ENEMIES = [
     name: 'enemy_vampire', w: 32, h: 32,
     desc: 'small vampire bat enemy for a 2D side-scrolling platformer game. Dark purple body with outstretched membrane wings, pointy ears, small glowing red eyes, tiny white fangs. Flying pose facing right. Pixel art creature sprite.',
   },
+  // ─── VOID DIMENSION ENEMIES ────────────────────────────────
+  {
+    name: 'enemy_void_wraith', w: 32, h: 36,
+    desc: 'ghostly void wraith enemy for a 2D side-scrolling platformer game. Ethereal purple-violet floating specter with tattered dark robes, glowing magenta eyes, wispy trailing lower body that fades to nothing, outstretched clawed hands. Facing right. Pixel art creature sprite.',
+  },
+  {
+    name: 'enemy_shadow_stalker', w: 32, h: 40,
+    desc: 'shadow stalker enemy for a 2D side-scrolling platformer game. Tall sleek dark purple-black humanoid creature with elongated limbs, glowing white slit eyes, sharp claws, crouched predatory stance ready to pounce. Facing right. Pixel art creature sprite.',
+  },
+  {
+    name: 'enemy_hellfire_imp', w: 32, h: 32,
+    desc: 'small hellfire imp enemy for a 2D side-scrolling platformer game. Tiny red-orange demon with small curved horns, bat-like wings, mischievous glowing yellow eyes, flaming hands holding a fireball, pointed tail. Flying facing right. Pixel art creature sprite.',
+  },
+  {
+    name: 'enemy_nether_golem', w: 40, h: 48,
+    desc: 'large nether golem enemy for a 2D side-scrolling platformer game. Massive bulky humanoid body made of dark red nether bricks and obsidian, glowing orange lava cracks between body segments, heavy fists, burning ember eyes. Standing facing right. Pixel art creature sprite.',
+  },
+  {
+    name: 'enemy_soul_eater', w: 32, h: 34,
+    desc: 'soul eater enemy for a 2D side-scrolling platformer game. Floating pale blue ghostly jellyfish-like creature with translucent bell-shaped head, dangling ethereal tentacles, glowing cyan core inside body, eerie soul-absorbing aura. Facing right. Pixel art creature sprite.',
+  },
+  {
+    name: 'enemy_void_serpent', w: 48, h: 24,
+    desc: 'void serpent enemy for a 2D side-scrolling platformer game. Long horizontal dark purple snake with glowing violet scale patterns, menacing fangs, four small vestigial legs, spiked tail, slithering through the void. Facing right. Pixel art creature sprite.',
+  },
+  {
+    name: 'enemy_chaos_elemental', w: 32, h: 38,
+    desc: 'chaos elemental enemy for a 2D side-scrolling platformer game. Swirling humanoid figure made of unstable magenta and purple energy, crackling with pink lightning bolts, no distinct face just two bright white eye holes, fragments orbiting its body. Facing right. Pixel art creature sprite.',
+  },
+  {
+    name: 'enemy_dark_knight', w: 36, h: 48,
+    desc: 'dark knight enemy for a 2D side-scrolling platformer game. Tall armored knight in dark purple-black plate armor with glowing violet visor slit, wielding a large dark sword, tattered dark cape flowing behind, heavy boots. Standing facing right. Pixel art creature sprite.',
+  },
 ]
 
 // ─── BOSS DEFINITIONS ───────────────────────────────────────
@@ -201,6 +287,11 @@ const BOSSES = [
   {
     name: 'boss_mothership', w: 64, h: 48,
     desc: 'alien UFO mothership boss for a 2D side-scrolling platformer game. Wide pink-purple flying saucer with a glass dome cockpit on top, row of small cyan glowing windows around the rim, two engine pods on sides, tractor beam emitter underneath. Hovering. Pixel art boss sprite.',
+  },
+  // ─── VOID LORD BOSS ────────────────────────────────────────
+  {
+    name: 'boss_void_lord', w: 128, h: 192,
+    desc: 'massive void lord final boss for a 2D side-scrolling platformer game. Towering dark purple-black demonic entity with enormous curved horns, four glowing magenta eyes, flowing dark robes made of void energy, huge clawed hands crackling with purple lightning, swirling dimensional rift energy around the lower body, crown of floating dark crystals above head. Menacing and godlike. Facing right. Pixel art boss sprite.',
   },
 ]
 
@@ -262,6 +353,125 @@ const ITEMS = [
   {
     name: 'item_242', label: 'mystical_compass',
     desc: 'mystical compass navigation item for a 2D side-scrolling game inventory icon. Ancient ornate compass with glowing blue magical rune symbols around the rim, a spinning ethereal blue needle in the center, dark metal casing with arcane engravings. Pixel art item sprite.',
+  },
+  // ─── VOID DIMENSION ITEMS ─────────────────────────────────
+  // Stations
+  {
+    name: 'item_320', label: 'super_portal',
+    desc: 'super portal device inventory icon for a 2D side-scrolling game. Dark obsidian frame with swirling purple void energy in the center, glowing magenta runes on the edges, interdimensional gateway device. Pixel art item sprite.',
+  },
+  {
+    name: 'item_321', label: 'void_forge',
+    desc: 'void forge station inventory icon for a 2D side-scrolling game. Small dark purple-black anvil forge with glowing magenta flames, corrupted metal frame, purple energy runes etched on the surface. Pixel art item sprite.',
+  },
+  // Weapons
+  {
+    name: 'item_330', label: 'void_blade',
+    desc: 'void blade sword inventory icon for a 2D side-scrolling game. Sleek dark purple-black sword with glowing magenta edge, ethereal void energy wisps trailing from the blade, dark metal crossguard. Pixel art item sprite.',
+  },
+  {
+    name: 'item_331', label: 'abyssal_scythe',
+    desc: 'abyssal scythe weapon inventory icon for a 2D side-scrolling game. Long dark scythe with curved glowing purple blade, twisted dark handle wrapped in void tendrils, ethereal dark energy emanating from the blade edge. Pixel art item sprite.',
+  },
+  {
+    name: 'item_332', label: 'hellfire_bow',
+    desc: 'hellfire bow weapon inventory icon for a 2D side-scrolling game. Dark red-orange bow made of smoldering hellfire material, glowing ember string, small flames licking along the curved limbs, fiery demonic weapon. Pixel art item sprite.',
+  },
+  {
+    name: 'item_333', label: 'void_staff',
+    desc: 'void staff magic weapon inventory icon for a 2D side-scrolling game. Tall dark purple staff with a floating glowing magenta void orb at the top, twisted dark metal shaft with purple energy veins running along it. Pixel art item sprite.',
+  },
+  {
+    name: 'item_334', label: 'soul_reaver',
+    desc: 'soul reaver summoning weapon inventory icon for a 2D side-scrolling game. Ethereal pale blue crystal scepter with ghostly soul wisps swirling around the glowing tip, dark handle with spectral chain wrapped around it. Pixel art item sprite.',
+  },
+  {
+    name: 'item_335', label: 'chaos_edge',
+    desc: 'chaos edge sword inventory icon for a 2D side-scrolling game. Jagged unstable sword with swirling magenta and purple chaos energy along the blade, the edge seems to distort reality, fractured crystalline crossguard. Pixel art item sprite.',
+  },
+  {
+    name: 'item_336', label: 'dimensional_rifle',
+    desc: 'dimensional rifle ranged weapon inventory icon for a 2D side-scrolling game. Sleek dark purple-black sci-fi rifle with a glowing magenta energy chamber, void crystal barrel tip, dark metal frame with purple circuit lines. Pixel art item sprite.',
+  },
+  {
+    name: 'item_337', label: 'arcane_annihilator',
+    desc: 'arcane annihilator magic weapon inventory icon for a 2D side-scrolling game. Ornate dark purple wand with a large swirling vortex of magenta and white energy at the tip, covered in glowing arcane runes, radiating destructive magical power. Pixel art item sprite.',
+  },
+  // Armor
+  {
+    name: 'item_340', label: 'void_helmet',
+    desc: 'void helmet armor inventory icon for a 2D side-scrolling game. Dark purple-black helmet with glowing magenta visor slit, curved void crystal horns on top, ethereal purple energy wisps around it. Pixel art item sprite.',
+  },
+  {
+    name: 'item_341', label: 'void_chestplate',
+    desc: 'void chestplate armor inventory icon for a 2D side-scrolling game. Dark purple-black chest armor with glowing magenta energy lines along the edges, void crystal shoulder pads, ethereal dark material. Pixel art item sprite.',
+  },
+  {
+    name: 'item_342', label: 'void_leggings',
+    desc: 'void leggings armor inventory icon for a 2D side-scrolling game. Dark purple-black leg armor with glowing magenta knee guards, void energy veins running down the legs, otherworldly protective gear. Pixel art item sprite.',
+  },
+  {
+    name: 'item_343', label: 'void_boots',
+    desc: 'void boots armor inventory icon for a 2D side-scrolling game. Dark purple-black heavy boots with glowing magenta soles, void crystal accents, trailing purple energy wisps from the heels. Pixel art item sprite.',
+  },
+  // Materials
+  {
+    name: 'item_350', label: 'void_essence',
+    desc: 'void essence material inventory icon for a 2D side-scrolling game. Small swirling orb of concentrated dark purple void energy with bright magenta core, ethereal wisps trailing off, mysterious alien substance. Pixel art item sprite.',
+  },
+  {
+    name: 'item_351', label: 'hellfire_core',
+    desc: 'hellfire core material inventory icon for a 2D side-scrolling game. Glowing orange-red molten core with bright yellow center, small flames and ember particles around it, intensely hot demonic material. Pixel art item sprite.',
+  },
+  {
+    name: 'item_352', label: 'soul_fragment',
+    desc: 'soul fragment material inventory icon for a 2D side-scrolling game. Translucent pale blue crystalline shard with a ghostly face faintly visible inside, soft ethereal glow, spectral wispy edges. Pixel art item sprite.',
+  },
+  {
+    name: 'item_353', label: 'chaos_shard',
+    desc: 'chaos shard material inventory icon for a 2D side-scrolling game. Jagged magenta crystal fragment crackling with unstable pink-purple energy, reality-warping distortion around the edges, volatile and dangerous looking. Pixel art item sprite.',
+  },
+  {
+    name: 'item_354', label: 'abyssal_ingot',
+    desc: 'abyssal ingot material inventory icon for a 2D side-scrolling game. Dark purple-black refined metal bar with faint glowing magenta veins through the surface, polished otherworldly alloy, heavy and dense looking. Pixel art item sprite.',
+  },
+  {
+    name: 'item_355', label: 'dimensional_fabric',
+    desc: 'dimensional fabric material inventory icon for a 2D side-scrolling game. Folded piece of shimmering dark purple fabric with tiny star-like sparkles embedded in it, edges seem to phase in and out of reality, interdimensional textile. Pixel art item sprite.',
+  },
+  // Artifacts
+  {
+    name: 'item_360', label: 'warp_crystal',
+    desc: 'warp crystal artifact inventory icon for a 2D side-scrolling game. Glowing purple hexagonal crystal with swirling dimensional energy inside, bright magenta facets, small reality-warping distortion around it. Pixel art item sprite.',
+  },
+  {
+    name: 'item_361', label: 'soul_lantern',
+    desc: 'soul lantern artifact inventory icon for a 2D side-scrolling game. Small ornate dark metal lantern with a ghostly pale blue flame inside, spectral soul wisps escaping from the vents, eerie otherworldly light source. Pixel art item sprite.',
+  },
+  {
+    name: 'item_362', label: 'chaos_heart',
+    desc: 'chaos heart artifact inventory icon for a 2D side-scrolling game. Pulsing dark magenta crystalline heart shape with crackling pink energy veins, unstable chaotic energy radiating outward, powerful and dangerous. Pixel art item sprite.',
+  },
+  {
+    name: 'item_363', label: 'void_eye',
+    desc: 'void eye artifact inventory icon for a 2D side-scrolling game. Single large floating purple eyeball with bright magenta iris and dark slit pupil, surrounded by swirling void energy tendrils, all-seeing otherworldly artifact. Pixel art item sprite.',
+  },
+  {
+    name: 'item_364', label: 'temporal_shard',
+    desc: 'temporal shard artifact inventory icon for a 2D side-scrolling game. Elongated pale blue-white crystal shard with clock-like circular rune markings faintly visible inside, time-distortion shimmer effect around the edges. Pixel art item sprite.',
+  },
+  {
+    name: 'item_365', label: 'dimensional_anchor',
+    desc: 'dimensional anchor artifact inventory icon for a 2D side-scrolling game. Heavy dark purple metallic anchor-shaped artifact with glowing magenta chain links, reality-stabilizing device with void runes etched on the surface. Pixel art item sprite.',
+  },
+  // Special items
+  {
+    name: 'item_370', label: 'void_lord_summon_token',
+    desc: 'void lord summon token inventory icon for a 2D side-scrolling game. Dark obsidian medallion with a glowing purple void lord sigil in the center, surrounded by swirling magenta energy, ominous boss summoning artifact. Pixel art item sprite.',
+  },
+  {
+    name: 'item_380', label: 'trophy_void_lord',
+    desc: 'trophy of the void lord inventory icon for a 2D side-scrolling game. Ornate dark purple crystalline trophy with a miniature void lord skull on top, glowing magenta base with arcane inscriptions, ultimate victory reward. Pixel art item sprite.',
   },
 ]
 

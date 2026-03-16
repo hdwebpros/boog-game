@@ -13,7 +13,7 @@ export enum ItemCategory {
   ACCESSORY = 'accessory',
 }
 
-export type EnchantmentType = 'ember' | 'frost' | 'storm' | 'void' | 'life'
+export type EnchantmentType = 'ember' | 'frost' | 'storm' | 'void' | 'life' | 'eternal'
 
 export const ENCHANTMENT_COLORS: Record<EnchantmentType, number> = {
   ember: 0xff6633,
@@ -21,6 +21,7 @@ export const ENCHANTMENT_COLORS: Record<EnchantmentType, number> = {
   storm: 0xffee44,
   void: 0x9933ff,
   life: 0x33ff66,
+  eternal: 0xffd700,
 }
 
 export const ENCHANTMENT_NAMES: Record<EnchantmentType, string> = {
@@ -29,6 +30,7 @@ export const ENCHANTMENT_NAMES: Record<EnchantmentType, string> = {
   storm: 'Tempest',
   void: 'Abyssal',
   life: 'Verdant',
+  eternal: 'Eternal',
 }
 
 export type WeaponStyle = 'melee' | 'ranged' | 'magic' | 'summon'
@@ -224,6 +226,7 @@ export const ITEMS: Record<number, ItemDef> = {
   239: { id: 239, name: 'Tempest Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 2, color: 0xffee44 },
   240: { id: 240, name: 'Abyssal Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 3, color: 0x9933ff },
   241: { id: 241, name: 'Verdant Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 1, color: 0x33ff66 },
+  243: { id: 243, name: 'Eternal Chant',  category: ItemCategory.SPECIAL, stackSize: 10, tier: 4, color: 0xffd700 },
 
   // ── Special Items ─────────────────────────────────────
   242: { id: 242, name: 'Mystical Compass', category: ItemCategory.SPECIAL, stackSize: 1, tier: 2, color: 0x66aaff },
@@ -238,6 +241,7 @@ export const ITEMS: Record<number, ItemDef> = {
   303: { id: 303, name: "Miner's Lantern",  category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0xffaa33 },
   304: { id: 304, name: 'Lucky Charm',      category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0x44ff88 },
   305: { id: 305, name: 'Celestial Cape',   category: ItemCategory.ACCESSORY, stackSize: 1, tier: 5, color: 0x6688ff },
+  306: { id: 306, name: "Explorer's Belt",  category: ItemCategory.ACCESSORY, stackSize: 1, tier: 4, color: 0xcc8844 },
 
   // ── Decorations ─────────────────────────────────────
   310: { id: 310, name: 'Star Lantern',      category: ItemCategory.BLOCK, stackSize: 99, tier: 0, color: 0xffdd66 },

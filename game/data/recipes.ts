@@ -138,6 +138,7 @@ export const RECIPES: Recipe[] = [
   { id: 'tempest_chant',  station: StationType.ARCANE_ANVIL, inputs: [{ itemId: 232, count: 5 }, { itemId: 235, count: 3 }], output: { itemId: 239, count: 1 } },
   { id: 'abyssal_chant',  station: StationType.ARCANE_ANVIL, inputs: [{ itemId: 233, count: 5 }, { itemId: 235, count: 3 }], output: { itemId: 240, count: 1 } },
   { id: 'verdant_chant',  station: StationType.ARCANE_ANVIL, inputs: [{ itemId: 234, count: 5 }, { itemId: 235, count: 3 }], output: { itemId: 241, count: 1 } },
+  { id: 'eternal_chant',  station: StationType.ARCANE_ANVIL, inputs: [{ itemId: 237, count: 1 }, { itemId: 238, count: 1 }, { itemId: 239, count: 1 }, { itemId: 240, count: 1 }, { itemId: 241, count: 1 }], output: { itemId: 243, count: 1 } },
 
   // ── Mystical Compass (crafted at Arcane Anvil) ───────
   { id: 'mystical_compass', station: StationType.ARCANE_ANVIL, inputs: [{ itemId: 235, count: 8 }, { itemId: 101, count: 3 }, { itemId: 100, count: 5 }], output: { itemId: 242, count: 1 } },
