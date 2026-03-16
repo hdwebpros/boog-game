@@ -260,6 +260,9 @@ export class WorldScene extends Phaser.Scene {
       if (saveData.activeBuffs) {
         this.player.buffs.deserialize(saveData.activeBuffs as any)
       }
+      // Restore progression flags
+      if (saveData.hasVisitedVoid) this.hasVisitedVoid = true
+      if (saveData.hasCompletedGame) this.hasCompletedGame = true
       this.registry.remove('saveData')
     }
 
@@ -2226,7 +2229,9 @@ export class WorldScene extends Phaser.Scene {
       waypoints,
       this.chunkManager.getPortalData(),
       Array.from(this.discoveredPOIs),
-      this.player.buffs.serialize()
+      this.player.buffs.serialize(),
+      this.hasVisitedVoid,
+      this.hasCompletedGame
     )
   }
 

@@ -147,6 +147,8 @@ export interface SaveData {
   portals?: PortalData[]
   discoveredPOIs?: string[]
   activeBuffs?: { type: string; remaining: number; duration: number }[]
+  hasVisitedVoid?: boolean
+  hasCompletedGame?: boolean
   timestamp: number
 }
 
@@ -176,7 +178,9 @@ export class SaveManager {
     waypoints?: Waypoint[],
     portals?: PortalData[],
     discoveredPOIs?: string[],
-    activeBuffs?: { type: string; remaining: number; duration: number }[]
+    activeBuffs?: { type: string; remaining: number; duration: number }[],
+    hasVisitedVoid?: boolean,
+    hasCompletedGame?: boolean
   ): Promise<boolean> {
     try {
       const timestamp = Date.now()
@@ -209,6 +213,8 @@ export class SaveManager {
         portals,
         discoveredPOIs,
         activeBuffs,
+        hasVisitedVoid,
+        hasCompletedGame,
         timestamp,
       }
       await idbPut(slotId, data)
