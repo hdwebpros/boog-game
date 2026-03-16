@@ -159,6 +159,11 @@ export class Player {
   // Void aura visual (Ascendant skill)
   private voidAuraGfx: Phaser.GameObjects.Graphics
 
+  // Eternal Chant orbiting orbs (full set bonus)
+  private eternalOrbs: Phaser.GameObjects.Image[] = []
+  private eternalOrbAngle = 0
+  private eternalOrbsActive = false
+
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene
     this.inventory = new InventoryManager()
@@ -397,6 +402,9 @@ export class Player {
       this.voidAuraGfx.fillStyle(0xaa44ff, pulse)
       this.voidAuraGfx.fillEllipse(this.sprite.x, this.sprite.y + 2, 28, 42)
     }
+
+    // Eternal Chant orbiting orbs (full eternal enchanted armor set)
+    this.updateEternalOrbs(dt)
 
     if (!this.mapOpen) this.handleMovement(dt, chunks)
     if (!this.inventoryOpen && !this.skillTreeOpen && !this.shopOpen && !this.chestOpen && !this.mapOpen) {
@@ -1703,6 +1711,50 @@ export class Player {
             this.overlay.strokeRect(sx * TILE_SIZE, sy * TILE_SIZE, TILE_SIZE, TILE_SIZE)
           }
         }
+      }
+    }
+  }
+
+  /** Update orbiting orbs for full Eternal Chant armor set */
+  private updateEternalOrbs(dt: number) {
+    const armor = this.inventory.armorSlots
+    const hasFullSet = !this.dead
+      && armor.helmet?.enchantment === 'eternal'
+      && armor.chestplate?.enchantment === 'eternal'
+      && armor.leggings?.enchantment === 'eternal'
+      && armor.boots?.enchantment === 'eternal'
+
+    if (hasFullSet && !this.eternalOrbsActive) {
+      // Spawn 3 orbs
+      const orbTex = this.scene.textures.exists('eternal_orb') ? 'eternal_orb' : null
+      for (let i = 0; i < 3; i++) {
+        if (orbTex) {
+          const orb = this.scene.add.image(this.sprite.x, this.sprite.y, orbTex)
+          orb.setScale(0.5) // 32px texture → 16px display (block-sized)
+          orb.setDepth(13)
+          orb.setAlpha(0.9)
+          this.eternalOrbs.push(orb)
+        }
+      }
+      this.eternalOrbsActive = true
+    } else if (!hasFullSet && this.eternalOrbsActive) {
+      // Remove orbs
+      for (const orb of this.eternalOrbs) orb.destroy()
+      this.eternalOrbs = []
+      this.eternalOrbsActive = false
+    }
+
+    if (this.eternalOrbsActive && this.eternalOrbs.length > 0) {
+      this.eternalOrbAngle += dt * 2.5 // ~2.5 rad/s orbit speed
+      const orbCount = this.eternalOrbs.length
+      const radius = 24
+      for (let i = 0; i < orbCount; i++) {
+        const angle = this.eternalOrbAngle + (i * Math.PI * 2) / orbCount
+        const ox = Math.cos(angle) * radius
+        const oy = Math.sin(angle) * radius * 0.5 // elliptical for perspective
+        this.eternalOrbs[i]!.setPosition(this.sprite.x + ox, this.sprite.y + oy)
+        // Pulse alpha slightly
+        this.eternalOrbs[i]!.setAlpha(0.75 + 0.2 * Math.sin(angle * 2))
       }
     }
   }

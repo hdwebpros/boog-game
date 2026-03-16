@@ -26,6 +26,8 @@ export class SkillTreePanel {
   private paragonZones: Phaser.GameObjects.Zone[] = []
   private paragonTexts: Phaser.GameObjects.Text[] = []
   private paragonLabel!: Phaser.GameObjects.Text
+  private resetBtn!: Phaser.GameObjects.Text
+  private resetBtnZone!: Phaser.GameObjects.Zone
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -50,6 +52,16 @@ export class SkillTreePanel {
     this.skillTitle = this.scene.add.text(width / 2, panelY + 10, 'SKILL TREE', {
       fontSize: '16px', color: '#ffff00', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5, 0).setDepth(321).setVisible(false)
+
+    // Reset button
+    this.resetBtn = this.scene.add.text(panelX + SKILL_W - 14, panelY + 12, '[Reset]', {
+      fontSize: '10px', color: '#ff4444', fontFamily: 'monospace',
+    }).setOrigin(1, 0).setDepth(321).setVisible(false)
+    this.resetBtnZone = this.scene.add.zone(
+      this.resetBtn.x - this.resetBtn.width / 2, this.resetBtn.y + this.resetBtn.height / 2,
+      this.resetBtn.width + 8, this.resetBtn.height + 4,
+    ).setInteractive().setDepth(323)
+    this.resetBtnZone.on('pointerdown', () => this.onResetClick())
 
     this.skillInfoText = this.scene.add.text(width / 2, panelY + SKILL_H - 14, '', {
       fontSize: '10px', color: '#aaaaaa', fontFamily: 'monospace',
@@ -251,6 +263,10 @@ export class SkillTreePanel {
     this.skillGfx.clear()
     this.skillTitle.setVisible(this.skillVisible)
     this.skillInfoText.setVisible(this.skillVisible)
+
+    this.resetBtn.setVisible(this.skillVisible)
+    if (this.skillVisible) this.resetBtnZone.setInteractive()
+    else this.resetBtnZone.disableInteractive()
 
     for (const z of this.skillNodeZones) {
       if (this.skillVisible) z.setInteractive()
@@ -534,6 +550,18 @@ export class SkillTreePanel {
     if (skills.unlock(skillId)) {
       AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
     }
+  }
+
+  private onResetClick() {
+    if (!this.skillVisible) return
+    const worldScene = this.scene.scene.get('WorldScene') as any
+    const player = worldScene?.getPlayer()
+    if (!player) return
+
+    const skills: SkillTreeManager = player.skills
+    if (skills.unlockedSkills.size === 0 && skills.totalParagonSpent() === 0) return
+    skills.resetSkills()
+    AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
   }
 
   private onParagonClick(categoryId: string) {

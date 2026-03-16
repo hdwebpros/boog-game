@@ -102,6 +102,9 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`tile_${i}`, `/sprites/tile_${i}.png`)
     }
 
+    // Eternal Chant orb effect
+    this.load.image('eternal_orb', '/sprites/eternal_orb.png')
+
     // Load void dimension enemy PNGs
     const voidEnemies = [
       'void_wraith', 'shadow_stalker', 'hellfire_imp', 'nether_golem',

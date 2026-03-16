@@ -122,6 +122,24 @@ export class SkillTreeManager {
     return SUPER_TREES.filter(st => this.isSuperTreeComplete(st.id)).length
   }
 
+  /** Reset all skills and paragon points, refunding all spent points */
+  resetSkills(): void {
+    // Calculate total points spent on skills
+    let refunded = 0
+    for (const skillId of this.unlockedSkills) {
+      const s = SKILL_MAP[skillId]
+      if (s) refunded += s.cost
+    }
+    // Add back paragon points
+    for (const cat of PARAGON_CATEGORIES) {
+      refunded += this.paragonPoints[cat.id] ?? 0
+    }
+    this.unlockedSkills.clear()
+    this.paragonPoints = {}
+    this.skillPoints += refunded
+    this.cachedModifiers = null
+  }
+
   /** Check if a skill can be unlocked */
   canUnlock(skillId: string): boolean {
     const skill = SKILL_MAP[skillId]
