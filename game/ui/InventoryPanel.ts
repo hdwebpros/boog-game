@@ -51,6 +51,13 @@ export class InventoryPanel {
   // Auto-trash filter hint
   private filterHintText!: Phaser.GameObjects.Text
 
+  // Trash filter popup
+  private trashFilterOpen = false
+  private trashFilterGfx!: Phaser.GameObjects.Graphics
+  private trashFilterTexts: Phaser.GameObjects.Text[] = []
+  private trashFilterZones: Phaser.GameObjects.Zone[] = []
+  private trashFilterTitle!: Phaser.GameObjects.Text
+
   // Shop panel gfx (created here to share with shop)
   shopGfx!: Phaser.GameObjects.Graphics
   shopTitle!: Phaser.GameObjects.Text
@@ -175,7 +182,7 @@ export class InventoryPanel {
     const trashY = invY + invH + 4
     this.trashZone = this.scene.add.zone(trashX + SLOT_SIZE / 2, trashY + SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE)
       .setInteractive().setDepth(313)
-    this.trashZone.on('pointerdown', () => this.onTrashClick())
+    this.trashZone.on('pointerdown', (pointer: Phaser.Input.Pointer) => this.onTrashClick(pointer))
     this.trashLabel = this.scene.add.text(trashX + SLOT_SIZE / 2, trashY + SLOT_SIZE / 2, 'X', {
       fontSize: '16px', color: '#ff4444', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5, 0.5).setDepth(312).setVisible(false)
@@ -185,6 +192,13 @@ export class InventoryPanel {
       fontSize: '9px', color: '#ff6666', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 1,
     }).setDepth(312).setVisible(false)
+
+    // Trash filter popup
+    this.trashFilterGfx = this.scene.add.graphics().setDepth(350)
+    this.trashFilterTitle = this.scene.add.text(0, 0, 'Auto-Trash Filter', {
+      fontSize: '11px', color: '#ff6666', fontFamily: 'monospace', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5, 0).setDepth(352).setVisible(false)
 
     // Shop panel gfx (shared)
     this.shopGfx = this.scene.add.graphics().setDepth(330)
@@ -244,6 +258,7 @@ export class InventoryPanel {
       this.trashLabel?.setVisible(false)
       this.trashZone?.disableInteractive()
       this.filterHintText?.setVisible(false)
+      this.hideTrashFilterPopup()
       return
     }
 
@@ -581,12 +596,18 @@ export class InventoryPanel {
       if (inv.heldItem) {
         this.invTooltipText.setText('Trash item')
         this.invTooltipText.setVisible(true)
+      } else if (inv.trashFilter.size > 0) {
+        this.invTooltipText.setText('Right-click to manage filter')
+        this.invTooltipText.setVisible(true)
       }
     }
     this.trashZone.setPosition(trashX + SLOT_SIZE / 2, trashY + SLOT_SIZE / 2)
     this.trashZone.setInteractive()
     this.trashLabel.setPosition(trashX + SLOT_SIZE / 2, trashY + SLOT_SIZE / 2)
     this.trashLabel.setVisible(true)
+
+    // Trash filter popup
+    this.updateTrashFilterPopup(inv, trashX, trashY)
   }
 
   updateHeldItem(inv: InventoryManager) {
@@ -676,12 +697,131 @@ export class InventoryPanel {
     AudioManager.get()?.play(SoundId.SLOT_CHANGE)
   }
 
-  private onTrashClick() {
+  private updateTrashFilterPopup(inv: InventoryManager, trashX: number, trashY: number) {
+    this.trashFilterGfx.clear()
+
+    if (!this.trashFilterOpen || inv.trashFilter.size === 0) {
+      this.trashFilterOpen = false
+      this.hideTrashFilterPopup()
+      return
+    }
+
+    const items = Array.from(inv.trashFilter)
+    const ROW_H = 22
+    const POPUP_W = 180
+    const POPUP_PAD = 8
+    const TITLE_H = 22
+    const popupH = POPUP_PAD + TITLE_H + items.length * ROW_H + POPUP_PAD
+    const popupX = trashX - POPUP_W + SLOT_SIZE
+    const popupY = trashY - popupH - 4
+
+    // Background
+    this.trashFilterGfx.fillStyle(0x0a0a1a, 0.95)
+    this.trashFilterGfx.fillRect(popupX, popupY, POPUP_W, popupH)
+    this.trashFilterGfx.lineStyle(2, 0x884444)
+    this.trashFilterGfx.strokeRect(popupX, popupY, POPUP_W, popupH)
+
+    // Title
+    this.trashFilterTitle.setPosition(popupX + POPUP_W / 2, popupY + POPUP_PAD)
+    this.trashFilterTitle.setVisible(true)
+
+    const pointer = this.scene.input.activePointer
+
+    // Ensure enough text/zone objects
+    while (this.trashFilterTexts.length < items.length) {
+      const txt = this.scene.add.text(0, 0, '', {
+        fontSize: '10px', color: '#cccccc', fontFamily: 'monospace',
+        stroke: '#000000', strokeThickness: 1,
+      }).setDepth(352).setVisible(false)
+      this.trashFilterTexts.push(txt)
+
+      const zone = this.scene.add.zone(0, 0, POPUP_W - POPUP_PAD * 2, ROW_H)
+        .setInteractive().setDepth(353)
+      const idx = this.trashFilterZones.length
+      zone.on('pointerdown', () => this.onTrashFilterItemClick(idx))
+      this.trashFilterZones.push(zone)
+    }
+
+    for (let i = 0; i < this.trashFilterTexts.length; i++) {
+      if (i >= items.length) {
+        this.trashFilterTexts[i]!.setVisible(false)
+        this.trashFilterZones[i]!.disableInteractive()
+        continue
+      }
+
+      const itemId = items[i]!
+      const def = getItemDef(itemId)
+      const tileProps = TILE_PROPERTIES[itemId as TileType]
+      const name = def?.name ?? tileProps?.name ?? `Item ${itemId}`
+
+      const rowY = popupY + POPUP_PAD + TITLE_H + i * ROW_H
+      const txt = this.trashFilterTexts[i]!
+      txt.setText(`  ${name}`)
+      txt.setPosition(popupX + POPUP_PAD, rowY + 3)
+      txt.setVisible(true)
+
+      const zone = this.trashFilterZones[i]!
+      zone.setPosition(popupX + POPUP_W / 2, rowY + ROW_H / 2)
+      zone.setSize(POPUP_W - POPUP_PAD * 2, ROW_H)
+      zone.setInteractive()
+
+      // Hover highlight
+      const zx = popupX + POPUP_PAD
+      const zy = rowY
+      const zw = POPUP_W - POPUP_PAD * 2
+      if (pointer.x >= zx && pointer.x < zx + zw &&
+          pointer.y >= zy && pointer.y < zy + ROW_H) {
+        this.trashFilterGfx.fillStyle(0xff4444, 0.15)
+        this.trashFilterGfx.fillRect(zx, zy, zw, ROW_H)
+        txt.setColor('#ff8888')
+      } else {
+        txt.setColor('#cccccc')
+      }
+
+      // Red X icon
+      this.trashFilterGfx.lineStyle(1, 0xff4444, 0.7)
+      const iconX = popupX + POPUP_PAD + 4
+      const iconY = rowY + ROW_H / 2
+      this.trashFilterGfx.lineBetween(iconX - 3, iconY - 3, iconX + 3, iconY + 3)
+      this.trashFilterGfx.lineBetween(iconX + 3, iconY - 3, iconX - 3, iconY + 3)
+    }
+  }
+
+  private hideTrashFilterPopup() {
+    this.trashFilterGfx.clear()
+    this.trashFilterTitle.setVisible(false)
+    for (const txt of this.trashFilterTexts) txt.setVisible(false)
+    for (const zone of this.trashFilterZones) zone.disableInteractive()
+  }
+
+  private onTrashFilterItemClick(index: number) {
+    if (!this.trashFilterOpen) return
+    const worldScene = this.scene.scene.get('WorldScene') as any
+    const player = worldScene?.getPlayer()
+    if (!player) return
+    const inv: InventoryManager = player.inventory
+    const items = Array.from(inv.trashFilter)
+    const itemId = items[index]
+    if (itemId !== undefined) {
+      inv.trashFilter.delete(itemId)
+      AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+    }
+  }
+
+  private onTrashClick(pointer: Phaser.Input.Pointer) {
     if (!this.invVisible) return
     const worldScene = this.scene.scene.get('WorldScene') as any
     const player = worldScene?.getPlayer()
     if (!player) return
     const inv: InventoryManager = player.inventory
+
+    // Right-click opens/closes filter popup
+    if (pointer.button === 2) {
+      this.trashFilterOpen = !this.trashFilterOpen
+      AudioManager.get()?.play(SoundId.SLOT_CHANGE)
+      return
+    }
+
     if (inv.heldItem) {
       inv.heldItem = null
       AudioManager.get()?.play(SoundId.SLOT_CHANGE)
