@@ -301,6 +301,7 @@ export class InventoryPanel {
         this.invGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
       }
 
+      this.invSlotZones[i]!.setPosition(sx + SLOT_SIZE / 2, sy + SLOT_SIZE / 2)
       this.invSlotZones[i]!.setInteractive()
 
       const icon = this.invSlotIcons[i]!
