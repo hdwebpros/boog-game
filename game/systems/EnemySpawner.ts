@@ -19,10 +19,10 @@ const ENEMIES_PER_EXTRA_PLAYER_DAY = 10
 const ENEMIES_PER_EXTRA_PLAYER_NIGHT = 14
 
 // Void dimension spawn parameters (dangerous realm — high spawn rates)
-const VOID_MAX_ENEMIES_DAY = 300
-const VOID_MAX_ENEMIES_NIGHT = 440
-const VOID_SPAWN_INTERVAL_DAY = 100
-const VOID_SPAWN_INTERVAL_NIGHT = 60
+const VOID_MAX_ENEMIES_DAY = 350
+const VOID_MAX_ENEMIES_NIGHT = 500
+const VOID_SPAWN_INTERVAL_DAY = 80
+const VOID_SPAWN_INTERVAL_NIGHT = 45
 
 export class EnemySpawner {
   private scene: Phaser.Scene
