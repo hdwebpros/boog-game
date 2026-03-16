@@ -790,6 +790,11 @@ export class WorldScene extends Phaser.Scene {
         this.player.takeDamage(playerHit.damage, playerHit.kbx, playerHit.kby, this.combat)
       }
 
+      // Check FinalBoss death after combat (damage is applied in combat.update)
+      if (this.finalBoss && !this.finalBoss.alive) {
+        this.onVoidLordDefeated()
+      }
+
       // Check enemy projectile hits against remote players
       for (const [rpId, sim] of this.remotePlayerSims) {
         if (sim.dead || sim.iFrames > 0) continue
