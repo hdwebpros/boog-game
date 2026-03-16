@@ -54,7 +54,7 @@ const stats = computed(() => {
 </script>
 
 <template>
-  <div class="float-none w-full md:float-right md:w-80 md:ml-6 mb-4 border-2 border-black shadow-[4px_4px_0_black] bg-slate-800 text-white">
+  <div class="max-w-lg mx-auto border-2 border-black shadow-[4px_4px_0_black] bg-slate-800 text-white">
     <!-- Header -->
     <div class="bg-purple-900 border-b-2 border-black px-4 py-2">
       <h3 class="text-lg font-bold m-0 text-white">{{ p.title }}</h3>

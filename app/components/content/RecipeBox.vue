@@ -1,11 +1,18 @@
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   station?: string
   result?: string
   resultName?: string
   resultIcon?: string
   resultQty?: number | string
 }>()
+
+const resultImgSrc = computed(() => {
+  const icon = props.resultIcon
+  if (!icon) return ''
+  if (icon.startsWith('/')) return icon
+  return `/sprites/${icon}`
+})
 </script>
 
 <template>
@@ -35,8 +42,8 @@ defineProps<{
       <div class="flex flex-col items-center gap-1 flex-shrink-0">
         <div class="w-16 h-16 bg-slate-900 border-2 border-slate-600 flex items-center justify-center">
           <NuxtImg
-            v-if="resultIcon"
-            :src="resultIcon"
+            v-if="resultImgSrc"
+            :src="resultImgSrc"
             :alt="resultName || result || 'Result'"
             width="48"
             height="48"

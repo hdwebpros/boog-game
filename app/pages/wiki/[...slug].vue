@@ -1,7 +1,7 @@
 <template>
   <div>
     <template v-if="page">
-      <article class="prose prose-invert max-w-none">
+      <article class="prose prose-invert max-w-lg mx-auto">
         <h1 class="font-heading text-xl text-wiki-primary mb-6">{{ page.title }}</h1>
 
         <!-- Meta bar -->
@@ -39,7 +39,10 @@
           </dl>
         </div>
 
-        <ContentRenderer :value="page" />
+
+          <ContentRenderer :value="page" />
+
+        
       </article>
     </template>
 

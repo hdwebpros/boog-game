@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{
-  title: string
+  title?: string
   icon?: string
   layer?: string
   yMin?: number | string
@@ -9,6 +9,25 @@ const props = defineProps<{
   resources?: string
 }>()
 
+const page = inject<Ref<any>>('wiki-page', ref(null))
+
+const p = computed(() => ({
+  title: props.title || page.value?.title || 'Unknown',
+  icon: props.icon || page.value?.icon || '',
+  layer: props.layer || page.value?.stats?.layer || '',
+  yMin: props.yMin ?? page.value?.stats?.yMin,
+  yMax: props.yMax ?? page.value?.stats?.yMax,
+  enemies: props.enemies || page.value?.stats?.enemies || '',
+  resources: props.resources || page.value?.stats?.resources || '',
+}))
+
+const spriteSrc = computed(() => {
+  const icon = p.value.icon
+  if (!icon) return ''
+  if (icon.startsWith('/')) return icon
+  return `/sprites/${icon}`
+})
+
 const layerColors: Record<string, string> = {
   'Sky': 'bg-cyan-500',
   'Surface': 'bg-green-500',
@@ -16,28 +35,29 @@ const layerColors: Record<string, string> = {
   'Underground': 'bg-amber-700',
   'Deep Underground': 'bg-gray-600',
   'Core': 'bg-red-700',
+  'Void': 'bg-purple-700',
 }
 
 const enemyList = computed(() =>
-  props.enemies ? props.enemies.split(',').map(s => s.trim()).filter(Boolean) : []
+  p.value.enemies ? p.value.enemies.split(',').map((s: string) => s.trim()).filter(Boolean) : []
 )
 const resourceList = computed(() =>
-  props.resources ? props.resources.split(',').map(s => s.trim()).filter(Boolean) : []
+  p.value.resources ? p.value.resources.split(',').map((s: string) => s.trim()).filter(Boolean) : []
 )
 </script>
 
 <template>
-  <div class="float-none w-full md:float-right md:w-72 md:ml-6 mb-4 border-2 border-black shadow-[4px_4px_0_black] bg-slate-800 text-white">
+  <div class="md:w-72 md:ml-6 mb-4 border-2 border-black shadow-[4px_4px_0_black] bg-slate-800 text-white">
     <!-- Header -->
     <div class="bg-emerald-800 border-b-2 border-black px-4 py-2">
-      <h3 class="text-lg font-bold m-0 text-white">{{ title }}</h3>
+      <h3 class="text-lg font-bold m-0 text-white">{{ p.title }}</h3>
     </div>
 
     <!-- Sprite -->
-    <div v-if="icon" class="flex justify-center py-4 bg-slate-900">
+    <div v-if="spriteSrc" class="flex justify-center py-4 bg-slate-900">
       <NuxtImg
-        :src="icon"
-        :alt="title"
+        :src="spriteSrc"
+        :alt="p.title"
         width="64"
         height="64"
         class="[image-rendering:pixelated]"
@@ -45,19 +65,19 @@ const resourceList = computed(() =>
     </div>
 
     <!-- Layer badge -->
-    <div v-if="layer" class="flex justify-center py-2 border-b border-slate-600">
+    <div v-if="p.layer" class="flex justify-center py-2 border-b border-slate-600">
       <span
         class="px-3 py-1 text-sm font-bold border-2 border-black text-white"
-        :class="layerColors[layer] || 'bg-slate-500'"
+        :class="layerColors[p.layer] || 'bg-slate-500'"
       >
-        {{ layer }}
+        {{ p.layer }}
       </span>
     </div>
 
     <!-- Depth range -->
-    <div v-if="yMin || yMax" class="flex justify-between px-4 py-2 text-sm border-b border-slate-600">
+    <div v-if="p.yMin || p.yMax" class="flex justify-between px-4 py-2 text-sm border-b border-slate-600">
       <span class="text-slate-400 font-medium">Depth Range</span>
-      <span class="font-bold">{{ yMin ?? '?' }} &ndash; {{ yMax ?? '?' }}</span>
+      <span class="font-bold">{{ p.yMin ?? '?' }} &ndash; {{ p.yMax ?? '?' }}</span>
     </div>
 
     <!-- Enemies -->

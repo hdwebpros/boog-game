@@ -156,6 +156,9 @@ export class Player {
   // Forcefield visual
   private shieldGfx: Phaser.GameObjects.Graphics
 
+  // Void aura visual (Ascendant skill)
+  private voidAuraGfx: Phaser.GameObjects.Graphics
+
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene
     this.inventory = new InventoryManager()
@@ -178,6 +181,10 @@ export class Player {
     // Forcefield bubble visual
     this.shieldGfx = scene.add.graphics()
     this.shieldGfx.setDepth(12)
+
+    // Void aura (behind player)
+    this.voidAuraGfx = scene.add.graphics()
+    this.voidAuraGfx.setDepth(9)
 
     // Overlay for tile highlights and mining progress
     this.overlay = scene.add.graphics()
@@ -375,6 +382,20 @@ export class Player {
       this.shieldGfx.strokeEllipse(this.sprite.x, this.sprite.y, 28, 40)
       this.shieldGfx.fillStyle(0x44ddff, pulse)
       this.shieldGfx.fillEllipse(this.sprite.x, this.sprite.y, 28, 40)
+    }
+
+    // Void aura glow (Ascendant skill)
+    this.voidAuraGfx.clear()
+    if (!this.dead && this.skills.unlockedSkills.has('ascendant')) {
+      const t = Date.now() * 0.003
+      const pulse = 0.12 + 0.06 * Math.sin(t)
+      const pulse2 = 0.08 + 0.04 * Math.sin(t * 1.7 + 1.2)
+      // Outer glow
+      this.voidAuraGfx.fillStyle(0x8833cc, pulse2)
+      this.voidAuraGfx.fillEllipse(this.sprite.x, this.sprite.y + 2, 40, 52)
+      // Inner glow
+      this.voidAuraGfx.fillStyle(0xaa44ff, pulse)
+      this.voidAuraGfx.fillEllipse(this.sprite.x, this.sprite.y + 2, 28, 42)
     }
 
     if (!this.mapOpen) this.handleMovement(dt, chunks)
