@@ -1764,11 +1764,9 @@ export class WorldScene extends Phaser.Scene {
 
     // Check if the player has used item 370 (Void Lord Summon Token)
     // The player presses F while holding the token in their hotbar
+    // Having the token is sufficient — it's only craftable at the Void Forge
     const selectedItem = this.player.inventory.getSelectedItem()
     if (!selectedItem || selectedItem.id !== 370) return
-
-    // Need to have visited the void
-    if (!this.hasVisitedVoid) return
 
     if (Phaser.Input.Keyboard.JustDown(this.keyF)) {
       // Consume the token
