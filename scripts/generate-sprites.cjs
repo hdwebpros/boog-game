@@ -473,6 +473,458 @@ const ITEMS = [
     name: 'item_380', label: 'trophy_void_lord',
     desc: 'trophy of the void lord inventory icon for a 2D side-scrolling game. Ornate dark purple crystalline trophy with a miniature void lord skull on top, glowing magenta base with arcane inscriptions, ultimate victory reward. Pixel art item sprite.',
   },
+
+  // ─── MATERIALS ──────────────────────────────────────────────
+  {
+    name: 'item_100', label: 'iron_bar',
+    desc: 'iron bar material inventory icon for a 2D side-scrolling game. Rectangular brownish-orange metallic ingot with subtle sheen and forge marks on the surface. Pixel art item sprite.',
+  },
+  {
+    name: 'item_101', label: 'diamond',
+    desc: 'diamond gem material inventory icon for a 2D side-scrolling game. Brilliant sparkling cyan-blue cut diamond gemstone with bright white highlights and faceted edges. Pixel art item sprite.',
+  },
+  {
+    name: 'item_102', label: 'titanium_bar',
+    desc: 'titanium bar material inventory icon for a 2D side-scrolling game. Sleek shiny silver-white metallic ingot with a smooth polished surface, lightweight high-tech metal. Pixel art item sprite.',
+  },
+  {
+    name: 'item_103', label: 'carbon_plate',
+    desc: 'carbon plate material inventory icon for a 2D side-scrolling game. Dark navy blue-black high-tech plate with tight woven crosshatch carbon fiber pattern, futuristic material. Pixel art item sprite.',
+  },
+  {
+    name: 'item_104', label: 'glass',
+    desc: 'glass block material inventory icon for a 2D side-scrolling game. Transparent pale blue square glass pane with white highlight reflections on the surface. Pixel art item sprite.',
+  },
+  {
+    name: 'item_105', label: 'plant_fiber',
+    desc: 'plant fiber material inventory icon for a 2D side-scrolling game. Bundle of green plant fibers tied together with a small vine, natural crafting material. Pixel art item sprite.',
+  },
+  {
+    name: 'item_106', label: 'torch',
+    desc: 'torch inventory icon for a 2D side-scrolling game. Wooden stick with a bright orange-yellow flame burning at the top, warm glow emanating from the fire. Pixel art item sprite.',
+  },
+
+  // ─── STATIONS ───────────────────────────────────────────────
+  {
+    name: 'item_110', label: 'workbench',
+    desc: 'wooden workbench station inventory icon for a 2D side-scrolling game. Small brown wooden crafting table with tools on the surface, saw and hammer visible. Pixel art item sprite.',
+  },
+  {
+    name: 'item_111', label: 'furnace',
+    desc: 'furnace station inventory icon for a 2D side-scrolling game. Brick-red stone furnace with dark opening showing orange glowing embers inside. Pixel art item sprite.',
+  },
+  {
+    name: 'item_112', label: 'anvil',
+    desc: 'anvil station inventory icon for a 2D side-scrolling game. Dark gray metallic anvil with flat striking surface on top and tapered horn. Pixel art item sprite.',
+  },
+  {
+    name: 'item_113', label: 'tech_bench',
+    desc: 'tech bench station inventory icon for a 2D side-scrolling game. Sleek blue-gray metal workstation with blinking lights and a glowing blue screen, high-tech. Pixel art item sprite.',
+  },
+  {
+    name: 'item_114', label: 'fusion_station',
+    desc: 'fusion station inventory icon for a 2D side-scrolling game. Purple high-tech reactor with a glowing magenta energy core in the center, metallic casing. Pixel art item sprite.',
+  },
+  {
+    name: 'item_115', label: 'workbench_mk2',
+    desc: 'upgraded workbench station inventory icon for a 2D side-scrolling game. Polished tan-brown wooden workbench with metal reinforcements and organized tools. Pixel art item sprite.',
+  },
+  {
+    name: 'item_117', label: 'portal',
+    desc: 'portal station inventory icon for a 2D side-scrolling game. Glowing purple dimensional portal with swirling energy in a stone frame. Pixel art item sprite.',
+  },
+  {
+    name: 'item_118', label: 'brewing_stand',
+    desc: 'brewing stand station inventory icon for a 2D side-scrolling game. Purple-tinted alchemical stand with glass flask, bubbling potion, metal frame with hooks. Pixel art item sprite.',
+  },
+
+  // ─── TOOLS ──────────────────────────────────────────────────
+  {
+    name: 'item_120', label: 'wood_pickaxe',
+    desc: 'wooden pickaxe tool inventory icon for a 2D side-scrolling game. Simple pickaxe with brown wooden handle and crude wooden pick head, basic mining tool. Pixel art item sprite.',
+  },
+  {
+    name: 'item_121', label: 'stone_pickaxe',
+    desc: 'stone pickaxe tool inventory icon for a 2D side-scrolling game. Pickaxe with brown wooden handle and gray stone pick head, sturdy mining tool. Pixel art item sprite.',
+  },
+  {
+    name: 'item_122', label: 'iron_pickaxe',
+    desc: 'iron pickaxe tool inventory icon for a 2D side-scrolling game. Pickaxe with brown wooden handle and brownish-orange iron pick head, reliable mining tool. Pixel art item sprite.',
+  },
+  {
+    name: 'item_123', label: 'diamond_pickaxe',
+    desc: 'diamond pickaxe tool inventory icon for a 2D side-scrolling game. Pickaxe with brown wooden handle and sparkling cyan-blue diamond pick head, powerful mining tool. Pixel art item sprite.',
+  },
+  {
+    name: 'item_124', label: 'titanium_pickaxe',
+    desc: 'titanium pickaxe tool inventory icon for a 2D side-scrolling game. Pickaxe with sleek metal handle and shiny silver-white titanium pick head, top-tier mining tool. Pixel art item sprite.',
+  },
+
+  // ─── MELEE WEAPONS ─────────────────────────────────────────
+  {
+    name: 'item_130', label: 'wood_sword',
+    desc: 'wooden sword weapon inventory icon for a 2D side-scrolling game. Simple brown wooden sword with crude blade shape, wrapped handle, basic starting weapon. Pixel art item sprite.',
+  },
+  {
+    name: 'item_131', label: 'stone_sword',
+    desc: 'stone sword weapon inventory icon for a 2D side-scrolling game. Gray stone blade sword with brown wooden handle, chipped but sturdy edges. Pixel art item sprite.',
+  },
+  {
+    name: 'item_132', label: 'iron_sword',
+    desc: 'iron sword weapon inventory icon for a 2D side-scrolling game. Brownish-orange iron blade sword with leather-wrapped handle and simple crossguard. Pixel art item sprite.',
+  },
+  {
+    name: 'item_133', label: 'diamond_sword',
+    desc: 'diamond sword weapon inventory icon for a 2D side-scrolling game. Sparkling cyan-blue diamond blade sword with ornate handle and jeweled crossguard. Pixel art item sprite.',
+  },
+  {
+    name: 'item_134', label: 'titanium_sword',
+    desc: 'titanium sword weapon inventory icon for a 2D side-scrolling game. Gleaming silver-white titanium blade sword with sleek modern handle design, top-tier weapon. Pixel art item sprite.',
+  },
+
+  // ─── RANGED WEAPONS ────────────────────────────────────────
+  {
+    name: 'item_140', label: 'wood_bow',
+    desc: 'wooden bow weapon inventory icon for a 2D side-scrolling game. Simple curved brown wooden bow with taut string, basic ranged weapon. Pixel art item sprite.',
+  },
+  {
+    name: 'item_141', label: 'iron_bow',
+    desc: 'iron bow weapon inventory icon for a 2D side-scrolling game. Reinforced bow with brownish-orange iron limb tips and strong string, sturdy ranged weapon. Pixel art item sprite.',
+  },
+  {
+    name: 'item_142', label: 'laser_gun',
+    desc: 'laser gun weapon inventory icon for a 2D side-scrolling game. Sleek red sci-fi pistol with glowing energy chamber, futuristic barrel tip emitting faint red light. Pixel art item sprite.',
+  },
+
+  // ─── MAGIC WEAPONS ─────────────────────────────────────────
+  {
+    name: 'item_150', label: 'apprentice_staff',
+    desc: 'apprentice magic staff weapon inventory icon for a 2D side-scrolling game. Simple wooden staff with a small glowing purple crystal orb at the top, beginner magic weapon. Pixel art item sprite.',
+  },
+  {
+    name: 'item_151', label: 'crystal_staff',
+    desc: 'crystal staff magic weapon inventory icon for a 2D side-scrolling game. Ornate staff with a large glowing violet crystal cluster at the top, purple energy wisps, powerful magic weapon. Pixel art item sprite.',
+  },
+
+  // ─── SUMMON WEAPONS ────────────────────────────────────────
+  {
+    name: 'item_160', label: 'drone_totem',
+    desc: 'drone totem summon weapon inventory icon for a 2D side-scrolling game. Small teal-green carved totem with glowing rune eyes, summons a helper drone companion. Pixel art item sprite.',
+  },
+  {
+    name: 'item_161', label: 'swarm_beacon',
+    desc: 'swarm beacon summon weapon inventory icon for a 2D side-scrolling game. Glowing cyan-green crystalline beacon emitting pulsing light waves, summons a swarm of minions. Pixel art item sprite.',
+  },
+
+  // ─── BOSS SUMMON ITEMS ─────────────────────────────────────
+  {
+    name: 'item_170', label: 'vine_beacon',
+    desc: 'vine beacon boss summon item inventory icon for a 2D side-scrolling game. Green glowing vine-wrapped beacon with leaves, used to summon a forest boss. Pixel art item sprite.',
+  },
+  {
+    name: 'item_171', label: 'tidal_pearl',
+    desc: 'tidal pearl boss summon item inventory icon for a 2D side-scrolling game. Shimmering blue iridescent pearl with water droplets, used to summon an ocean boss. Pixel art item sprite.',
+  },
+  {
+    name: 'item_172', label: 'crystal_lens',
+    desc: 'crystal lens boss summon item inventory icon for a 2D side-scrolling game. Polished cyan-blue crystal disc lens with bright light refraction, used to summon a crystal boss. Pixel art item sprite.',
+  },
+  {
+    name: 'item_173', label: 'magma_core',
+    desc: 'magma core boss summon item inventory icon for a 2D side-scrolling game. Glowing red-orange molten magma sphere with cracks of bright lava, used to summon a fire boss. Pixel art item sprite.',
+  },
+  {
+    name: 'item_174', label: 'void_sigil',
+    desc: 'void sigil boss summon item inventory icon for a 2D side-scrolling game. Dark purple glowing arcane sigil disc with swirling void energy, used to summon a void boss. Pixel art item sprite.',
+  },
+  {
+    name: 'item_175', label: 'signal_beacon',
+    desc: 'signal beacon boss summon item inventory icon for a 2D side-scrolling game. Pink-purple high-tech signal beacon with pulsing energy rings, used to summon the mothership boss. Pixel art item sprite.',
+  },
+
+  // ─── JETPACK COMPONENTS ────────────────────────────────────
+  {
+    name: 'item_180', label: 'fuel_cell_casing',
+    desc: 'fuel cell casing jetpack component inventory icon for a 2D side-scrolling game. Golden-brown metallic cylindrical fuel cell casing with connection ports, mechanical part. Pixel art item sprite.',
+  },
+  {
+    name: 'item_181', label: 'thrust_regulator',
+    desc: 'thrust regulator jetpack component inventory icon for a 2D side-scrolling game. Silver metallic device with gauges and valves, precision engineering component. Pixel art item sprite.',
+  },
+  {
+    name: 'item_182', label: 'pressure_valve',
+    desc: 'pressure valve jetpack component inventory icon for a 2D side-scrolling game. Blue-gray metal valve with pressure gauge and pipe fittings, mechanical component. Pixel art item sprite.',
+  },
+  {
+    name: 'item_183', label: 'energy_capacitor',
+    desc: 'energy capacitor jetpack component inventory icon for a 2D side-scrolling game. Purple glowing cylindrical capacitor with energy conduits, stores electrical charge. Pixel art item sprite.',
+  },
+  {
+    name: 'item_184', label: 'ignition_core',
+    desc: 'ignition core jetpack component inventory icon for a 2D side-scrolling game. Orange-red glowing hot ignition core with heat vents and spark chamber, fire starting component. Pixel art item sprite.',
+  },
+  {
+    name: 'item_185', label: 'navigation_module',
+    desc: 'navigation module jetpack component inventory icon for a 2D side-scrolling game. Green-cyan circuit board module with blinking lights and miniature screen, guidance system. Pixel art item sprite.',
+  },
+  {
+    name: 'item_186', label: 'jetpack',
+    desc: 'assembled jetpack inventory icon for a 2D side-scrolling game. Compact golden-yellow jetpack with twin thruster nozzles, fuel tank, and control panel, ready to fly. Pixel art item sprite.',
+  },
+
+  // ─── CONSUMABLES ───────────────────────────────────────────
+  {
+    name: 'item_190', label: 'healing_herb',
+    desc: 'healing herb consumable inventory icon for a 2D side-scrolling game. Small green leafy herb plant with a soft healing glow, natural medicine. Pixel art item sprite.',
+  },
+  {
+    name: 'item_191', label: 'cooked_meat',
+    desc: 'cooked meat consumable inventory icon for a 2D side-scrolling game. Roasted brown meat leg on a bone with grill marks, hearty food item. Pixel art item sprite.',
+  },
+  {
+    name: 'item_192', label: 'rebreather',
+    desc: 'rebreather special item inventory icon for a 2D side-scrolling game. Teal underwater breathing apparatus with mask and small air tank, diving equipment. Pixel art item sprite.',
+  },
+  {
+    name: 'item_193', label: 'forcefield_potion',
+    desc: 'forcefield potion consumable inventory icon for a 2D side-scrolling game. Glass flask with swirling pale blue liquid and a shimmering shield-like aura, protective drink. Pixel art item sprite.',
+  },
+
+  // ─── ARMOR: WOOD ───────────────────────────────────────────
+  {
+    name: 'item_200', label: 'wood_helmet',
+    desc: 'wooden helmet armor inventory icon for a 2D side-scrolling game. Simple brown wooden helmet with crude protective brim, basic head armor. Pixel art item sprite.',
+  },
+  {
+    name: 'item_201', label: 'wood_chestplate',
+    desc: 'wooden chestplate armor inventory icon for a 2D side-scrolling game. Brown wooden chest armor with leather straps and plank construction, basic torso protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_202', label: 'wood_leggings',
+    desc: 'wooden leggings armor inventory icon for a 2D side-scrolling game. Brown wooden leg guards with leather bindings, basic leg protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_203', label: 'wood_boots',
+    desc: 'wooden boots armor inventory icon for a 2D side-scrolling game. Simple brown wooden clogs/boots with leather ankle straps, basic footwear. Pixel art item sprite.',
+  },
+
+  // ─── ARMOR: STONE ──────────────────────────────────────────
+  {
+    name: 'item_204', label: 'stone_helmet',
+    desc: 'stone helmet armor inventory icon for a 2D side-scrolling game. Heavy gray stone helmet with rough-hewn surface, sturdy head protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_205', label: 'stone_chestplate',
+    desc: 'stone chestplate armor inventory icon for a 2D side-scrolling game. Gray stone chest armor with carved rock plates, heavy torso protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_206', label: 'stone_leggings',
+    desc: 'stone leggings armor inventory icon for a 2D side-scrolling game. Gray stone leg guards with rocky plate segments, heavy leg protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_207', label: 'stone_boots',
+    desc: 'stone boots armor inventory icon for a 2D side-scrolling game. Heavy gray stone boots with thick soles, sturdy footwear. Pixel art item sprite.',
+  },
+
+  // ─── ARMOR: IRON ───────────────────────────────────────────
+  {
+    name: 'item_208', label: 'iron_helmet',
+    desc: 'iron helmet armor inventory icon for a 2D side-scrolling game. Brownish-orange iron helmet with nose guard and riveted bands, reliable head protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_209', label: 'iron_chestplate',
+    desc: 'iron chestplate armor inventory icon for a 2D side-scrolling game. Brownish-orange iron chest armor with riveted plates and chain mail detail, solid torso protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_210', label: 'iron_leggings',
+    desc: 'iron leggings armor inventory icon for a 2D side-scrolling game. Brownish-orange iron leg guards with articulated plates, solid leg protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_211', label: 'iron_boots',
+    desc: 'iron boots armor inventory icon for a 2D side-scrolling game. Brownish-orange iron boots with metal plate covering, solid footwear. Pixel art item sprite.',
+  },
+
+  // ─── ARMOR: DIAMOND ────────────────────────────────────────
+  {
+    name: 'item_212', label: 'diamond_helmet',
+    desc: 'diamond helmet armor inventory icon for a 2D side-scrolling game. Sparkling cyan-blue crystalline diamond helmet with faceted surface, gleaming head protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_213', label: 'diamond_chestplate',
+    desc: 'diamond chestplate armor inventory icon for a 2D side-scrolling game. Sparkling cyan-blue crystalline diamond chest armor with brilliant facets, premium torso protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_214', label: 'diamond_leggings',
+    desc: 'diamond leggings armor inventory icon for a 2D side-scrolling game. Sparkling cyan-blue crystalline diamond leg guards with faceted panels, premium leg protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_215', label: 'diamond_boots',
+    desc: 'diamond boots armor inventory icon for a 2D side-scrolling game. Sparkling cyan-blue crystalline diamond boots with faceted surface, premium footwear. Pixel art item sprite.',
+  },
+
+  // ─── ARMOR: TITANIUM ───────────────────────────────────────
+  {
+    name: 'item_216', label: 'titanium_helmet',
+    desc: 'titanium helmet armor inventory icon for a 2D side-scrolling game. Sleek silver-white titanium helmet with smooth aerodynamic design, top-tier head protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_217', label: 'titanium_chestplate',
+    desc: 'titanium chestplate armor inventory icon for a 2D side-scrolling game. Sleek silver-white titanium chest armor with smooth plates and blue accent lights, top-tier torso protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_218', label: 'titanium_leggings',
+    desc: 'titanium leggings armor inventory icon for a 2D side-scrolling game. Sleek silver-white titanium leg guards with articulated smooth plates, top-tier leg protection. Pixel art item sprite.',
+  },
+  {
+    name: 'item_219', label: 'titanium_boots',
+    desc: 'titanium boots armor inventory icon for a 2D side-scrolling game. Sleek silver-white titanium boots with smooth design and blue accents, top-tier footwear. Pixel art item sprite.',
+  },
+
+  // ─── SHARDS & ENCHANTING ───────────────────────────────────
+  {
+    name: 'item_230', label: 'ember_shard',
+    desc: 'ember shard material inventory icon for a 2D side-scrolling game. Small jagged orange-red crystal shard glowing with inner fire, warm ember light. Pixel art item sprite.',
+  },
+  {
+    name: 'item_231', label: 'frost_shard',
+    desc: 'frost shard material inventory icon for a 2D side-scrolling game. Small jagged pale blue ice crystal shard with frosty mist, cold gleam. Pixel art item sprite.',
+  },
+  {
+    name: 'item_232', label: 'storm_shard',
+    desc: 'storm shard material inventory icon for a 2D side-scrolling game. Small jagged yellow crystal shard crackling with tiny lightning sparks, electric energy. Pixel art item sprite.',
+  },
+  {
+    name: 'item_233', label: 'void_shard',
+    desc: 'void shard material inventory icon for a 2D side-scrolling game. Small jagged dark purple crystal shard with swirling void energy inside, otherworldly gleam. Pixel art item sprite.',
+  },
+  {
+    name: 'item_234', label: 'life_shard',
+    desc: 'life shard material inventory icon for a 2D side-scrolling game. Small jagged green crystal shard with healing aura and tiny leaf sprout, vital energy. Pixel art item sprite.',
+  },
+  {
+    name: 'item_235', label: 'arcane_dust',
+    desc: 'arcane dust material inventory icon for a 2D side-scrolling game. Small pile of shimmering pale purple magical dust with sparkle particles floating above. Pixel art item sprite.',
+  },
+  {
+    name: 'item_236', label: 'arcane_anvil',
+    desc: 'arcane anvil station inventory icon for a 2D side-scrolling game. Dark purple magical anvil with glowing violet rune engravings, ethereal energy wisps. Pixel art item sprite.',
+  },
+
+  // ─── CHANT ORBS ────────────────────────────────────────────
+  {
+    name: 'item_237', label: 'inferno_chant',
+    desc: 'inferno chant orb inventory icon for a 2D side-scrolling game. Glowing orange-red magical orb with swirling fire runes inside, enchantment sphere. Pixel art item sprite.',
+  },
+  {
+    name: 'item_238', label: 'glacial_chant',
+    desc: 'glacial chant orb inventory icon for a 2D side-scrolling game. Glowing pale blue magical orb with swirling ice crystal patterns inside, enchantment sphere. Pixel art item sprite.',
+  },
+  {
+    name: 'item_239', label: 'tempest_chant',
+    desc: 'tempest chant orb inventory icon for a 2D side-scrolling game. Glowing yellow magical orb with swirling lightning bolt patterns inside, enchantment sphere. Pixel art item sprite.',
+  },
+  {
+    name: 'item_240', label: 'abyssal_chant',
+    desc: 'abyssal chant orb inventory icon for a 2D side-scrolling game. Glowing dark purple magical orb with swirling void energy inside, enchantment sphere. Pixel art item sprite.',
+  },
+  {
+    name: 'item_241', label: 'verdant_chant',
+    desc: 'verdant chant orb inventory icon for a 2D side-scrolling game. Glowing green magical orb with swirling leaf and vine patterns inside, enchantment sphere. Pixel art item sprite.',
+  },
+  {
+    name: 'item_243', label: 'eternal_chant',
+    desc: 'eternal chant orb inventory icon for a 2D side-scrolling game. Glowing golden magical orb with swirling divine light patterns inside, enchantment sphere. Pixel art item sprite.',
+  },
+
+  // ─── EXPLORER'S BELT ───────────────────────────────────────
+  {
+    name: 'item_306', label: 'explorers_belt',
+    desc: "explorer's belt accessory inventory icon for a 2D side-scrolling game. Brown leather utility belt with small pouches, compass clip, and brass buckle, adventurer gear. Pixel art item sprite.",
+  },
+
+  // ─── DECORATIONS ───────────────────────────────────────────
+  {
+    name: 'item_310', label: 'star_lantern',
+    desc: 'star lantern decoration inventory icon for a 2D side-scrolling game. Ornate golden lantern with a glowing yellow star-shaped light inside, hanging chain. Pixel art item sprite.',
+  },
+  {
+    name: 'item_311', label: 'celestial_banner',
+    desc: 'celestial banner decoration inventory icon for a 2D side-scrolling game. Flowing dark purple banner with embroidered star constellation pattern, decorative wall hanging. Pixel art item sprite.',
+  },
+  {
+    name: 'item_312', label: 'starfall_flower',
+    desc: 'starfall flower decoration inventory icon for a 2D side-scrolling game. Beautiful pink-magenta glowing flower with star-shaped petals and soft light aura. Pixel art item sprite.',
+  },
+  {
+    name: 'item_313', label: 'sky_crystal_lamp',
+    desc: 'sky crystal lamp decoration inventory icon for a 2D side-scrolling game. Floating cyan-blue crystal lamp emitting soft blue light, elegant sky-themed lighting. Pixel art item sprite.',
+  },
+
+  // ─── POTIONS ───────────────────────────────────────────────
+  {
+    name: 'item_400', label: 'ironskin_potion',
+    desc: 'ironskin potion inventory icon for a 2D side-scrolling game. Glass flask with golden-orange metallic liquid inside, iron shield emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_401', label: 'swiftness_potion',
+    desc: 'swiftness potion inventory icon for a 2D side-scrolling game. Glass flask with pale cyan swirling liquid inside, wind streak emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_402', label: 'spelunker_potion',
+    desc: 'spelunker potion inventory icon for a 2D side-scrolling game. Glass flask with bright yellow glowing liquid inside, ore nugget emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_403', label: 'night_owl_potion',
+    desc: 'night owl potion inventory icon for a 2D side-scrolling game. Glass flask with pale green glowing liquid inside, owl eye emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_404', label: 'featherfall_potion',
+    desc: 'featherfall potion inventory icon for a 2D side-scrolling game. Glass flask with pale white wispy liquid inside, feather emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_405', label: 'rage_potion',
+    desc: 'rage potion inventory icon for a 2D side-scrolling game. Glass flask with bright red bubbling liquid inside, crossed swords emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_406', label: 'regeneration_potion',
+    desc: 'regeneration potion inventory icon for a 2D side-scrolling game. Glass flask with pink glowing liquid inside, heart emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_407', label: 'mana_surge_potion',
+    desc: 'mana surge potion inventory icon for a 2D side-scrolling game. Glass flask with deep purple swirling liquid inside, star burst emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_408', label: 'thorns_potion',
+    desc: 'thorns potion inventory icon for a 2D side-scrolling game. Glass flask with dark green liquid with tiny thorns floating inside, rose thorn emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_409', label: 'water_walking_potion',
+    desc: 'water walking potion inventory icon for a 2D side-scrolling game. Glass flask with bright blue wavy liquid inside, water ripple emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_410', label: 'giant_potion',
+    desc: 'giant potion inventory icon for a 2D side-scrolling game. Large glass flask with brown-orange liquid inside, upward arrow emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_411', label: 'archery_potion',
+    desc: 'archery potion inventory icon for a 2D side-scrolling game. Glass flask with green-yellow liquid inside, bow and arrow emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_412', label: 'magic_power_potion',
+    desc: 'magic power potion inventory icon for a 2D side-scrolling game. Glass flask with vibrant purple sparkling liquid inside, magic wand emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_413', label: 'mining_potion',
+    desc: 'mining potion inventory icon for a 2D side-scrolling game. Glass flask with orange-yellow liquid inside, pickaxe emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_414', label: 'endurance_potion',
+    desc: 'endurance potion inventory icon for a 2D side-scrolling game. Glass flask with teal-blue liquid inside, shield emblem on label. Pixel art item sprite.',
+  },
+  {
+    name: 'item_415', label: 'wrath_potion',
+    desc: 'wrath potion inventory icon for a 2D side-scrolling game. Glass flask with deep crimson bubbling liquid inside, flame skull emblem on label. Pixel art item sprite.',
+  },
 ]
 
 // ─── GENERATION FUNCTIONS ───────────────────────────────────

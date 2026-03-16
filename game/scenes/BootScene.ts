@@ -53,8 +53,45 @@ export class BootScene extends Phaser.Scene {
     this.load.image('proj_enemy', '/sprites/proj_enemy.png')
     this.load.image('summon_minion', '/sprites/summon_minion.png')
 
-    // Load accessory & coin item PNGs
-    const itemPngs = [116, 117, 242, 250, 300, 301, 302, 303, 304, 305]
+    // Load all item PNGs (materials, tools, weapons, armor, accessories, potions, etc.)
+    const itemPngs = [
+      // Stations, materials, misc
+      100, 101, 102, 103, 104, 105, 106,
+      110, 111, 112, 113, 114, 115, 116, 117, 118,
+      // Tools
+      120, 121, 122, 123, 124,
+      // Weapons
+      130, 131, 132, 133, 134,
+      140, 141, 142,
+      150, 151,
+      160, 161,
+      // Boss summons & jetpack components
+      170, 171, 172, 173, 174, 175,
+      180, 181, 182, 183, 184, 185, 186,
+      // Consumables
+      190, 191, 192, 193,
+      // Armor
+      200, 201, 202, 203, 204, 205, 206, 207,
+      208, 209, 210, 211, 212, 213, 214, 215,
+      216, 217, 218, 219,
+      // Shards & enchanting
+      230, 231, 232, 233, 234, 235, 236,
+      237, 238, 239, 240, 241, 242, 243,
+      // Currency & accessories
+      250, 300, 301, 302, 303, 304, 305, 306,
+      // Decorations
+      310, 311, 312, 313,
+      // Void items
+      320, 321,
+      330, 331, 332, 333, 334, 335, 336, 337,
+      340, 341, 342, 343,
+      350, 351, 352, 353, 354, 355,
+      360, 361, 362, 363, 364, 365,
+      370, 380,
+      // Potions
+      400, 401, 402, 403, 404, 405, 406, 407,
+      408, 409, 410, 411, 412, 413, 414, 415,
+    ]
     for (const id of itemPngs) {
       this.load.image(`item_${id}`, `/sprites/item_${id}.png`)
     }
@@ -75,10 +112,6 @@ export class BootScene extends Phaser.Scene {
 
     // Load Void Lord boss PNG
     this.load.image('boss_void_lord', '/sprites/boss_void_lord.png')
-
-    // Load void dimension item PNGs
-    this.load.image('item_320', '/sprites/item_320.png')
-    this.load.image('item_321', '/sprites/item_321.png')
   }
 
   create() {
