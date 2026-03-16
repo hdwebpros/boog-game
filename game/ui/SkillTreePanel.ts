@@ -1,12 +1,12 @@
 import Phaser from 'phaser'
-import { SKILLS, BRANCH_INFO, BRANCH_ORDER, SUPER_TREES, SUPER_TREE_MAP, SKILL_MAP, SkillBranch } from '../data/skills'
+import { SKILLS, BRANCH_INFO, BRANCH_ORDER, SUPER_TREES, SUPER_TREE_MAP, SKILL_MAP, SkillBranch, PARAGON_CATEGORIES } from '../data/skills'
 import type { SkillDef } from '../data/skills'
 import type { SkillTreeManager } from '../systems/SkillTreeManager'
 import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 
 const SKILL_W = 520
-const SKILL_H = 520
+const SKILL_H = 580
 const SKILL_NODE_SIZE = 36
 const SKILL_NODE_GAP_X = 56
 const SKILL_NODE_GAP_Y = 70
@@ -23,6 +23,9 @@ export class SkillTreePanel {
   private skillBranchLabels: Phaser.GameObjects.Text[] = []
   private skillNodeSkills: SkillDef[] = []
   private skillVisible = false
+  private paragonZones: Phaser.GameObjects.Zone[] = []
+  private paragonTexts: Phaser.GameObjects.Text[] = []
+  private paragonLabel!: Phaser.GameObjects.Text
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
@@ -34,6 +37,8 @@ export class SkillTreePanel {
     this.skillNameTexts = []
     this.skillBranchLabels = []
     this.skillNodeSkills = []
+    this.paragonZones = []
+    this.paragonTexts = []
     this.skillVisible = false
 
     this.skillGfx = this.scene.add.graphics().setDepth(320)
@@ -205,6 +210,36 @@ export class SkillTreePanel {
         this.skillNameTexts.push(nameText)
       }
     }
+
+    // ── Paragon nodes ─────────────────────────────────────
+    const paragonY = ascY + 3 * (SKILL_NODE_GAP_Y - 10) + 10
+    const paragonNodeW = 80
+    const paragonNodeH = 36
+    const paragonGap = 16
+    const totalParagonW = PARAGON_CATEGORIES.length * paragonNodeW + (PARAGON_CATEGORIES.length - 1) * paragonGap
+    const paragonStartX = panelX + (SKILL_W - totalParagonW) / 2
+
+    this.paragonLabel = this.scene.add.text(width / 2, paragonY - 14, 'PARAGON', {
+      fontSize: '9px', color: '#ff8800', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5, 0).setDepth(321).setVisible(false)
+
+    for (let i = 0; i < PARAGON_CATEGORIES.length; i++) {
+      const cat = PARAGON_CATEGORIES[i]!
+      const nx = paragonStartX + i * (paragonNodeW + paragonGap)
+      const cx = nx + paragonNodeW / 2
+      const cy = paragonY + paragonNodeH / 2
+
+      const zone = this.scene.add.zone(cx, cy, paragonNodeW, paragonNodeH)
+        .setInteractive().setDepth(323)
+      zone.on('pointerdown', () => this.onParagonClick(cat.id))
+      this.paragonZones.push(zone)
+
+      const nodeText = this.scene.add.text(cx, cy, `[${cat.icon}] ${cat.name}\n0`, {
+        fontSize: '8px', color: cat.colorStr, fontFamily: 'monospace',
+        align: 'center', stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(322).setVisible(false)
+      this.paragonTexts.push(nodeText)
+    }
   }
 
   update(player: any, pointerJustDown: boolean) {
@@ -225,19 +260,32 @@ export class SkillTreePanel {
     for (const t of this.skillNameTexts) t.setVisible(this.skillVisible)
     for (const l of this.skillBranchLabels) l.setVisible(this.skillVisible)
 
+    const skills: SkillTreeManager = player.skills
+    const showParagon = this.skillVisible && skills.allSkillsUnlocked()
+    this.paragonLabel.setVisible(showParagon)
+    for (const t of this.paragonTexts) t.setVisible(showParagon)
+    for (const z of this.paragonZones) {
+      if (showParagon) z.setInteractive()
+      else z.disableInteractive()
+    }
+
     if (!this.skillVisible) return
 
     const { width, height } = this.scene.scale
     const panelX = (width - SKILL_W) / 2
     const panelY = (height - SKILL_H) / 2
-    const skills: SkillTreeManager = player.skills
 
     this.skillGfx.fillStyle(0x0a0a1a, 0.95)
     this.skillGfx.fillRect(panelX, panelY, SKILL_W, SKILL_H)
     this.skillGfx.lineStyle(2, 0x444466)
     this.skillGfx.strokeRect(panelX, panelY, SKILL_W, SKILL_H)
 
-    this.skillTitle.setText(`SKILL TREE  [${skills.skillPoints} SP]`)
+    if (showParagon) {
+      const spLabel = skills.skillPoints > 0 ? `  [${skills.skillPoints} PP]` : ''
+      this.skillTitle.setText(`SKILL TREE  P${skills.paragonLevel}${spLabel}`)
+    } else {
+      this.skillTitle.setText(`SKILL TREE  [${skills.skillPoints} SP]`)
+    }
 
     const pointer = this.scene.input.activePointer
     let hoveredSkill: SkillDef | null = null
@@ -417,9 +465,62 @@ export class SkillTreePanel {
       }
       this.skillInfoText.setText(label)
       this.skillInfoText.setColor(unlocked ? '#44ff44' : canUnlockIt ? '#ffff00' : '#666666')
-    } else {
+    } else if (!showParagon) {
       this.skillInfoText.setText('Hover over a node to see details. Click to unlock.')
       this.skillInfoText.setColor('#555555')
+    }
+
+    // ── Paragon section rendering ─────────────────────────
+    if (showParagon) {
+      // Divider above paragon
+      const paragonDivY = this.paragonLabel.y - 8
+      this.skillGfx.lineStyle(1, 0x664411, 0.6)
+      this.skillGfx.lineBetween(panelX + 20, paragonDivY, panelX + SKILL_W - 20, paragonDivY)
+
+      let hoveredParagon: typeof PARAGON_CATEGORIES[0] | null = null
+
+      for (let i = 0; i < PARAGON_CATEGORIES.length; i++) {
+        const cat = PARAGON_CATEGORIES[i]!
+        const zone = this.paragonZones[i]!
+        const pts = skills.paragonPoints[cat.id] ?? 0
+        const nodeW = 80
+        const nodeH = 36
+        const nx = zone.x - nodeW / 2
+        const ny = zone.y - nodeH / 2
+
+        // Background
+        const hasPoints = skills.skillPoints > 0
+        this.skillGfx.fillStyle(cat.color, pts > 0 ? 0.25 : 0.08)
+        this.skillGfx.fillRect(nx, ny, nodeW, nodeH)
+
+        // Border
+        this.skillGfx.lineStyle(hasPoints ? 2 : 1, cat.color, hasPoints ? 0.8 : 0.4)
+        this.skillGfx.strokeRect(nx, ny, nodeW, nodeH)
+
+        // Update text
+        this.paragonTexts[i]!.setText(`[${cat.icon}] ${cat.name}\n${pts}`)
+        this.paragonTexts[i]!.setColor(hasPoints ? cat.colorStr : '#666666')
+
+        // Hover
+        if (pointer.x >= nx && pointer.x < nx + nodeW &&
+            pointer.y >= ny && pointer.y < ny + nodeH) {
+          hoveredParagon = cat
+          this.skillGfx.lineStyle(2, 0xffffff, 0.5)
+          this.skillGfx.strokeRect(nx - 1, ny - 1, nodeW + 2, nodeH + 2)
+        }
+      }
+
+      if (hoveredParagon) {
+        const pts = skills.paragonPoints[hoveredParagon.id] ?? 0
+        const label = `${hoveredParagon.name} (${pts} pts) - ${hoveredParagon.perPointLabel} per point` +
+          (skills.skillPoints > 0 ? '  [Click to allocate]' : '  [Need paragon points]')
+        this.skillInfoText.setText(label)
+        this.skillInfoText.setColor(skills.skillPoints > 0 ? '#ff8800' : '#666666')
+      } else if (!hoveredSkill) {
+        const total = skills.totalParagonSpent()
+        this.skillInfoText.setText(`Paragon ${skills.paragonLevel} — ${total} points allocated. Click a category to invest.`)
+        this.skillInfoText.setColor('#888888')
+      }
     }
   }
 
@@ -431,6 +532,18 @@ export class SkillTreePanel {
 
     const skills: SkillTreeManager = player.skills
     if (skills.unlock(skillId)) {
+      AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+    }
+  }
+
+  private onParagonClick(categoryId: string) {
+    if (!this.skillVisible) return
+    const worldScene = this.scene.scene.get('WorldScene') as any
+    const player = worldScene?.getPlayer()
+    if (!player) return
+
+    const skills: SkillTreeManager = player.skills
+    if (skills.allocateParagon(categoryId)) {
       AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
     }
   }

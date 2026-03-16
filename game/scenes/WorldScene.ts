@@ -2010,11 +2010,16 @@ export class WorldScene extends Phaser.Scene {
     this.combat.spawnDamageNumber(worldX, worldY - 20, amount, 0x44ffff)
 
     if (levelsGained > 0) {
+      const isParagon = this.player.skills.allSkillsUnlocked()
+      const label = isParagon
+        ? `PARAGON UP! (P${this.player.skills.paragonLevel})\n+${levelsGained} Paragon Point${levelsGained > 1 ? 's' : ''}`
+        : `LEVEL UP! (Lv ${this.player.skills.level})\n+${levelsGained} Skill Point${levelsGained > 1 ? 's' : ''}`
+      const color = isParagon ? '#ff8800' : '#ffff00'
       const text = this.add.text(
         this.cameras.main.centerX, this.cameras.main.centerY - 80,
-        `LEVEL UP! (Lv ${this.player.skills.level})\n+${levelsGained} Skill Point${levelsGained > 1 ? 's' : ''}`,
+        label,
         {
-          fontSize: '18px', color: '#ffff00', fontFamily: 'monospace',
+          fontSize: '18px', color, fontFamily: 'monospace',
           align: 'center', stroke: '#000000', strokeThickness: 4,
         }
       ).setOrigin(0.5).setScrollFactor(0).setDepth(500)

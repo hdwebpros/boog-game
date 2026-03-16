@@ -100,6 +100,8 @@ export interface SkillSaveData {
   level: number
   skillPoints: number
   unlockedSkills: string[]
+  paragonPoints?: Record<string, number>
+  paragonLevel?: number
 }
 
 export interface SaveSlotInfo {

@@ -237,18 +237,29 @@ export class StatsPanel {
     // XP bar
     const skills: SkillTreeManager = player.skills
     const xpY = nextBarY
-    this.statsGfx.fillStyle(0x002233, 0.8)
+    const isParagon = skills.allSkillsUnlocked()
+    const barColor = isParagon ? 0xff8800 : 0x44ffff
+    const barBg = isParagon ? 0x332200 : 0x002233
+    const barBorder = isParagon ? 0x664411 : 0x226688
+    this.statsGfx.fillStyle(barBg, 0.8)
     this.statsGfx.fillRect(x, xpY, barW, barH)
     const xpNeeded = skills.xpToNextLevel()
     const xpPct = xpNeeded > 0 ? Math.min(1, skills.xp / xpNeeded) : 0
-    this.statsGfx.fillStyle(0x44ffff, 0.9)
+    this.statsGfx.fillStyle(barColor, 0.9)
     this.statsGfx.fillRect(x, xpY, barW * xpPct, barH)
-    this.statsGfx.lineStyle(1, 0x226688)
+    this.statsGfx.lineStyle(1, barBorder)
     this.statsGfx.strokeRect(x, xpY, barW, barH)
 
     // Level + SP display
-    const spStr = skills.skillPoints > 0 ? ` [${skills.skillPoints}SP]` : ''
-    this.skillXpText.setText(`Lv${skills.level} ${skills.xp}/${xpNeeded}${spStr}`)
+    if (isParagon) {
+      const spStr = skills.skillPoints > 0 ? ` [${skills.skillPoints}PP]` : ''
+      this.skillXpText.setText(`Lv${skills.level} P${skills.paragonLevel} ${skills.xp}/${xpNeeded}${spStr}`)
+      this.skillXpText.setColor('#ff8800')
+    } else {
+      const spStr = skills.skillPoints > 0 ? ` [${skills.skillPoints}SP]` : ''
+      this.skillXpText.setText(`Lv${skills.level} ${skills.xp}/${xpNeeded}${spStr}`)
+      this.skillXpText.setColor('#44ffff')
+    }
     this.skillXpText.setPosition(x, xpY + barH + 2)
     this.skillXpText.setVisible(true)
 

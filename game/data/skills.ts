@@ -469,3 +469,73 @@ export const BRANCH_ORDER: SkillBranch[] = [
   SkillBranch.MOBILITY,
   SkillBranch.ASCENSION,
 ]
+
+// ── Paragon System ─────────────────────────────────────
+// After all skills are unlocked, skill points become paragon points.
+// Each paragon point can be allocated to one of four categories for
+// small, uncapped stat boosts.
+
+export interface ParagonCategory {
+  id: string
+  name: string
+  description: string
+  color: number
+  colorStr: string
+  icon: string
+  /** Per-point bonus values */
+  perPoint: Partial<Pick<SkillDef,
+    'maxHpBonus' | 'meleeDamageMult' | 'rangedDamageMult' | 'magicDamageMult' |
+    'mineSpeedMult' | 'maxManaBonus' | 'defenseBonus' | 'moveSpeedMult'
+  >>
+  /** Human-readable per-point description */
+  perPointLabel: string
+}
+
+export const PARAGON_CATEGORIES: ParagonCategory[] = [
+  {
+    id: 'vitality',
+    name: 'Vitality',
+    description: 'Increase max HP and defense',
+    color: 0xff4444,
+    colorStr: '#ff4444',
+    icon: '+',
+    perPoint: { maxHpBonus: 5, defenseBonus: 1 },
+    perPointLabel: '+5 Max HP, +1 Defense',
+  },
+  {
+    id: 'power',
+    name: 'Power',
+    description: 'Increase all damage',
+    color: 0xff8844,
+    colorStr: '#ff8844',
+    icon: '/',
+    perPoint: { meleeDamageMult: 1.01, rangedDamageMult: 1.01, magicDamageMult: 1.01 },
+    perPointLabel: '+1% All Damage',
+  },
+  {
+    id: 'industry',
+    name: 'Industry',
+    description: 'Increase mining speed and mana',
+    color: 0x44aaff,
+    colorStr: '#44aaff',
+    icon: '*',
+    perPoint: { mineSpeedMult: 1.02, maxManaBonus: 3 },
+    perPointLabel: '+2% Mining Speed, +3 Max Mana',
+  },
+  {
+    id: 'agility',
+    name: 'Agility',
+    description: 'Increase movement speed',
+    color: 0x44ff44,
+    colorStr: '#44ff44',
+    icon: '>',
+    perPoint: { moveSpeedMult: 1.005 },
+    perPointLabel: '+0.5% Move Speed',
+  },
+]
+
+export const PARAGON_MAP: Record<string, ParagonCategory> = {}
+for (const c of PARAGON_CATEGORIES) PARAGON_MAP[c.id] = c
+
+/** Total skill points required to unlock every skill in the tree */
+export const TOTAL_SKILL_COST = SKILLS.reduce((sum, s) => sum + s.cost, 0)

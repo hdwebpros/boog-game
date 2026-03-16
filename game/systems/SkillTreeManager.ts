@@ -1,4 +1,4 @@
-import { SKILLS, SKILL_MAP, SUPER_TREES, SUPER_TREE_MAP, xpForLevel } from '../data/skills'
+import { SKILLS, SKILL_MAP, SUPER_TREES, SUPER_TREE_MAP, xpForLevel, PARAGON_CATEGORIES, PARAGON_MAP } from '../data/skills'
 import type { SkillBranch } from '../data/skills'
 
 export interface SkillModifiers {
@@ -42,8 +42,17 @@ export class SkillTreeManager {
   xp = 0
   level = 0
   skillPoints = 0
+  /** Paragon points allocated per category id */
+  paragonPoints: Record<string, number> = {}
+  /** Total paragon levels earned (for display) */
+  paragonLevel = 0
 
   private cachedModifiers: SkillModifiers | null = null
+
+  /** Check if every skill in the tree has been unlocked */
+  allSkillsUnlocked(): boolean {
+    return SKILLS.every(s => this.unlockedSkills.has(s.id))
+  }
 
   /** Add XP and check for level ups. Returns number of levels gained. */
   addXP(amount: number): number {
@@ -51,10 +60,37 @@ export class SkillTreeManager {
     let levelsGained = 0
     while (this.xp >= xpForLevel(this.level + 1)) {
       this.level++
-      this.skillPoints++
+      // If all skills are unlocked, new points go to unspent paragon pool
+      // otherwise they go to skill points as normal
+      if (this.allSkillsUnlocked() && this.skillPoints === 0) {
+        this.paragonLevel++
+        this.skillPoints++ // still goes to skillPoints, spent via allocateParagon
+      } else {
+        this.skillPoints++
+      }
       levelsGained++
     }
     return levelsGained
+  }
+
+  /** Allocate a paragon point to a category. Returns true if successful. */
+  allocateParagon(categoryId: string): boolean {
+    if (this.skillPoints < 1) return false
+    if (!this.allSkillsUnlocked()) return false
+    if (!PARAGON_MAP[categoryId]) return false
+    this.skillPoints--
+    this.paragonPoints[categoryId] = (this.paragonPoints[categoryId] ?? 0) + 1
+    this.cachedModifiers = null
+    return true
+  }
+
+  /** Get total paragon points spent across all categories */
+  totalParagonSpent(): number {
+    let total = 0
+    for (const cat of PARAGON_CATEGORIES) {
+      total += this.paragonPoints[cat.id] ?? 0
+    }
+    return total
   }
 
   /** XP needed for next level */
@@ -195,26 +231,45 @@ export class SkillTreeManager {
       if (s.allStatsMultiplier) mods.allStatsMultiplier *= s.allStatsMultiplier
     }
 
+    // Apply paragon bonuses
+    for (const cat of PARAGON_CATEGORIES) {
+      const pts = this.paragonPoints[cat.id] ?? 0
+      if (pts <= 0) continue
+      const pp = cat.perPoint
+      if (pp.maxHpBonus) mods.maxHpBonus += pp.maxHpBonus * pts
+      if (pp.defenseBonus) mods.defenseBonus += pp.defenseBonus * pts
+      if (pp.maxManaBonus) mods.maxManaBonus += pp.maxManaBonus * pts
+      if (pp.meleeDamageMult) mods.meleeDamageMult *= Math.pow(pp.meleeDamageMult, pts)
+      if (pp.rangedDamageMult) mods.rangedDamageMult *= Math.pow(pp.rangedDamageMult, pts)
+      if (pp.magicDamageMult) mods.magicDamageMult *= Math.pow(pp.magicDamageMult, pts)
+      if (pp.mineSpeedMult) mods.mineSpeedMult *= Math.pow(pp.mineSpeedMult, pts)
+      if (pp.moveSpeedMult) mods.moveSpeedMult *= Math.pow(pp.moveSpeedMult, pts)
+    }
+
     this.cachedModifiers = mods
     return mods
   }
 
   /** Serialize for saving */
-  toSaveData(): { xp: number; level: number; skillPoints: number; unlockedSkills: string[] } {
+  toSaveData(): { xp: number; level: number; skillPoints: number; unlockedSkills: string[]; paragonPoints?: Record<string, number>; paragonLevel?: number } {
     return {
       xp: this.xp,
       level: this.level,
       skillPoints: this.skillPoints,
       unlockedSkills: Array.from(this.unlockedSkills),
+      paragonPoints: this.totalParagonSpent() > 0 ? { ...this.paragonPoints } : undefined,
+      paragonLevel: this.paragonLevel > 0 ? this.paragonLevel : undefined,
     }
   }
 
   /** Restore from save data */
-  loadSaveData(data: { xp: number; level: number; skillPoints: number; unlockedSkills: string[] }) {
+  loadSaveData(data: { xp: number; level: number; skillPoints: number; unlockedSkills: string[]; paragonPoints?: Record<string, number>; paragonLevel?: number }) {
     this.xp = data.xp
     this.level = data.level
     this.skillPoints = data.skillPoints
     this.unlockedSkills = new Set(data.unlockedSkills)
+    this.paragonPoints = data.paragonPoints ? { ...data.paragonPoints } : {}
+    this.paragonLevel = data.paragonLevel ?? 0
     this.cachedModifiers = null
   }
 }
