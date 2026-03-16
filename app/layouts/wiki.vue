@@ -13,7 +13,7 @@
       </button>
     </header>
 
-    <div class="flex">
+    <div class="flex flex-1 overflow-hidden">
       <!-- Sidebar -->
       <aside
         :class="[
@@ -70,7 +70,7 @@
       />
 
       <!-- Main content -->
-      <main class="flex-1 min-w-0">
+      <main class="flex-1 min-w-0 overflow-y-auto">
         <!-- Breadcrumb -->
         <div class="px-6 py-3 bg-slate-800/50 border-b-2 border-black">
           <nav class="flex items-center gap-2 text-xs text-gray-400">
