@@ -342,6 +342,10 @@ export class InventoryPanel {
         if (item.enchantment) {
           const enchColor = ENCHANTMENT_COLORS[item.enchantment] ?? 0xffffff
           drawEnchantGradient(this.invGfx, sx, sy, enchColor)
+          if (item.enchantment === 'eternal') {
+            this.invGfx.lineStyle(2, 0xffffff, 1)
+            this.invGfx.strokeRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
+          }
         }
       } else {
         icon.fillAlpha = 0
