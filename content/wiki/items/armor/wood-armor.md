@@ -3,7 +3,7 @@ title: Wood Armor
 description: The most basic armor set, crafted from wood at a Workbench. Provides 5 total defense.
 category: item
 subcategory: armor
-gameId: 200-203
+gameId: 200
 tier: 0
 icon: ''
 tags: [armor, wood, tier-0, defense, early-game]
@@ -13,7 +13,7 @@ craftedAt: Workbench
 ::item-infobox
 ---
 name: Wood Armor Set
-gameId: 200-203
+gameId: 200
 defense: 5 (total)
 tier: 0
 craftedAt: Workbench

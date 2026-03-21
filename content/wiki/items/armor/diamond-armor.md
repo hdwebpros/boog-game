@@ -3,7 +3,7 @@ title: Diamond Armor
 description: High-tier armor set crafted from diamonds at a Tech Bench. Provides 19 total defense.
 category: item
 subcategory: armor
-gameId: 212-215
+gameId: 212
 tier: 3
 icon: ''
 tags: [armor, diamond, tier-3, defense, late-game]
@@ -13,7 +13,7 @@ craftedAt: Tech Bench
 ::item-infobox
 ---
 name: Diamond Armor Set
-gameId: 212-215
+gameId: 212
 defense: 19 (total)
 tier: 3
 craftedAt: Tech Bench

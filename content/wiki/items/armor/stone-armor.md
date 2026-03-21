@@ -3,7 +3,7 @@ title: Stone Armor
 description: A sturdy stone armor set providing 8 total defense. Crafted at a Workbench Mk2.
 category: item
 subcategory: armor
-gameId: 204-207
+gameId: 204
 tier: 1
 icon: ''
 tags: [armor, stone, tier-1, defense]
@@ -13,7 +13,7 @@ craftedAt: Workbench Mk2
 ::item-infobox
 ---
 name: Stone Armor Set
-gameId: 204-207
+gameId: 204
 defense: 8 (total)
 tier: 1
 craftedAt: Workbench Mk2

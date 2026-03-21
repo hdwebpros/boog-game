@@ -3,7 +3,7 @@ title: Void Armor
 description: The ultimate armor set crafted from abyssal ingots at the Void Forge. Provides 82 total defense.
 category: item
 subcategory: armor
-gameId: 340-343
+gameId: 340
 tier: 5
 icon: ''
 tags: [armor, void, tier-5, defense, post-game, void-dimension]
@@ -13,7 +13,7 @@ craftedAt: Void Forge
 ::item-infobox
 ---
 name: Void Armor Set
-gameId: 340-343
+gameId: 340
 defense: 82 (total)
 tier: 5
 craftedAt: Void Forge

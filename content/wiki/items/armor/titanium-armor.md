@@ -3,7 +3,7 @@ title: Titanium Armor
 description: End-game armor set crafted from titanium bars and carbon plates at a Fusion Station. Provides 27 total defense.
 category: item
 subcategory: armor
-gameId: 216-219
+gameId: 216
 tier: 4
 icon: ''
 tags: [armor, titanium, tier-4, defense, end-game]
@@ -13,7 +13,7 @@ craftedAt: Fusion Station
 ::item-infobox
 ---
 name: Titanium Armor Set
-gameId: 216-219
+gameId: 216
 defense: 27 (total)
 tier: 4
 craftedAt: Fusion Station

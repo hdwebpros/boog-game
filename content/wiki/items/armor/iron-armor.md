@@ -3,7 +3,7 @@ title: Iron Armor
 description: Mid-tier armor set forged from iron bars at an Anvil. Provides 13 total defense.
 category: item
 subcategory: armor
-gameId: 208-211
+gameId: 208
 tier: 2
 icon: ''
 tags: [armor, iron, tier-2, defense, mid-game]
@@ -13,7 +13,7 @@ craftedAt: Anvil
 ::item-infobox
 ---
 name: Iron Armor Set
-gameId: 208-211
+gameId: 208
 defense: 13 (total)
 tier: 2
 craftedAt: Anvil
