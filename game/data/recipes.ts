@@ -38,6 +38,10 @@ export const RECIPES: Recipe[] = [
   { id: 'wood_chest',   station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 12 }], output: { itemId: 201, count: 1 } },
   { id: 'wood_legs',    station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 10 }], output: { itemId: 202, count: 1 } },
   { id: 'wood_boots',   station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 6 }], output: { itemId: 203, count: 1 } },
+  { id: 'cactus_helmet',  station: StationType.WORKBENCH, inputs: [{ itemId: TileType.CACTUS, count: 8 }, { itemId: 105, count: 4 }],  output: { itemId: 220, count: 1 } },
+  { id: 'cactus_chest',   station: StationType.WORKBENCH, inputs: [{ itemId: TileType.CACTUS, count: 12 }, { itemId: 105, count: 6 }], output: { itemId: 221, count: 1 } },
+  { id: 'cactus_legs',    station: StationType.WORKBENCH, inputs: [{ itemId: TileType.CACTUS, count: 10 }, { itemId: 105, count: 5 }], output: { itemId: 222, count: 1 } },
+  { id: 'cactus_boots',   station: StationType.WORKBENCH, inputs: [{ itemId: TileType.CACTUS, count: 6 }, { itemId: 105, count: 3 }],  output: { itemId: 223, count: 1 } },
   { id: 'chest',        station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 15 }], output: { itemId: 116, count: 1 } },
 
   // ── Workbench Mk2 ────────────────────────────────────────

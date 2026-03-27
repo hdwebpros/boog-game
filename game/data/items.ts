@@ -182,35 +182,41 @@ export const ITEMS: Record<number, ItemDef> = {
   414: { id: 414, name: 'Endurance Potion',     category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 2, color: 0x4488cc },
   415: { id: 415, name: 'Wrath Potion',         category: ItemCategory.CONSUMABLE, stackSize: 10, tier: 3, color: 0xff2222 },
 
-  // ── Armor: Wood (Tier 0) ──────────────────────────────
-  200: { id: 200, name: 'Wood Helmet',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'helmet' },
-  201: { id: 201, name: 'Wood Chestplate',  category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 2, armorSlot: 'chestplate' },
-  202: { id: 202, name: 'Wood Leggings',   category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'leggings' },
-  203: { id: 203, name: 'Wood Boots',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'boots' },
+  // ── Armor: Scrap (Tier 0) ──────────────────────────────
+  200: { id: 200, name: 'Scrap Helm',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'helmet' },
+  201: { id: 201, name: 'Scrap Suit',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 2, armorSlot: 'chestplate' },
+  202: { id: 202, name: 'Scrap Greaves',   category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'leggings' },
+  203: { id: 203, name: 'Scrap Boots',     category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x8b6b3a, defense: 1, armorSlot: 'boots' },
 
-  // ── Armor: Stone (Tier 1) ─────────────────────────────
-  204: { id: 204, name: 'Stone Helmet',     category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 2, armorSlot: 'helmet' },
-  205: { id: 205, name: 'Stone Chestplate', category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 3, armorSlot: 'chestplate' },
-  206: { id: 206, name: 'Stone Leggings',  category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 2, armorSlot: 'leggings' },
-  207: { id: 207, name: 'Stone Boots',     category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 1, armorSlot: 'boots' },
+  // ── Armor: Barbed (Tier 0 — low defense, reflects damage) ──
+  220: { id: 220, name: 'Barbed Helm',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x2d8a2d, defense: 1, armorSlot: 'helmet',     thornsPct: 0.05 },
+  221: { id: 221, name: 'Barbed Suit',      category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x2d8a2d, defense: 1, armorSlot: 'chestplate', thornsPct: 0.10 },
+  222: { id: 222, name: 'Barbed Greaves',   category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x2d8a2d, defense: 1, armorSlot: 'leggings',   thornsPct: 0.05 },
+  223: { id: 223, name: 'Barbed Boots',     category: ItemCategory.ARMOR, stackSize: 1, tier: 0, color: 0x2d8a2d, defense: 1, armorSlot: 'boots',      thornsPct: 0.05 },
 
-  // ── Armor: Iron (Tier 2) ──────────────────────────────
-  208: { id: 208, name: 'Iron Helmet',      category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 3, armorSlot: 'helmet' },
-  209: { id: 209, name: 'Iron Chestplate',  category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 5, armorSlot: 'chestplate' },
-  210: { id: 210, name: 'Iron Leggings',   category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 3, armorSlot: 'leggings' },
-  211: { id: 211, name: 'Iron Boots',      category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 2, armorSlot: 'boots' },
+  // ── Armor: Composite (Tier 1) ─────────────────────────
+  204: { id: 204, name: 'Composite Helm',     category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 2, armorSlot: 'helmet' },
+  205: { id: 205, name: 'Composite Suit',     category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 3, armorSlot: 'chestplate' },
+  206: { id: 206, name: 'Composite Greaves',  category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 2, armorSlot: 'leggings' },
+  207: { id: 207, name: 'Composite Boots',    category: ItemCategory.ARMOR, stackSize: 1, tier: 1, color: 0x999999, defense: 1, armorSlot: 'boots' },
 
-  // ── Armor: Diamond (Tier 3) ───────────────────────────
-  212: { id: 212, name: 'Diamond Helmet',     category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 4, armorSlot: 'helmet' },
-  213: { id: 213, name: 'Diamond Chestplate', category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 7, armorSlot: 'chestplate' },
-  214: { id: 214, name: 'Diamond Leggings',  category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 5, armorSlot: 'leggings' },
-  215: { id: 215, name: 'Diamond Boots',     category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 3, armorSlot: 'boots' },
+  // ── Armor: Alloy (Tier 2) ─────────────────────────────
+  208: { id: 208, name: 'Alloy Helm',      category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 3, armorSlot: 'helmet' },
+  209: { id: 209, name: 'Alloy Suit',      category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 5, armorSlot: 'chestplate' },
+  210: { id: 210, name: 'Alloy Greaves',   category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 3, armorSlot: 'leggings' },
+  211: { id: 211, name: 'Alloy Boots',     category: ItemCategory.ARMOR, stackSize: 1, tier: 2, color: 0xc9a96e, defense: 2, armorSlot: 'boots' },
+
+  // ── Armor: Prismatic (Tier 3) ─────────────────────────
+  212: { id: 212, name: 'Prismatic Helm',     category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 4, armorSlot: 'helmet' },
+  213: { id: 213, name: 'Prismatic Suit',     category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 7, armorSlot: 'chestplate' },
+  214: { id: 214, name: 'Prismatic Greaves',  category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 5, armorSlot: 'leggings' },
+  215: { id: 215, name: 'Prismatic Boots',    category: ItemCategory.ARMOR, stackSize: 1, tier: 3, color: 0x7fffff, defense: 3, armorSlot: 'boots' },
 
   // ── Armor: Titanium (Tier 4) ──────────────────────────
-  216: { id: 216, name: 'Titanium Helmet',     category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 6, armorSlot: 'helmet' },
-  217: { id: 217, name: 'Titanium Chestplate', category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 10, armorSlot: 'chestplate' },
-  218: { id: 218, name: 'Titanium Leggings',  category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 7, armorSlot: 'leggings' },
-  219: { id: 219, name: 'Titanium Boots',     category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 4, armorSlot: 'boots' },
+  216: { id: 216, name: 'Titanium Helm',     category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 6, armorSlot: 'helmet' },
+  217: { id: 217, name: 'Titanium Suit',     category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 10, armorSlot: 'chestplate' },
+  218: { id: 218, name: 'Titanium Greaves',  category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 7, armorSlot: 'leggings' },
+  219: { id: 219, name: 'Titanium Boots',    category: ItemCategory.ARMOR, stackSize: 1, tier: 4, color: 0xe8e8e8, defense: 4, armorSlot: 'boots' },
 
   // ── Starshards & Enchanting ──────────────────────────
   230: { id: 230, name: 'Ember Shard',   category: ItemCategory.MATERIAL, stackSize: 99, tier: 2, color: 0xff6633 },
@@ -265,10 +271,10 @@ export const ITEMS: Record<number, ItemDef> = {
   337: { id: 337, name: 'Arcane Annihilator',  category: ItemCategory.WEAPON, stackSize: 1, tier: 6, color: 0xffcc00, damage: 130, weaponStyle: 'magic' as WeaponStyle,  attackSpeed: 270, manaCost: 35 },
 
   // ── Void Armor (Tier 5) ────────────────────────────────
-  340: { id: 340, name: 'Void Helmet',     category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 18, armorSlot: 'helmet' as ArmorSlot },
-  341: { id: 341, name: 'Void Chestplate', category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 28, armorSlot: 'chestplate' as ArmorSlot },
-  342: { id: 342, name: 'Void Leggings',   category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 22, armorSlot: 'leggings' as ArmorSlot },
-  343: { id: 343, name: 'Void Boots',       category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 14, armorSlot: 'boots' as ArmorSlot },
+  340: { id: 340, name: 'Void Helm',     category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 18, armorSlot: 'helmet' as ArmorSlot },
+  341: { id: 341, name: 'Void Suit',     category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 28, armorSlot: 'chestplate' as ArmorSlot },
+  342: { id: 342, name: 'Void Greaves',  category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 22, armorSlot: 'leggings' as ArmorSlot },
+  343: { id: 343, name: 'Void Boots',    category: ItemCategory.ARMOR, stackSize: 1, tier: 5, color: 0x4a0080, defense: 14, armorSlot: 'boots' as ArmorSlot },
 
   // ── Void Materials ─────────────────────────────────────
   350: { id: 350, name: 'Void Essence',        category: ItemCategory.MATERIAL, stackSize: 99, tier: 5, color: 0x9933ff },

@@ -486,8 +486,15 @@ export class Player {
       ws.vfx?.triggerAberration(heavy ? 3 : 1.5)
     }
 
-    // Thorns: reflect damage to nearby enemies
-    const thornsPct = this.buffs.getThornsPct()
+    // Thorns: reflect damage to nearby enemies (buffs + cactus armor)
+    let thornsPct = this.buffs.getThornsPct()
+    for (const slot of ['helmet', 'chestplate', 'leggings', 'boots'] as const) {
+      const equipped = this.inventory.armorSlots[slot]
+      if (equipped) {
+        const def = getItemDef(equipped.id)
+        if (def?.thornsPct) thornsPct += def.thornsPct
+      }
+    }
     if (thornsPct > 0 && combat) {
       const thornsDmg = Math.max(1, Math.round(amount * thornsPct))
       // Find the closest enemy within melee range and deal thorns damage
@@ -1539,6 +1546,24 @@ export class Player {
         }
 
         if (this.miningProgress >= this.miningRequired) {
+          // ── Tree Chomper: flood-fill destroy entire tree ──
+          const isTreeChomper = item?.id === 421
+          const TREE_TILES = new Set([TileType.WOOD, TileType.LEAVES, TileType.VOID_WOOD, TileType.VOID_LEAVES])
+          const TREE_TRUNKS = new Set([TileType.WOOD, TileType.VOID_WOOD])
+          if (isTreeChomper && TREE_TRUNKS.has(tileType)) {
+            this.treeChomperFloodBreak(tx, ty, chunks, TREE_TILES)
+            AudioManager.get()?.play(SoundId.MINE_BREAK)
+            this.miningTX = -1
+            this.miningTY = -1
+            this.miningProgress = 0
+            return
+          }
+          // Tree Chomper on non-tree tiles: do nothing (only works on trees)
+          if (isTreeChomper && !TREE_TILES.has(tileType)) {
+            this.resetMining()
+            return
+          }
+
           const miningMods = this.skills.getModifiers()
           const doubleDrop = Math.random() < miningMods.doubleDropChance + this.getAccessoryDoubleDropChance()
 
@@ -1654,6 +1679,52 @@ export class Player {
     this.miningTX = -1
     this.miningTY = -1
     this.miningProgress = 0
+  }
+
+  /** Tree Chomper: flood-fill connected tree tiles, destroy them all, spawn drop orbs */
+  private treeChomperFloodBreak(startX: number, startY: number, chunks: ChunkManager, treeTiles: Set<TileType>) {
+    const MAX_TILES = 300 // safety cap
+    const found: { tx: number; ty: number; type: TileType }[] = []
+    const visited = new Set<string>()
+    const stack: [number, number][] = [[startX, startY]]
+
+    while (stack.length > 0 && found.length < MAX_TILES) {
+      const [cx, cy] = stack.pop()!
+      const key = `${cx},${cy}`
+      if (visited.has(key)) continue
+      visited.add(key)
+
+      const t = chunks.getTile(cx, cy)
+      if (!treeTiles.has(t)) continue
+
+      found.push({ tx: cx, ty: cy, type: t })
+
+      // 4-directional neighbors
+      stack.push([cx - 1, cy], [cx + 1, cy], [cx, cy - 1], [cx, cy + 1])
+    }
+
+    // Destroy all found tiles and spawn drop orbs
+    const ws = this.scene as any
+    const particles = ws.particles as ParticleManager | undefined
+    const canSpawnDrop = typeof ws.spawnDrop === 'function'
+
+    for (const { tx: bx, ty: by, type: bt } of found) {
+      this.onTileChange?.(bx, by, TileType.AIR, bt)
+      chunks.setTile(bx, by, TileType.AIR)
+
+      // Particle burst at each tile
+      const bpx = bx * TILE_SIZE + TILE_SIZE / 2
+      const bpy = by * TILE_SIZE + TILE_SIZE / 2
+      particles?.burst(bpx, bpy, TILE_PROPERTIES[bt]!.color)
+
+      // Spawn drop orb at tile position (falls with gravity)
+      const dropId = TILE_TO_ITEM[bt] ?? bt
+      if (canSpawnDrop) {
+        ws.spawnDrop(bpx, bpy, dropId as number, 1)
+      } else {
+        this.inventory.addItem(dropId as number, 1)
+      }
+    }
   }
 
   private lastPlaceTick = 0
