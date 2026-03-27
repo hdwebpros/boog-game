@@ -31,6 +31,7 @@ export const RECIPES: Recipe[] = [
   { id: 'wood_bow',     station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 6 }, { itemId: 105, count: 3 }], output: { itemId: 140, count: 1 } },
   // Boss summon items removed — bosses are now summoned at altars with ingredients
   { id: 'plant_fiber',  station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.LEAVES, count: 3 }], output: { itemId: 105, count: 2 } },
+  { id: 'plant_fiber_moss', station: StationType.WORKBENCH, inputs: [{ itemId: TileType.MOSS, count: 3 }], output: { itemId: 105, count: 5 } },
   { id: 'vine_rope',   station: StationType.WORKBENCH,  inputs: [{ itemId: 105, count: 3 }, { itemId: TileType.WOOD, count: 2 }], output: { itemId: TileType.VINE, count: 8 } },
   { id: 'healing_herb', station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.LEAVES, count: 5 }, { itemId: 105, count: 2 }], output: { itemId: 190, count: 1 } },
   { id: 'wood_helmet',  station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 8 }], output: { itemId: 200, count: 1 } },
@@ -172,6 +173,12 @@ export const RECIPES: Recipe[] = [
   { id: 'void_leggings',       station: StationType.VOID_FORGE, inputs: [{ itemId: 354, count: 8 }, { itemId: 352, count: 8 }], output: { itemId: 342, count: 1 } },
   { id: 'void_boots',          station: StationType.VOID_FORGE, inputs: [{ itemId: 354, count: 5 }, { itemId: 352, count: 4 }], output: { itemId: 343, count: 1 } },
   { id: 'void_lord_summon',    station: StationType.VOID_FORGE, inputs: [{ itemId: 353, count: 10 }, { itemId: 355, count: 3 }, { itemId: 354, count: 5 }], output: { itemId: 370, count: 1 } },
+
+  // ── Boring Drill (crafted at Tech Bench) ───────────────
+  { id: 'boring_drill', station: StationType.TECH_BENCH, inputs: [{ itemId: 100, count: 10 }, { itemId: 101, count: 3 }, { itemId: TileType.STONE, count: 20 }], output: { itemId: 420, count: 1 } },
+
+  // ── Tree Chomper (crafted at Anvil) ───────────────────
+  { id: 'tree_chomper', station: StationType.ANVIL, inputs: [{ itemId: 100, count: 6 }, { itemId: TileType.WOOD, count: 10 }, { itemId: TileType.LEAVES, count: 5 }], output: { itemId: 421, count: 1 } },
 ]
 
 // Station item ID → StationType mapping

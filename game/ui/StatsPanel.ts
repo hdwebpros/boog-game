@@ -117,12 +117,17 @@ export class StatsPanel {
   private updateStatsBars(player: any) {
     this.statsGfx.clear()
 
-    const x = 10
+    // HP bar shake offset from VFX manager
+    const wsVfx = this.scene.scene.get('WorldScene') as any
+    const shakeX = wsVfx?.vfx?.hpBarShakeX ?? 0
+    const shakeY = wsVfx?.vfx?.hpBarShakeY ?? 0
+
+    const x = 10 + shakeX
     const iconR = 5
     const iconSpacing = 13
     const iconCount = 10
     const textX = x + iconCount * iconSpacing + 4
-    const hpY = 46
+    const hpY = 46 + shakeY
     const manaY = 60
 
     // HP Stars
@@ -270,8 +275,8 @@ export class StatsPanel {
     this.deathText.setVisible(player.dead === true)
 
     // Boss HP bar (top center) + off-screen indicator
-    const worldScene = this.scene.scene.get('WorldScene') as any
-    const boss = worldScene?.getActiveBoss?.()
+    const wsForBoss = this.scene.scene.get('WorldScene') as any
+    const boss = wsForBoss?.getActiveBoss?.()
     if (boss && boss.alive) {
       const { width, height } = this.scene.scale
       const bossBarW = 300
@@ -290,7 +295,7 @@ export class StatsPanel {
       this.statsGfx.strokeRect(bossX, bossY, bossBarW, bossBarH)
 
       // Off-screen boss indicator arrow
-      const cam = worldScene.cameras?.main as Phaser.Cameras.Scene2D.Camera | undefined
+      const cam = wsForBoss.cameras?.main as Phaser.Cameras.Scene2D.Camera | undefined
       if (cam) {
         const bsx = boss.sprite.x as number
         const bsy = boss.sprite.y as number

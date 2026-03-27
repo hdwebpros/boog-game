@@ -298,6 +298,9 @@ export class CombatSystem {
         const dmgColor = damageMult >= 2 ? 0xff4444 : 0xffff00 // red for crits
         this.spawnDamageNumber(e.sprite.x, e.sprite.y - e.def.height / 2, finalDmg, dmgColor)
         this.particles?.hitSparks(e.sprite.x, e.sprite.y, dmgColor)
+        // Directional hit sparks
+        const vfx = (this.scene as any).vfx
+        vfx?.spawnDirectionalSparks(this.scene, e.sprite.x, e.sprite.y, playerX, playerY, dmgColor)
         totalDamage += finalDmg
         this.lastHitEnemies.push(e)
       }

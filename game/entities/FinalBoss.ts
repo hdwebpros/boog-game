@@ -616,9 +616,11 @@ export class FinalBoss {
           if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(0xff0000)
           else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = 0xff0000
           this.flashTimer = 500
-          if (this.scene.cameras.main) {
-            this.scene.cameras.main.shake(500, 0.01)
-          }
+          // VFX: particle burst + screen flash + trauma shake
+          const ws = this.scene as any
+          ws.particles?.bossPhaseTransition(this.sprite.x, this.sprite.y)
+          ws.vfx?.triggerDamageFlash(true)
+          ws.cameraCtrl?.addTrauma(0.6)
           // Reset phase-specific timers on transition
           this.minionTimer = 2000
           this.riftTimer = 3000

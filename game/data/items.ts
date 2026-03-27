@@ -54,6 +54,7 @@ export interface ItemDef {
   healAmount?: number    // for consumables
   defense?: number       // damage reduction (armor only)
   armorSlot?: ArmorSlot  // which slot this armor equips to
+  thornsPct?: number     // % of damage reflected back to attacker (0-1)
 }
 
 // IDs 0-99: blocks (match TileType)
@@ -295,6 +296,12 @@ export const ITEMS: Record<number, ItemDef> = {
   387: { id: 387, name: 'Storm Shard Compass',  category: ItemCategory.SPECIAL, stackSize: 1, tier: 3, color: 0xffee44 },
   388: { id: 388, name: 'Void Shard Compass',   category: ItemCategory.SPECIAL, stackSize: 1, tier: 4, color: 0x9933ff },
   389: { id: 389, name: 'Life Shard Compass',   category: ItemCategory.SPECIAL, stackSize: 1, tier: 3, color: 0x33ff66 },
+
+  // ── Boring Drill ───────────────────────────────────────
+  420: { id: 420, name: 'Boring Drill', category: ItemCategory.SPECIAL, stackSize: 5, tier: 2, color: 0xcc8844 },
+
+  // ── Tree Chomper ──────────────────────────────────────
+  421: { id: 421, name: 'Tree Chomper', category: ItemCategory.TOOL, stackSize: 1, tier: 2, color: 0x4a8c3f, miningSpeed: 3, miningTier: 0 },
 }
 
 export function getItemDef(id: number): ItemDef | undefined {

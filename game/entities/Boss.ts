@@ -154,6 +154,11 @@ export class Boss {
           if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(0xff0000)
           else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = 0xff0000
           this.flashTimer = 300
+          // VFX: screen flash + radial particle burst + camera shake
+          const ws = this.scene as any
+          ws.particles?.bossPhaseTransition(this.sprite.x, this.sprite.y)
+          ws.vfx?.triggerDamageFlash(true)
+          ws.cameraCtrl?.addTrauma(0.5)
         }
         break
       }

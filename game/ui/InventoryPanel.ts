@@ -392,7 +392,7 @@ export class InventoryPanel {
       }
     }
 
-    // Tooltip
+    // Tooltip with stat comparison
     if (hoveredItem) {
       const def = getItemDef(hoveredItem.id)
       const tileProps = TILE_PROPERTIES[hoveredItem.id as TileType]
@@ -407,6 +407,23 @@ export class InventoryPanel {
         this.invTooltipText.setColor('#ffffff')
       }
       if (def?.defense) name += ` (+${def.defense} def)`
+      // Stat comparison arrows vs equipped
+      if (def) {
+        const equipped = inv.getSelectedItem()
+        const equippedDef = equipped ? getItemDef(equipped.id) : null
+        if (def.damage && equippedDef?.damage) {
+          const diff = def.damage - equippedDef.damage
+          if (diff > 0) name += ` \u2191${diff}`
+          else if (diff < 0) name += ` \u2193${Math.abs(diff)}`
+        }
+        if (def.defense && def.armorSlot) {
+          const currentArmor = inv.armorSlots[def.armorSlot]
+          const currentDef = currentArmor ? getItemDef(currentArmor.id) : null
+          const diff = def.defense - (currentDef?.defense ?? 0)
+          if (diff > 0) name += ` \u2191${diff}def`
+          else if (diff < 0) name += ` \u2193${Math.abs(diff)}def`
+        }
+      }
       if (inv.trashFilter.has(hoveredItem.id)) name += ' [AUTO-TRASH]'
       this.invTooltipText.setText(name)
       this.invTooltipText.setPosition(width / 2, invY - 4)

@@ -7,7 +7,7 @@ export { EntityRegistry } from './EntityRegistry'
 export type { EntityType, EntityRef } from './EntityRegistry'
 export { InputCollector } from './InputCollector'
 export { ChatOverlay } from './ChatOverlay'
-export { RemotePlayerSim, REMOTE_COL_W, REMOTE_COL_H } from './RemotePlayerSim'
+export { RemotePlayerSim } from './RemotePlayerSim'
 export {
   type NetworkMessage,
   type InputState,

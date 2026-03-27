@@ -111,11 +111,8 @@ export class MenuScene extends Phaser.Scene {
       this.showMultiplayerLobby(width, height, false)
     })
 
-    // M to mute on title screen
-    this.addMuteToggle(width)
-
     // Controls
-    this.add.text(width / 2, height - 60, 'WASD/Arrows: Move | Space: Jump | LMB: Mine/Attack\nRMB: Place | C: Craft | Q: Use Item | F: Boss Summon | M: Mute', {
+    this.add.text(width / 2, height - 60, 'WASD/Arrows: Move | Space: Jump | LMB: Mine/Attack\nRMB: Place | C: Craft | Q: Use Item | F: Boss Summon | M: Map', {
       fontSize: '10px', color: '#555555', fontFamily: 'monospace', align: 'center',
     }).setOrigin(0.5)
 
@@ -300,34 +297,27 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5)
 
     if (isHost) {
-      // Host: prompt for player name, then create room
-      this.add.text(width / 2, height / 2 - 40, 'Your name:', {
-        fontSize: '14px', color: '#aaaaaa', fontFamily: 'monospace',
-      }).setOrigin(0.5)
-
-      const startBtn = this.add.text(width / 2, height / 2 + 20, '[ START HOSTING ]', {
+      // Host: start hosting immediately
+      const startBtn = this.add.text(width / 2, height / 2, '[ START HOSTING ]', {
         fontSize: '20px', color: '#8888ff', fontFamily: 'monospace',
       }).setOrigin(0.5).setInteractive({ useHandCursor: true })
 
       startBtn.on('pointerover', () => startBtn.setColor('#ffffff'))
       startBtn.on('pointerout', () => startBtn.setColor('#8888ff'))
       startBtn.on('pointerdown', () => {
-        gamePrompt('Enter your name:', 'Host').then((raw) => {
-          const name = (raw ?? 'Host').trim().slice(0, 16) || 'Host'
-          statusText.setText('Creating room...')
-          this.registry.set('mpMode', 'host')
-          this.registry.set('mpPlayerName', name)
-          AudioManager.get()?.stopMusic()
-          this.scene.start('BootScene')
-        })
+        statusText.setText('Creating room...')
+        this.registry.set('mpMode', 'host')
+        this.registry.set('mpPlayerName', 'Host')
+        AudioManager.get()?.stopMusic()
+        this.scene.start('BootScene')
       })
 
       this.add.text(width / 2, height / 2 + 70, 'Other players will join using your room code.\nThe code appears after the world loads.', {
         fontSize: '11px', color: '#666666', fontFamily: 'monospace', align: 'center',
       }).setOrigin(0.5)
     } else {
-      // Join: prompt for room code and name
-      this.add.text(width / 2, height / 2 - 40, 'Enter room code and your name:', {
+      // Join: prompt for room code only
+      this.add.text(width / 2, height / 2 - 40, 'Enter room code:', {
         fontSize: '14px', color: '#aaaaaa', fontFamily: 'monospace',
       }).setOrigin(0.5)
 
@@ -340,15 +330,12 @@ export class MenuScene extends Phaser.Scene {
       joinGameBtn.on('pointerdown', () => {
         gamePrompt('Room code:').then((code) => {
           if (!code) return
-          gamePrompt('Your name:', 'Player').then((raw) => {
-            const name = (raw ?? 'Player').trim().slice(0, 16) || 'Player'
-            statusText.setText('Connecting...')
-            this.registry.set('mpMode', 'client')
-            this.registry.set('mpRoomCode', code.trim().toUpperCase())
-            this.registry.set('mpPlayerName', name)
-            AudioManager.get()?.stopMusic()
-            this.scene.start('BootScene')
-          })
+          statusText.setText('Connecting...')
+          this.registry.set('mpMode', 'client')
+          this.registry.set('mpRoomCode', code.trim().toUpperCase())
+          this.registry.set('mpPlayerName', 'Player')
+          AudioManager.get()?.stopMusic()
+          this.scene.start('BootScene')
         })
       })
     }
@@ -506,6 +493,19 @@ export class MenuScene extends Phaser.Scene {
       nextY += 40
     }
 
+    // Sound settings
+    const soundBtn = this.add.text(width / 2, nextY, '[ SOUND ]', {
+      fontSize: '18px', color: '#88ccff', fontFamily: 'monospace',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    soundBtn.on('pointerover', () => soundBtn.setColor('#ffffff'))
+    soundBtn.on('pointerout', () => soundBtn.setColor('#88ccff'))
+    soundBtn.on('pointerdown', () => {
+      AudioManager.get()?.play(SoundId.MENU_SELECT)
+      this.showSoundSettings(width, height)
+    })
+    nextY += 40
+
     // Quit to menu / Leave game
     const quitLabel = this.isMultiplayer ? '[ LEAVE GAME ]' : '[ QUIT TO MENU ]'
     const quitBtn = this.add.text(width / 2, nextY, quitLabel, {
@@ -546,7 +546,7 @@ export class MenuScene extends Phaser.Scene {
       ['F', 'Boss/NPC'],
       ['N', 'Minimap'],
       ['[ / ]', 'Map Zoom'],
-      ['M', 'Music'],
+      ['M', 'World Map'],
       ['ESC', 'Pause/Close'],
     ]
 
@@ -566,9 +566,6 @@ export class MenuScene extends Phaser.Scene {
       })
     }
 
-    // M to mute in pause menu
-    this.addMuteToggle(width)
-
     // ESC to resume — reset WorldScene's ESC key so its update() won't immediately reopen
     this.input.keyboard!.on('keydown-ESC', () => {
       const ws = this.scene.get('WorldScene')
@@ -579,17 +576,109 @@ export class MenuScene extends Phaser.Scene {
     })
   }
 
-  private addMuteToggle(width: number) {
-    const audio = AudioManager.get()
-    const muteLabel = this.add.text(width - 10, 10, audio?.isMuted() ? '[M] MUTED' : '[M] MUSIC ON', {
-      fontSize: '12px', color: '#888888', fontFamily: 'monospace',
-    }).setOrigin(1, 0)
+  private showSoundSettings(width: number, height: number) {
+    this.children.removeAll(true)
+    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.85)
 
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M).on('down', () => {
-      const a = AudioManager.get()
-      if (!a) return
-      const muted = a.toggleMute()
-      muteLabel.setText(muted ? '[M] MUTED' : '[M] MUSIC ON')
+    this.add.text(width / 2, height / 4 - 20, 'SOUND SETTINGS', {
+      fontSize: '24px', color: '#88ccff', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5)
+
+    const audio = AudioManager.get()
+    const sliderW = 200
+    const sliderH = 12
+    const sliderX = width / 2 - sliderW / 2
+    let nextY = height / 4 + 40
+
+    // --- Music Volume ---
+    this.add.text(width / 2, nextY, 'Music Volume', {
+      fontSize: '14px', color: '#aaaaaa', fontFamily: 'monospace',
+    }).setOrigin(0.5)
+    nextY += 24
+    this.createVolumeSlider(sliderX, nextY, sliderW, sliderH, audio?.getMusicVolume() ?? 0.35, (val) => {
+      audio?.setMusicVolume(val)
+      if (audio?.isMuted() && val > 0) audio.setMuted(false)
+    })
+    nextY += 40
+
+    // --- SFX Volume ---
+    this.add.text(width / 2, nextY, 'SFX Volume', {
+      fontSize: '14px', color: '#aaaaaa', fontFamily: 'monospace',
+    }).setOrigin(0.5)
+    nextY += 24
+    this.createVolumeSlider(sliderX, nextY, sliderW, sliderH, audio?.getVolume() ?? 1.0, (val) => {
+      audio?.setVolume(val)
+    })
+    nextY += 40
+
+    // --- Mute Music Toggle ---
+    const muted = audio?.isMuted() ?? false
+    const muteBtn = this.add.text(width / 2, nextY, muted ? '[ MUSIC: OFF ]' : '[ MUSIC: ON ]', {
+      fontSize: '16px', color: muted ? '#ff4444' : '#00ff88', fontFamily: 'monospace',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    muteBtn.on('pointerover', () => muteBtn.setColor('#ffffff'))
+    muteBtn.on('pointerout', () => muteBtn.setColor(audio?.isMuted() ? '#ff4444' : '#00ff88'))
+    muteBtn.on('pointerdown', () => {
+      if (!audio) return
+      const nowMuted = audio.toggleMute()
+      muteBtn.setText(nowMuted ? '[ MUSIC: OFF ]' : '[ MUSIC: ON ]')
+      muteBtn.setColor(nowMuted ? '#ff4444' : '#00ff88')
+    })
+    nextY += 50
+
+    // --- Back ---
+    const backBtn = this.add.text(width / 2, nextY, '[ BACK ]', {
+      fontSize: '18px', color: '#888888', fontFamily: 'monospace',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    backBtn.on('pointerover', () => backBtn.setColor('#ffffff'))
+    backBtn.on('pointerout', () => backBtn.setColor('#888888'))
+    backBtn.on('pointerdown', () => {
+      AudioManager.get()?.play(SoundId.MENU_SELECT)
+      this.children.removeAll(true)
+      this.createPauseMenu(width, height)
+    })
+
+    // ESC goes back to pause menu
+    this.input.keyboard!.removeAllListeners('keydown-ESC')
+    this.input.keyboard!.on('keydown-ESC', () => {
+      this.children.removeAll(true)
+      this.createPauseMenu(width, height)
+    })
+  }
+
+  private createVolumeSlider(x: number, y: number, w: number, h: number, initial: number, onChange: (val: number) => void) {
+    // Background track
+    this.add.rectangle(x + w / 2, y + h / 2, w, h, 0x333333).setOrigin(0.5)
+
+    // Fill bar
+    const fill = this.add.rectangle(x, y, w * initial, h, 0x00aaff).setOrigin(0, 0)
+
+    // Percentage label
+    const pctLabel = this.add.text(x + w + 10, y + h / 2, `${Math.round(initial * 100)}%`, {
+      fontSize: '12px', color: '#ffffff', fontFamily: 'monospace',
+    }).setOrigin(0, 0.5)
+
+    // Invisible interactive zone over the track
+    const hitZone = this.add.rectangle(x + w / 2, y + h / 2, w, h + 16, 0x000000, 0)
+      .setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    const updateFromPointer = (px: number) => {
+      const val = Phaser.Math.Clamp((px - x) / w, 0, 1)
+      fill.setSize(w * val, h)
+      pctLabel.setText(`${Math.round(val * 100)}%`)
+      onChange(val)
+    }
+
+    hitZone.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      updateFromPointer(pointer.x)
+    })
+
+    hitZone.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (pointer.isDown) {
+        updateFromPointer(pointer.x)
+      }
     })
   }
 

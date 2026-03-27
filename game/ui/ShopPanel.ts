@@ -5,6 +5,15 @@ import { AudioManager } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 import { SHOP_INVENTORY, SELL_PRICES } from '../data/shop'
 import { ACCESSORY_EFFECTS } from '../data/accessories'
+import { getArtifactDef } from '../data/artifacts'
+
+/** Descriptions for shop items that aren't accessories or artifacts */
+const ITEM_DESCRIPTIONS: Record<number, string> = {
+  310: 'Placeable light source. Warm golden glow.',
+  311: 'Decorative wall banner. Celestial motif.',
+  312: 'Ornamental flower. Faint starlight shimmer.',
+  313: 'Placeable lamp. Cool blue radiance.',
+}
 
 export class ShopPanel {
   private scene: Phaser.Scene
@@ -160,7 +169,9 @@ export class ShopPanel {
       }).setDepth(332)
       this.shopTexts.push(nameText)
 
-      const descText = this.scene.add.text(shopX + 40, ry + 18, eff?.description ?? '', {
+      const artifactDef = getArtifactDef(item.itemId)
+      const desc = eff?.description ?? artifactDef?.tiers[0]?.description ?? ITEM_DESCRIPTIONS[item.itemId] ?? ''
+      const descText = this.scene.add.text(shopX + 40, ry + 18, desc, {
         fontSize: '9px', color: '#888888', fontFamily: 'monospace',
       }).setDepth(332)
       this.shopTexts.push(descText)

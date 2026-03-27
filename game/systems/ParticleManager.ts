@@ -10,8 +10,8 @@ import Phaser from 'phaser'
  */
 
 const PARTICLE_TEXTURE = '__particle_px'
-const MAX_BURST = 120
-const MAX_AMBIENT = 60
+const MAX_BURST = 180
+const MAX_AMBIENT = 80
 
 export class ParticleManager {
   private scene: Phaser.Scene
@@ -115,6 +115,63 @@ export class ParticleManager {
       cy + Math.sin(angle) * r,
       1
     )
+  }
+
+  // ── Environmental particles ───────────────────────────────
+
+  /** Landing dust puff — small cloud proportional to fall distance */
+  landingDust(x: number, y: number, fallSpeed: number) {
+    if (!this.burst_em) return
+    const count = Math.min(8, Math.floor((fallSpeed - 150) * 0.01) + 2)
+    if (count < 2) return
+    this.burst_em.setParticleTint(0x998877)
+    this.burst_em.emitParticleAt(x - 4, y + 12, Math.ceil(count / 2))
+    this.burst_em.emitParticleAt(x + 4, y + 12, Math.ceil(count / 2))
+  }
+
+  /** Footstep dust — tiny particles while running */
+  footstepDust(x: number, y: number, facingRight: boolean) {
+    if (!this.ambient_em) return
+    this.ambient_em.setParticleTint(0x887766)
+    // Emit behind the player's feet
+    const offsetX = facingRight ? -3 : 3
+    this.ambient_em.emitParticleAt(x + offsetX, y + 13, 1)
+  }
+
+  /** Mining debris — chunks fly out matching block material */
+  miningDebris(x: number, y: number, color: number) {
+    if (!this.burst_em) return
+    this.burst_em.setParticleTint(color)
+    this.burst_em.emitParticleAt(x, y, 3)
+  }
+
+  /** Healing sparkles — upward-floating green/gold particles */
+  healingSparkles(x: number, y: number, count = 3) {
+    if (!this.ambient_em) return
+    for (let i = 0; i < count; i++) {
+      const colors = [0x44ff88, 0x88ffaa, 0xffdd44]
+      this.ambient_em.setParticleTint(colors[Math.floor(Math.random() * colors.length)]!)
+      this.ambient_em.emitParticleAt(
+        x + (Math.random() - 0.5) * 16,
+        y + (Math.random() - 0.5) * 20,
+        1
+      )
+    }
+  }
+
+  /** Boss phase transition VFX — screen flash + radial particle burst */
+  bossPhaseTransition(x: number, y: number) {
+    if (!this.burst_em) return
+    // Large radial burst
+    const colors = [0xff2222, 0xff6600, 0xffaa00, 0xffffff]
+    for (let i = 0; i < 16; i++) {
+      this.burst_em.setParticleTint(colors[i % colors.length]!)
+      this.burst_em.emitParticleAt(
+        x + (Math.random() - 0.5) * 30,
+        y + (Math.random() - 0.5) * 30,
+        1
+      )
+    }
   }
 
   destroy() {

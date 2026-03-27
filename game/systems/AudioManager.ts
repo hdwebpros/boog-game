@@ -291,6 +291,22 @@ export class AudioManager {
     this.volume = Math.max(0, Math.min(1, vol))
   }
 
+  getVolume(): number {
+    return this.volume
+  }
+
+  setMusicVolume(vol: number) {
+    this.musicVolume = Math.max(0, Math.min(1, vol))
+    if (this.currentMusic && !this.muted) {
+      const el = this.musicElements.get(this.currentMusic)
+      if (el) el.volume = this.musicVolume
+    }
+  }
+
+  getMusicVolume(): number {
+    return this.musicVolume
+  }
+
   isMuted(): boolean {
     return this.muted
   }

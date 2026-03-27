@@ -33,6 +33,17 @@ export class BootScene extends Phaser.Scene {
     this.load.image('player_attack1', '/sprites/player_attack1.png')
     this.load.image('player_attack2', '/sprites/player_attack2.png')
 
+    // Rich astro animation frames (64x64, from Godot project)
+    const astroAnims: [string, number][] = [
+      ['idle', 4], ['walk', 6], ['jump', 7], ['fall', 2],
+      ['attack', 7], ['bow', 7], ['climb', 7], ['death', 7], ['drink', 6],
+    ]
+    for (const [anim, count] of astroAnims) {
+      for (let i = 0; i < count; i++) {
+        this.load.image(`astro_${anim}_${i}`, `/sprites/astro_${anim}_${i}.png`)
+      }
+    }
+
     // Load enemy PNGs
     const enemies = [
       'space_slug', 'cave_bat', 'rock_golem', 'anglerfish', 'lava_serpent', 'corrupted_drone', 'vampire',
@@ -94,6 +105,8 @@ export class BootScene extends Phaser.Scene {
       // Potions
       400, 401, 402, 403, 404, 405, 406, 407,
       408, 409, 410, 411, 412, 413, 414, 415,
+      // Boring Drill & Tree Chomper
+      420, 421,
     ]
     for (const id of itemPngs) {
       this.load.image(`item_${id}`, `/sprites/item_${id}.png`)

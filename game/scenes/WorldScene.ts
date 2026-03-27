@@ -21,7 +21,10 @@ import { getBiomeZone } from '../world/VoidWorldGenerator'
 import { DayNightCycle } from '../systems/DayNightCycle'
 import { NPC } from '../entities/NPC'
 import { ParticleManager } from '../systems/ParticleManager'
-import { MultiplayerManager, RoomConnector, RemotePlayerSim, REMOTE_COL_W, REMOTE_COL_H, encodeMessage, MessageType } from '../multiplayer'
+import { VFXManager } from '../systems/VFXManager'
+import { CameraController } from '../systems/CameraController'
+import { MultiplayerManager, RoomConnector, RemotePlayerSim, encodeMessage, MessageType } from '../multiplayer'
+import { BoringDrill } from '../entities/BoringDrill'
 import { DifficultyManager } from '../systems/DifficultyManager'
 import type { NetworkManager } from '../multiplayer'
 import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, ProjectileSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage, AttackRequest, CombatEvent, BossSummonRequest, ClientStatus } from '../multiplayer'
@@ -95,9 +98,15 @@ export class WorldScene extends Phaser.Scene {
   private clientDroppedItemSprites = new Map<number, Phaser.GameObjects.Graphics>()
   /** Client-side projectile sprites (rendered from host sync data) */
   private clientProjectileSprites = new Map<number, Phaser.GameObjects.Rectangle>()
+  /** Client-side snapshot data for local combat checks */
+  private clientEnemyData = new Map<number, EnemySnapshot>()
+  private clientBossData: BossSnapshot | null = null
+  private clientProjectileData = new Map<number, ProjectileSnapshot>()
 
-  // Void dimension
+  // VFX & Camera systems
   particles!: ParticleManager
+  vfx!: import('../systems/VFXManager').VFXManager
+  cameraCtrl!: import('../systems/CameraController').CameraController
   isVoidDimension: boolean = false
   hasVisitedVoid: boolean = false
   hasCompletedGame: boolean = false
@@ -105,6 +114,7 @@ export class WorldScene extends Phaser.Scene {
   private voidPortalPromptText: Phaser.GameObjects.Text | null = null
   private worldSeed: string = ''
   private permadeathTriggered = false
+  private activeDrills: BoringDrill[] = []
 
   constructor() {
     super({ key: 'WorldScene' })
@@ -128,6 +138,7 @@ export class WorldScene extends Phaser.Scene {
     this.usedRunestones = new Set()
     this.discoveredPOIs = new Set()
     this.permadeathTriggered = false
+    this.activeDrills = []
 
     // Check if this is a void dimension world
     if (this.registry.get('voidDimension')) {
@@ -172,6 +183,9 @@ export class WorldScene extends Phaser.Scene {
 
     // Particle effects
     this.particles = new ParticleManager(this)
+
+    // Screen VFX (vignette, flash, aberration, desaturation)
+    this.vfx = new VFXManager(this)
 
     // Combat system
     this.combat = new CombatSystem(this)
@@ -352,9 +366,10 @@ export class WorldScene extends Phaser.Scene {
     // Register player entity
     this.player.entityId = this.mp.entities.register('player', this.player)
 
-    // Camera follows player — 2x zoom so tiles feel substantial
+    // Camera follows player — custom controller with lookahead, dead zone, shake
     this.cameras.main.setZoom(2)
-    this.cameras.main.startFollow(this.player.sprite, false, 0.25, 0.25)
+    this.cameraCtrl = new CameraController(this)
+    this.cameraCtrl.snapTo(this.player.sprite.x, this.player.sprite.y)
 
     // Seed display (fixed to camera)
     this.add.text(8, 8, `Seed: ${this.worldData.seed}`, {
@@ -400,18 +415,6 @@ export class WorldScene extends Phaser.Scene {
     }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
 
     // Mystical Compass now rendered in UIScene (so it's above all overlays)
-
-    // M toggles music/sound mute
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M).on('down', () => {
-      const audio = AudioManager.get()
-      if (!audio) return
-      const muted = audio.toggleMute()
-      const label = this.add.text(400, 300, muted ? 'MUTED' : 'UNMUTED', {
-        fontSize: '24px', color: '#ffffff', fontFamily: 'monospace',
-        backgroundColor: '#000000aa', padding: { x: 12, y: 6 },
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(200)
-      this.tweens.add({ targets: label, alpha: 0, duration: 1000, delay: 500, onComplete: () => label.destroy() })
-    })
 
     // ESC is checked per-frame in update() via JustDown for reliability
 
@@ -710,39 +713,7 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
-      // Check enemy contact damage against remote players (host side)
-      for (const [rpId, sim] of this.remotePlayerSims) {
-        const rpDead = hostSession.getClientState(rpId)?.dead ?? false
-        if (rpDead || sim.hitCooldown > 0) continue
-        for (const enemy of this.enemies) {
-          if (!enemy.alive || enemy.intangible) continue
-          const eb = enemy.getBounds()
-          const rpHW = REMOTE_COL_W / 2
-          const rpHH = REMOTE_COL_H / 2
-          const rpLeft = sim.x - rpHW
-          const rpTop = sim.y - rpHH
-          if (rpLeft < eb.x + eb.w && rpLeft + REMOTE_COL_W > eb.x &&
-              rpTop < eb.y + eb.h && rpTop + REMOTE_COL_H > eb.y) {
-            const kbx = (sim.x - enemy.sprite.x) > 0 ? 180 : -180
-            const kby = -120
-            if (sim.applyHit(kbx, kby)) {
-              this.mp.broadcastCombatEvent({
-                type: 'damage',
-                targetType: 'player',
-                targetId: rpId,
-                sourceId: enemy.entityId,
-                amount: enemy.effectiveDamage,
-                x: sim.x,
-                y: sim.y,
-                kbx,
-                kby,
-                color: 0xff4444,
-              })
-            }
-            break
-          }
-        }
-      }
+
 
       // Update boss — target nearest player
       if (this.activeBoss && this.activeBoss.alive) {
@@ -780,36 +751,6 @@ export class WorldScene extends Phaser.Scene {
           if (px < bb.x + bb.w && px + 12 > bb.x && py < bb.y + bb.h && py + 28 > bb.y) {
             const kbx = (this.player.sprite.x - this.activeBoss.sprite.x) > 0 ? 200 : -200
             this.player.takeDamage(this.activeBoss.getContactDamage(), kbx, -150, this.combat)
-          }
-        }
-
-        // Boss collision damage — remote players
-        {
-          const bb = this.activeBoss.getBounds()
-          for (const [rpId, sim] of this.remotePlayerSims) {
-            const rpDead = hostSession.getClientState(rpId)?.dead ?? false
-            if (rpDead || sim.hitCooldown > 0) continue
-            const rpLeft = sim.x - REMOTE_COL_W / 2
-            const rpTop = sim.y - REMOTE_COL_H / 2
-            if (rpLeft < bb.x + bb.w && rpLeft + REMOTE_COL_W > bb.x &&
-                rpTop < bb.y + bb.h && rpTop + REMOTE_COL_H > bb.y) {
-              const kbx = (sim.x - this.activeBoss.sprite.x) > 0 ? 200 : -200
-              const kby = -150
-              if (sim.applyHit(kbx, kby)) {
-                this.mp.broadcastCombatEvent({
-                  type: 'damage',
-                  targetType: 'player',
-                  targetId: rpId,
-                  sourceId: 0,
-                  amount: this.activeBoss.getContactDamage(),
-                  x: sim.x,
-                  y: sim.y,
-                  kbx,
-                  kby,
-                  color: 0xff4444,
-                })
-              }
-            }
           }
         }
 
@@ -854,43 +795,6 @@ export class WorldScene extends Phaser.Scene {
       // Check FinalBoss death after combat (damage is applied in combat.update)
       if (this.finalBoss && !this.finalBoss.alive) {
         this.onVoidLordDefeated()
-      }
-
-      // Check enemy projectile hits against remote players
-      for (const [rpId, sim] of this.remotePlayerSims) {
-        const rpDead = hostSession.getClientState(rpId)?.dead ?? false
-        if (rpDead || sim.hitCooldown > 0) continue
-        const rpBounds = {
-          x: sim.x - REMOTE_COL_W / 2,
-          y: sim.y - REMOTE_COL_H / 2,
-          w: REMOTE_COL_W,
-          h: REMOTE_COL_H,
-        }
-        for (const p of this.combat.projectiles) {
-          if (p.fromPlayer || !p.alive) continue
-          const pb = p.getBounds()
-          if (pb.x < rpBounds.x + rpBounds.w && pb.x + pb.w > rpBounds.x &&
-              pb.y < rpBounds.y + rpBounds.h && pb.y + pb.h > rpBounds.y) {
-            const kbx = p.vx > 0 ? 100 : -100
-            const kby = -80
-            if (sim.applyHit(kbx, kby)) {
-              this.mp.broadcastCombatEvent({
-                type: 'damage',
-                targetType: 'player',
-                targetId: rpId,
-                sourceId: 0,
-                amount: p.damage,
-                x: sim.x,
-                y: sim.y,
-                kbx,
-                kby,
-                color: 0xff4444,
-              })
-            }
-            p.destroy()
-            break
-          }
-        }
       }
 
       // Check boss death after combat (killing blow may come from combat.update)
@@ -978,6 +882,9 @@ export class WorldScene extends Phaser.Scene {
       // Update dropped items & pickup
       this.updateDroppedItems(dt)
 
+      // Update boring drills
+      this.updateBoringDrills(dt)
+
       // Check if player has assembled the jetpack
       this.checkJetpack()
 
@@ -1036,10 +943,30 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    // Clients skip combat.update() — still need to animate damage numbers
+    // Clients handle their own combat locally using synced enemy/boss/projectile data
     if (this.mp.isClient) {
+      this.handleClientCombat()
       this.combat.updateDamageNumbers(dt)
     }
+
+    // VFX screen effects (vignette, flash, desaturation)
+    const hpPct = this.player.maxHp > 0 ? this.player.hp / this.player.maxHp : 1
+    this.vfx.update(dt, hpPct)
+
+    // Camera controller (lookahead, dead zone, shake, boss lock)
+    if (this.activeBoss && this.activeBoss.alive) {
+      this.cameraCtrl.setBossLock(this.activeBoss.sprite.x, this.activeBoss.sprite.y)
+    } else if (this.finalBoss && this.finalBoss.alive) {
+      this.cameraCtrl.setBossLock(this.finalBoss.sprite.x, this.finalBoss.sprite.y)
+    } else {
+      this.cameraCtrl.releaseBossLock()
+    }
+    this.cameraCtrl.update(
+      this.player.sprite.x, this.player.sprite.y,
+      this.player.facingRight,
+      this.player.vy, this.player.isGrounded,
+      dt
+    )
 
     this.chunkManager.update()
     this.updatePortalParticles()
@@ -1724,6 +1651,7 @@ export class WorldScene extends Phaser.Scene {
     this.player.sprite.x = destX
     this.player.sprite.y = destY
     this.player.vy = 0
+    this.cameraCtrl.snapTo(destX, destY)
 
     // Visual/audio feedback
     AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
@@ -2145,6 +2073,61 @@ export class WorldScene extends Phaser.Scene {
             break
           }
         }
+      }
+    }
+  }
+
+  /** Activate a boring drill at the player's feet */
+  activateBoringDrill(player: Player) {
+    const ptx = Math.floor(player.sprite.x / TILE_SIZE)
+    const pty = Math.floor(player.sprite.y / TILE_SIZE)
+    // Place the 2x4 drill just below the player's feet
+    const drillTX = ptx
+    const drillTY = pty + 1
+
+    // Check we have space for 2x4 — clear the area
+    for (let dy = 0; dy < 4; dy++) {
+      for (let dx = 0; dx < 2; dx++) {
+        this.chunkManager.setTile(drillTX + dx, drillTY + dy, TileType.AIR)
+      }
+    }
+
+    // Spawn position for drops (top of drill, in world pixels)
+    const dropX = drillTX * TILE_SIZE + TILE_SIZE
+    const dropY = drillTY * TILE_SIZE - TILE_SIZE
+
+    const drill = new BoringDrill(
+      this,
+      drillTX,
+      drillTY,
+      (itemId, count) => {
+        this.spawnDrop(dropX, dropY, itemId, count)
+      },
+      () => {
+        // Explosion VFX
+        this.cameraCtrl.addTrauma(0.6)
+        this.particles?.bossPhaseTransition(
+          drill.x + TILE_SIZE,
+          drill.y + TILE_SIZE * 2,
+        )
+        this.showNotification('The Boring Drill explodes!', 0xff6600)
+      },
+    )
+
+    this.activeDrills.push(drill)
+
+    // Consume the item
+    player.inventory.consumeSelected()
+    AudioManager.get()?.play(SoundId.PLACE_BLOCK)
+    this.showNotification('Boring Drill deployed!', 0xcc8844)
+  }
+
+  private updateBoringDrills(dt: number) {
+    for (let i = this.activeDrills.length - 1; i >= 0; i--) {
+      const drill = this.activeDrills[i]!
+      drill.update(dt, this.chunkManager)
+      if (!drill.alive) {
+        this.activeDrills.splice(i, 1)
       }
     }
   }
@@ -2773,43 +2756,22 @@ export class WorldScene extends Phaser.Scene {
           sim.y = clientState.y
         }
       } else {
-        // Apply latest input from this player
+        // Run sim for visual state (facingRight, isGrounded, etc.)
         const input = rp.lastInput
         if (input) {
-          const fallDmg = sim.simulate(input, dt, this.chunkManager)
-          if (fallDmg > 0) {
-            this.mp.broadcastCombatEvent({
-              type: 'damage',
-              targetType: 'player',
-              targetId: rp.id,
-              sourceId: 0,
-              amount: fallDmg,
-              x: sim.x,
-              y: sim.y,
-              color: 0xff4444,
-            })
-          }
+          sim.simulate(input, dt, this.chunkManager)
         }
       }
 
-      // Correct sim drift using client-reported position
-      // The sim runs independent physics that drifts from the client's real Player physics
-      // over time (different dt values, input latency, collision differences compound).
-      // CLIENT_STATUS arrives every 100ms with the client's actual position.
-      if (clientState && !clientDead) {
-        const dx = clientState.x - sim.x
-        const dy = clientState.y - sim.y
-        const distSq = dx * dx + dy * dy
-        if (distSq > 64 * 64) {
-          // More than 4 tiles off — snap immediately
-          sim.x = clientState.x
-          sim.y = clientState.y
-        } else if (distSq > 4) {
-          // Blend toward client position (converges in ~3 frames)
-          const blend = Math.min(1, dt * 10)
-          sim.x += dx * blend
-          sim.y += dy * blend
-        }
+      // Snap sim to client-reported position (authoritative).
+      // The sim can't replicate the client's real speed (skill/accessory/buff multipliers,
+      // jetpack, water swimming, vine climbing, etc.), so it drifts badly over time.
+      // Client sends position via CLIENT_STATUS (100ms) and input.px/py (50ms).
+      const cx = rp.lastInput?.px ?? clientState?.x
+      const cy = rp.lastInput?.py ?? clientState?.y
+      if (cx != null && cy != null && !clientDead) {
+        sim.x = cx
+        sim.y = cy
       }
 
       // Update the snapshot with sim physics + client-reported vitals
@@ -2853,6 +2815,65 @@ export class WorldScene extends Phaser.Scene {
         if (rpState.nameText) {
           rpState.nameText.setPosition(sim.x, sim.y - 24)
         }
+      }
+    }
+  }
+
+  // ── Client: local combat against synced enemies/bosses/projectiles ──
+
+  private handleClientCombat() {
+    if (this.player.dead) return
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    const pw = 12  // Player COL_W
+    const ph = 28  // Player COL_H
+    const pLeft = px - pw / 2
+    const pTop = py - ph / 2
+
+    // Enemy contact damage
+    for (const [, snap] of this.clientEnemyData) {
+      if (!snap.alive || snap.intangible) continue
+      const def = ENEMY_DEFS[snap.type as EnemyType]
+      if (!def) continue
+      const eLeft = snap.x - def.width / 2
+      const eTop = snap.y - def.height / 2
+      if (pLeft < eLeft + def.width && pLeft + pw > eLeft &&
+          pTop < eTop + def.height && pTop + ph > eTop) {
+        const kbx = (px - snap.x) > 0 ? 180 : -180
+        this.player.takeDamage(def.damage, kbx, -120, this.combat)
+        break  // one hit per frame
+      }
+    }
+
+    // Boss contact damage
+    if (this.clientBossData?.alive) {
+      const bDef = BOSS_DEFS[this.clientBossData.type as BossType]
+      if (bDef) {
+        const bLeft = this.clientBossData.x - bDef.width / 2
+        const bTop = this.clientBossData.y - bDef.height / 2
+        if (pLeft < bLeft + bDef.width && pLeft + pw > bLeft &&
+            pTop < bTop + bDef.height && pTop + ph > bTop) {
+          const kbx = (px - this.clientBossData.x) > 0 ? 200 : -200
+          this.player.takeDamage(bDef.damage, kbx, -150, this.combat)
+        }
+      }
+    }
+
+    // Enemy projectile hits
+    for (const [id, snap] of this.clientProjectileData) {
+      if (snap.fromPlayer) continue
+      const projSize = 4
+      const projLeft = snap.x - projSize / 2
+      const projTop = snap.y - projSize / 2
+      if (pLeft < projLeft + projSize && pLeft + pw > projLeft &&
+          pTop < projTop + projSize && pTop + ph > projTop) {
+        const kbx = snap.vx > 0 ? 100 : -100
+        this.player.takeDamage(snap.damage, kbx, -80, this.combat)
+        // Remove the projectile sprite locally
+        const rect = this.clientProjectileSprites.get(id)
+        if (rect) { rect.destroy(); this.clientProjectileSprites.delete(id) }
+        this.clientProjectileData.delete(id)
+        break
       }
     }
   }
@@ -2935,37 +2956,11 @@ export class WorldScene extends Phaser.Scene {
       this.chunkManager.setChestInventory(chestContents.tx, chestContents.ty, chestContents.items)
     }
 
-    // Apply combat events
+    // Apply combat events (XP and visual damage numbers only — damage is client-authoritative)
     for (const evt of this.mp.consumeCombatEvents()) {
       if (evt.type === 'xp') {
-        // Fix #4: XP granted to all clients
         this.grantXP(evt.amount, evt.x, evt.y)
-      } else if (evt.targetType === 'player' && evt.targetId === this.mp.localPlayerId) {
-        // Host detected a hit on this player via RemotePlayerSim.
-        // Validate against client's local position — the sim can be desynced,
-        // causing phantom hits when the client player isn't actually near the enemy.
-        let kbx = evt.kbx ?? 0
-        const kby = evt.kby ?? 0
-
-        // Check if the client player is actually near the hit source
-        const enemySprite = evt.sourceId ? this.clientEnemySprites.get(evt.sourceId) : null
-        const sourceX = enemySprite?.x ?? this.clientBossSprite?.x
-        const sourceY = enemySprite?.y ?? this.clientBossSprite?.y
-        if (sourceX !== undefined && sourceY !== undefined) {
-          const ddx = this.player.sprite.x - sourceX
-          const ddy = this.player.sprite.y - sourceY
-          const distSq = ddx * ddx + ddy * ddy
-          // Skip if client player is far from the enemy (phantom hit from desync)
-          if (distSq > 80 * 80) continue
-          // Recalculate knockback direction from client's local position
-          if (kbx !== 0) {
-            const kbMag = Math.abs(kbx)
-            kbx = ddx >= 0 ? kbMag : -kbMag
-          }
-        }
-        this.player.takeDamage(evt.amount, kbx, kby, this.combat)
       } else {
-        // Visual-only damage number (enemy hit or other player hit)
         this.combat.spawnDamageNumber(evt.x, evt.y, evt.amount, evt.color ?? 0xff4444)
       }
     }
@@ -2991,12 +2986,14 @@ export class WorldScene extends Phaser.Scene {
         (sprite as Phaser.GameObjects.Image).setFlipX(!snap.facingRight)
       }
       sprite!.setAlpha(snap.alive ? 1 : 0.3)
+      this.clientEnemyData.set(snap.id, snap)
     }
     // Remove sprites for enemies no longer present
     for (const [id, sprite] of this.clientEnemySprites) {
       if (!seen.has(id)) {
         sprite.destroy()
         this.clientEnemySprites.delete(id)
+        this.clientEnemyData.delete(id)
       }
     }
   }
@@ -3020,6 +3017,7 @@ export class WorldScene extends Phaser.Scene {
         this.clientBossId = snap.id
       }
       this.clientBossSprite.setPosition(snap.x, snap.y)
+      this.clientBossData = snap
     } else {
       // Boss died
       if (this.clientBossSprite) {
@@ -3027,6 +3025,7 @@ export class WorldScene extends Phaser.Scene {
         this.clientBossSprite = null
         this.clientBossId = 0
       }
+      this.clientBossData = null
     }
   }
 
@@ -3070,12 +3069,14 @@ export class WorldScene extends Phaser.Scene {
         this.clientProjectileSprites.set(snap.id, rect)
       }
       rect.setPosition(snap.x, snap.y)
+      this.clientProjectileData.set(snap.id, snap)
     }
     // Remove sprites for projectiles no longer present
     for (const [id, rect] of this.clientProjectileSprites) {
       if (!seen.has(id)) {
         rect.destroy()
         this.clientProjectileSprites.delete(id)
+        this.clientProjectileData.delete(id)
       }
     }
   }

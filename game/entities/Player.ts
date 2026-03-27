@@ -476,6 +476,16 @@ export class Player {
       combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 10, amount, 0xff4444)
     }
 
+    // Screen VFX: damage flash, HP bar shake, chromatic aberration on heavy hits
+    const ws = this.scene as any
+    const heavy = amount >= this.maxHp * 0.15
+    ws.vfx?.triggerDamageFlash(heavy)
+    ws.vfx?.triggerHpBarShake(heavy ? 4 : 2)
+    ws.cameraCtrl?.addTrauma(heavy ? 0.3 : 0.1)
+    if (heavy) {
+      ws.vfx?.triggerAberration(heavy ? 3 : 1.5)
+    }
+
     // Thorns: reflect damage to nearby enemies
     const thornsPct = this.buffs.getThornsPct()
     if (thornsPct > 0 && combat) {
@@ -556,6 +566,9 @@ export class Player {
     this.mana = this.maxMana
     this.sprite.x = this.spawnX
     this.sprite.y = this.spawnY
+    // Snap camera to respawn position
+    const ws = this.scene as any
+    ws.cameraCtrl?.snapTo(this.spawnX, this.spawnY)
     this.sprite.clearTint()
     this.sprite.setAlpha(1)
     this.equipOverlay.setAlpha(1)
@@ -575,6 +588,15 @@ export class Player {
     // Chant Orb usage (IDs 237-241, 243) — enchant first weapon/armor in hotbar
     if ((item.id >= 237 && item.id <= 241) || item.id === 243) {
       this.useChantOrb(item.id)
+      return
+    }
+
+    // Boring Drill activation (ID 420)
+    if (item.id === 420) {
+      const ws = this.scene as any
+      if (typeof ws.activateBoringDrill === 'function') {
+        ws.activateBoringDrill(this)
+      }
       return
     }
 
@@ -602,6 +624,9 @@ export class Player {
       this.hp = Math.min(this.maxHp, this.hp + def.healAmount)
       this.inventory.consumeSelected()
       AudioManager.get()?.play(SoundId.HEAL)
+      // Healing sparkle VFX
+      const wsHeal = this.scene as any
+      wsHeal.particles?.healingSparkles(this.sprite.x, this.sprite.y, 4)
     }
   }
 
@@ -749,6 +774,18 @@ export class Player {
       case 'melee': {
         const mult = mods.meleeDamageMult * this.buffs.getMeleeDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult * allDmgMult * voidDmgMult
         dmgDealt = combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies, mult)
+        // Weapon trail afterimage
+        const trailDir = this.facingRight ? 1 : -1
+        for (let ti = 0; ti < 4; ti++) {
+          const angle = (this.facingRight ? 0 : Math.PI) + (ti - 1.5) * 0.35
+          ws.vfx?.addTrailPoint(
+            this.sprite.x + Math.cos(angle) * (30 + ti * 10),
+            this.sprite.y + Math.sin(angle) * (30 + ti * 10),
+            def.color
+          )
+        }
+        // Camera nudge toward target
+        ws.cameraCtrl?.triggerAttackNudge(trailDir * 50, 0)
         // Arcane Strikes: melee hits release a magic shockwave
         if (mods.arcaneStrikes && dmgDealt > 0) {
           const shockDir = this.facingRight ? 1 : -1
@@ -1135,7 +1172,15 @@ export class Player {
     this.sprite.y = ry.pos
     if (ry.blocked) {
       if (ry.grounded) {
-        if (!this.isGrounded) AudioManager.get()?.play(SoundId.LAND)
+        if (!this.isGrounded) {
+          AudioManager.get()?.play(SoundId.LAND)
+          // Landing dust puff + camera bump
+          const ws = this.scene as any
+          if (this.maxFallVy > 150) {
+            ws.particles?.landingDust(this.sprite.x, this.sprite.y, this.maxFallVy)
+            ws.cameraCtrl?.triggerLandingBump(this.maxFallVy)
+          }
+        }
         this.isGrounded = true
         if (this.maxFallVy > FALL_DMG_THRESHOLD) this.applyFallDamage()
         this.maxFallVy = 0
@@ -1189,32 +1234,76 @@ export class Player {
     let newFrame: string
 
     if (this.actionAnim === 'mining') {
-      // 2-frame mining swing: windup then strike
-      newFrame = this.actionAnimTimer > 50 ? 'player_mine1' : 'player_mine2'
+      // Mining swing cycle (astro attack frames or fallback)
+      const t = this.actionAnimTimer
+      const attackFrames = ['astro_attack_0', 'astro_attack_1', 'astro_attack_2', 'astro_attack_3', 'astro_attack_4', 'astro_attack_5', 'astro_attack_6']
+      const idx = Math.min(attackFrames.length - 1, Math.floor((1 - t / 200) * attackFrames.length))
+      newFrame = attackFrames[idx]!
+      if (!this.scene.textures.exists(newFrame)) {
+        newFrame = t > 50 ? 'player_mine1' : 'player_mine2'
+      }
       this.sprite.setOrigin(0.5, 0.5)
     } else if (this.actionAnim === 'attacking') {
-      // 2-frame sword swing: windup then slash
-      newFrame = this.actionAnimTimer > 50 ? 'player_attack1' : 'player_attack2'
+      // Sword swing cycle (astro attack frames or fallback)
+      const t = this.actionAnimTimer
+      const attackFrames = ['astro_attack_0', 'astro_attack_1', 'astro_attack_2', 'astro_attack_3', 'astro_attack_4', 'astro_attack_5', 'astro_attack_6']
+      const idx = Math.min(attackFrames.length - 1, Math.floor((1 - t / 200) * attackFrames.length))
+      newFrame = attackFrames[idx]!
+      if (!this.scene.textures.exists(newFrame)) {
+        newFrame = t > 50 ? 'player_attack1' : 'player_attack2'
+      }
       this.sprite.setOrigin(0.5, 0.5)
     } else if (!this.isGrounded && this.vy < -50) {
-      newFrame = 'player_walk2'
+      // Jumping
+      const jumpFrames = ['astro_jump_0', 'astro_jump_1', 'astro_jump_2', 'astro_jump_3', 'astro_jump_4', 'astro_jump_5', 'astro_jump_6']
+      this.walkTimer += dt * 1000
+      if (this.walkTimer > 120) {
+        this.walkTimer = 0
+        this.walkFrameIndex = (this.walkFrameIndex + 1) % jumpFrames.length
+      }
+      newFrame = jumpFrames[this.walkFrameIndex % jumpFrames.length]!
+      if (!this.scene.textures.exists(newFrame)) newFrame = 'player_walk2'
       this.sprite.setOrigin(0.5, 0.5)
     } else if (!this.isGrounded && this.vy > 50) {
-      newFrame = 'player_walk3'
+      // Falling
+      const fallFrames = ['astro_fall_0', 'astro_fall_1']
+      this.walkTimer += dt * 1000
+      if (this.walkTimer > 200) {
+        this.walkTimer = 0
+        this.walkFrameIndex = (this.walkFrameIndex + 1) % fallFrames.length
+      }
+      newFrame = fallFrames[this.walkFrameIndex % fallFrames.length]!
+      if (!this.scene.textures.exists(newFrame)) newFrame = 'player_walk3'
       this.sprite.setOrigin(0.5, 0.5)
     } else if (this.vx !== 0) {
       // Walk cycle
+      const walkFrames = ['astro_walk_0', 'astro_walk_1', 'astro_walk_2', 'astro_walk_3', 'astro_walk_4', 'astro_walk_5']
       this.walkTimer += dt * 1000
-      if (this.walkTimer > 150) {
+      if (this.walkTimer > 120) {
         this.walkTimer = 0
-        this.walkFrameIndex = (this.walkFrameIndex + 1) % 4
+        this.walkFrameIndex = (this.walkFrameIndex + 1) % walkFrames.length
+        // Footstep dust (every other frame step, only on ground)
+        if (this.isGrounded && this.walkFrameIndex % 2 === 0) {
+          const ws = this.scene as any
+          ws.particles?.footstepDust(this.sprite.x, this.sprite.y, this.facingRight)
+        }
       }
-      const walkFrames = ['player_walk1', 'player_walk2', 'player_walk3', 'player_walk4']
-      newFrame = walkFrames[this.walkFrameIndex]!
+      newFrame = walkFrames[this.walkFrameIndex % walkFrames.length]!
+      if (!this.scene.textures.exists(newFrame)) {
+        const fallback = ['player_walk1', 'player_walk2', 'player_walk3', 'player_walk4']
+        newFrame = fallback[this.walkFrameIndex % fallback.length]!
+      }
       this.sprite.setOrigin(0.5, 0.5)
     } else {
-      // Idle — just stand still
-      newFrame = 'player_idle1'
+      // Idle breathing cycle
+      const idleFrames = ['astro_idle_0', 'astro_idle_1', 'astro_idle_2', 'astro_idle_3']
+      this.walkTimer += dt * 1000
+      if (this.walkTimer > 300) {
+        this.walkTimer = 0
+        this.walkFrameIndex = (this.walkFrameIndex + 1) % idleFrames.length
+      }
+      newFrame = idleFrames[this.walkFrameIndex % idleFrames.length]!
+      if (!this.scene.textures.exists(newFrame)) newFrame = 'player_idle1'
       this.sprite.setOrigin(0.5, 0.5)
     }
 
@@ -1528,7 +1617,10 @@ export class Player {
               this.onTileChange?.(bx, by, TileType.AIR, bt)
               chunks.setTile(bx, by, TileType.AIR)
               const particles = (this.scene as any).particles as ParticleManager | undefined
-              particles?.burst(bx * TILE_SIZE + TILE_SIZE / 2, by * TILE_SIZE + TILE_SIZE / 2, TILE_PROPERTIES[bt]!.color)
+              const bpx = bx * TILE_SIZE + TILE_SIZE / 2
+              const bpy = by * TILE_SIZE + TILE_SIZE / 2
+              particles?.burst(bpx, bpy, TILE_PROPERTIES[bt]!.color)
+              particles?.miningDebris(bpx, bpy, TILE_PROPERTIES[bt]!.color)
               if (shardId) {
                 this.inventory.addItem(shardId, dropCount)
                 if (Math.random() < 0.5) this.inventory.addItem(235, 1)
