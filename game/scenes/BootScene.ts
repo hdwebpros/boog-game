@@ -114,11 +114,8 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`enemy_${e}`, `/sprites/enemy_${e}.png`)
     }
 
-    // Load Void Lord boss PNGs (4 animation frames)
-    this.load.image('boss_void_lord', '/sprites/boss_void_lord.png')
-    this.load.image('boss_void_lord_idle2', '/sprites/boss_void_lord_idle2.png')
-    this.load.image('boss_void_lord_attack', '/sprites/boss_void_lord_attack.png')
-    this.load.image('boss_void_lord_cast', '/sprites/boss_void_lord_cast.png')
+    // Void Lord boss sprites are generated procedurally by SpriteGenerator
+    // (PNGs removed — no preload needed)
   }
 
   create() {

@@ -302,9 +302,14 @@ export class ChunkManager {
 
           const texKey = `tile_${tileType}`
           if (this.scene.textures.exists(texKey)) {
-            this.stamp.setTexture(texKey)
-            this.stamp.setPosition(tx * TILE_SIZE, ty * TILE_SIZE)
-            rt.batchDraw(this.stamp)
+            const tex = this.scene.textures.get(texKey)
+            const src = tex.source[0]
+            // Skip if the texture source image is missing (failed PNG load)
+            if (src && src.image) {
+              this.stamp.setTexture(texKey)
+              this.stamp.setPosition(tx * TILE_SIZE, ty * TILE_SIZE)
+              rt.batchDraw(this.stamp)
+            }
           }
         }
       }

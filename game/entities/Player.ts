@@ -1197,10 +1197,10 @@ export class Player {
       newFrame = this.actionAnimTimer > 50 ? 'player_attack1' : 'player_attack2'
       this.sprite.setOrigin(0.5, 0.5)
     } else if (!this.isGrounded && this.vy < -50) {
-      newFrame = 'player_jump'
+      newFrame = 'player_walk2'
       this.sprite.setOrigin(0.5, 0.5)
     } else if (!this.isGrounded && this.vy > 50) {
-      newFrame = 'player_fall'
+      newFrame = 'player_walk3'
       this.sprite.setOrigin(0.5, 0.5)
     } else if (this.vx !== 0) {
       // Walk cycle
