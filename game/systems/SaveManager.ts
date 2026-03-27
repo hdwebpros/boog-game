@@ -108,6 +108,7 @@ export interface SaveSlotInfo {
   id: string
   name: string
   timestamp: number
+  difficulty?: string
 }
 
 /** Parse tiles from save data — handles both compressed (string) and legacy (number[]) formats */
@@ -150,6 +151,7 @@ export interface SaveData {
   hasVisitedVoid?: boolean
   hasCompletedGame?: boolean
   trashFilter?: number[]
+  difficulty?: string
   timestamp: number
 }
 
@@ -182,7 +184,8 @@ export class SaveManager {
     activeBuffs?: { type: string; remaining: number; duration: number }[],
     hasVisitedVoid?: boolean,
     hasCompletedGame?: boolean,
-    trashFilter?: number[]
+    trashFilter?: number[],
+    difficulty?: string
   ): Promise<boolean> {
     try {
       const timestamp = Date.now()
@@ -218,6 +221,7 @@ export class SaveManager {
         hasVisitedVoid,
         hasCompletedGame,
         trashFilter,
+        difficulty,
         timestamp,
       }
       await idbPut(slotId, data)
@@ -225,7 +229,7 @@ export class SaveManager {
       // Update index (small — stays in localStorage)
       const index = this.getIndex()
       const existing = index.findIndex(s => s.id === slotId)
-      const info: SaveSlotInfo = { id: slotId, name, timestamp }
+      const info: SaveSlotInfo = { id: slotId, name, timestamp, difficulty }
       if (existing >= 0) {
         index[existing] = info
       } else {

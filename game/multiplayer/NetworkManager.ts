@@ -1,6 +1,7 @@
 /**
  * Client-side network manager.
  * Handles WebSocket connection to host and message routing.
+ * Includes automatic reconnection with exponential backoff.
  */
 
 import {
@@ -18,9 +19,14 @@ import {
   encodeMessage,
 } from './protocol'
 
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
+export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
 type MessageHandler = (msg: NetworkMessage) => void
+
+/** Max reconnection attempts before giving up */
+const MAX_RECONNECT_ATTEMPTS = 3
+/** Base delay between reconnect attempts (doubles each time) */
+const RECONNECT_BASE_DELAY = 2000
 
 export class NetworkManager {
   private ws: WebSocket | null = null
@@ -35,11 +41,26 @@ export class NetworkManager {
   private inputBuffer: InputState[] = []
   private inputSendTimer = 0
 
+  /** Stored connection params for reconnection */
+  private _url = ''
+  private _roomCode = ''
+
+  /** Reconnection state */
+  private _reconnectAttempt = 0
+  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private _intentionalDisconnect = false
+
+  /** Callbacks for reconnection events */
+  onReconnecting: ((attempt: number, maxAttempts: number) => void) | null = null
+  onReconnected: (() => void) | null = null
+  onReconnectFailed: ((reason: string) => void) | null = null
+
   get state(): ConnectionState { return this._state }
   get playerId(): number { return this._playerId }
   get playerName(): string { return this._playerName }
   get isHost(): boolean { return this._isHost }
   get ping(): number { return this._ping }
+  get reconnectAttempt(): number { return this._reconnectAttempt }
 
   /** Register a handler for a specific message type */
   on(type: MessageType, handler: MessageHandler) {
@@ -57,136 +78,235 @@ export class NetworkManager {
   connect(url: string, playerName: string, roomCode: string): Promise<JoinAccepted> {
     return new Promise((resolve, reject) => {
       if (this.ws) {
-        this.disconnect()
+        this._intentionalDisconnect = true
+        this.ws.close()
+        this.ws = null
       }
 
       this._state = 'connecting'
       this._playerName = playerName
-      let joinedRoom = false
+      this._url = url
+      this._roomCode = roomCode
+      this._intentionalDisconnect = false
+      this._reconnectAttempt = 0
 
+      this.connectInternal(resolve, reject)
+    })
+  }
+
+  /** Internal connection logic shared by connect() and reconnect() */
+  private connectInternal(
+    resolve: (data: JoinAccepted) => void,
+    reject: (err: Error) => void,
+  ) {
+    try {
+      this.ws = new WebSocket(this._url)
+    } catch (err) {
+      this._state = 'error'
+      reject(new Error(`Failed to create WebSocket: ${err}`))
+      return
+    }
+
+    this.ws.onopen = () => {
+      // Phase 1: join the relay room
+      this.ws!.send(JSON.stringify({ type: 'join_room', code: this._roomCode }))
+    }
+
+    this.ws.onmessage = (event) => {
+      let raw: any
       try {
-        this.ws = new WebSocket(url)
-      } catch (err) {
-        this._state = 'error'
-        reject(new Error(`Failed to create WebSocket: ${err}`))
-        return
-      }
+        raw = JSON.parse(event.data as string)
+      } catch { return }
 
-      this.ws.onopen = () => {
-        // Phase 1: join the relay room
-        this.ws!.send(JSON.stringify({ type: 'join_room', code: roomCode }))
-      }
-
-      this.ws.onmessage = (event) => {
-        let raw: any
-        try {
-          raw = JSON.parse(event.data as string)
-        } catch { return }
-
-        // During connection, handle both relay and game protocol messages
-        if (this._state === 'connecting') {
-          // Relay management messages have string type fields
-          if (typeof raw.type === 'string') {
-            if (raw.type === 'welcome') return // ignore
-            if (raw.type === 'room_joined') {
-              // Phase 2: room joined, now send game-level JOIN_REQUEST
-              joinedRoom = true
-              this.send({
-                type: MessageType.JOIN_REQUEST,
-                senderId: 0,
-                data: {
-                  playerName,
-                  protocolVersion: PROTOCOL_VERSION,
-                } satisfies JoinRequest,
-              })
-              return
-            }
-            if (raw.type === 'room_error') {
-              this._state = 'error'
-              this.ws?.close()
-              reject(new Error(raw.error ?? 'Room error'))
-              return
-            }
-            if (raw.type === 'room_closed') {
-              this._state = 'error'
-              this.ws?.close()
-              reject(new Error('Room closed'))
-              return
-            }
+      // During connection/reconnection, handle both relay and game protocol messages
+      if (this._state === 'connecting' || this._state === 'reconnecting') {
+        // Relay management messages have string type fields
+        if (typeof raw.type === 'string') {
+          if (raw.type === 'welcome') return // ignore
+          if (raw.type === 'room_joined') {
+            // Phase 2: room joined, now send game-level JOIN_REQUEST
+            this.send({
+              type: MessageType.JOIN_REQUEST,
+              senderId: 0,
+              data: {
+                playerName: this._playerName,
+                protocolVersion: PROTOCOL_VERSION,
+              } satisfies JoinRequest,
+            })
             return
           }
-
-          // Game protocol messages (numeric type)
-          const msg = raw as NetworkMessage
-          if (msg.type === MessageType.JOIN_ACCEPTED) {
-            const data = msg.data as JoinAccepted
-            this._playerId = data.playerId
-            this._state = 'connected'
-            this.setupMessageHandling()
-            resolve(data)
-            return
-          }
-          if (msg.type === MessageType.JOIN_REJECTED) {
-            const data = msg.data as JoinRejected
+          if (raw.type === 'room_error') {
+            if (this._state === 'reconnecting') {
+              // Room gone — host left, no point retrying
+              this._state = 'error'
+              this.ws?.close()
+              this.onReconnectFailed?.(raw.error ?? 'Room no longer exists')
+              return
+            }
             this._state = 'error'
             this.ws?.close()
-            reject(new Error(data.reason))
-            return
-          }
-          return
-        }
-
-        // Handle relay messages after connected (e.g. room_closed, heartbeat)
-        if (typeof raw.type === 'string') {
-          if (raw.type === 'heartbeat') {
-            // Respond to server keepalive
-            try { this.ws?.send(JSON.stringify({ type: 'heartbeat_ack' })) } catch {}
+            reject(new Error(raw.error ?? 'Room error'))
             return
           }
           if (raw.type === 'room_closed') {
-            this._state = 'disconnected'
+            if (this._state === 'reconnecting') {
+              this._state = 'error'
+              this.ws?.close()
+              this.onReconnectFailed?.('Room closed')
+              return
+            }
+            this._state = 'error'
             this.ws?.close()
-            // Dispatch as a disconnect event
-            this.dispatchMessage({
-              type: MessageType.PLAYER_LEFT,
-              senderId: this._playerId,
-              data: { playerId: this._playerId, reason: 'Host disconnected' },
-            })
+            reject(new Error('Room closed'))
+            return
           }
           return
         }
 
-        // After connected, dispatch game protocol messages
+        // Game protocol messages (numeric type)
         const msg = raw as NetworkMessage
-        if (typeof msg.type === 'number') {
-          this.dispatchMessage(msg)
+        if (msg.type === MessageType.JOIN_ACCEPTED) {
+          const data = msg.data as JoinAccepted
+          this._playerId = data.playerId
+          const wasReconnecting = this._state === 'reconnecting'
+          this._state = 'connected'
+          this._reconnectAttempt = 0
+          if (!wasReconnecting) {
+            this.setupMessageHandling()
+          }
+          if (wasReconnecting) {
+            console.log('[Net] Reconnected successfully, new playerId:', data.playerId)
+            this.onReconnected?.()
+          }
+          resolve(data)
+          return
         }
-      }
-
-      this.ws.onerror = () => {
-        if (this._state === 'connecting') {
+        if (msg.type === MessageType.JOIN_REJECTED) {
+          const data = msg.data as JoinRejected
+          if (this._state === 'reconnecting') {
+            this._state = 'error'
+            this.ws?.close()
+            this.onReconnectFailed?.(data.reason)
+            return
+          }
           this._state = 'error'
-          reject(new Error('WebSocket connection failed'))
+          this.ws?.close()
+          reject(new Error(data.reason))
+          return
         }
+        return
       }
 
-      this.ws.onclose = (ev: CloseEvent) => {
-        console.warn(`[Net] WebSocket closed: code=${ev.code} reason="${ev.reason}" wasClean=${ev.wasClean}`)
-        const wasConnected = this._state === 'connected'
-        this._state = 'disconnected'
-        if (wasConnected) {
+      // Handle relay messages after connected (e.g. room_closed, heartbeat)
+      if (typeof raw.type === 'string') {
+        if (raw.type === 'heartbeat') {
+          // Respond to server keepalive
+          try { this.ws?.send(JSON.stringify({ type: 'heartbeat_ack' })) } catch {}
+          return
+        }
+        if (raw.type === 'room_closed') {
+          // Host deliberately closed — no reconnection possible
+          this._intentionalDisconnect = true
+          this._state = 'disconnected'
+          this.ws?.close()
+          // Dispatch as a disconnect event
           this.dispatchMessage({
             type: MessageType.PLAYER_LEFT,
             senderId: this._playerId,
-            data: { playerId: this._playerId, reason: ev.reason || 'disconnected' },
+            data: { playerId: this._playerId, reason: 'Host disconnected' },
           })
         }
+        return
       }
-    })
+
+      // After connected, dispatch game protocol messages
+      const msg = raw as NetworkMessage
+      if (typeof msg.type === 'number') {
+        this.dispatchMessage(msg)
+      }
+    }
+
+    this.ws.onerror = () => {
+      if (this._state === 'connecting') {
+        this._state = 'error'
+        reject(new Error('WebSocket connection failed'))
+      }
+      // For reconnecting state, onerror is followed by onclose which handles retry
+    }
+
+    this.ws.onclose = (ev: CloseEvent) => {
+      console.warn(`[Net] WebSocket closed: code=${ev.code} reason="${ev.reason}" wasClean=${ev.wasClean}`)
+      const wasConnected = this._state === 'connected'
+      const wasReconnecting = this._state === 'reconnecting'
+
+      if (wasConnected && !this._intentionalDisconnect) {
+        // Unexpected disconnect while playing — try to reconnect
+        this.attemptReconnect()
+        return
+      }
+
+      if (wasReconnecting) {
+        // Reconnect attempt failed at the WS level — try again if attempts remain
+        this.attemptReconnect()
+        return
+      }
+
+      this._state = 'disconnected'
+      if (wasConnected) {
+        this.dispatchMessage({
+          type: MessageType.PLAYER_LEFT,
+          senderId: this._playerId,
+          data: { playerId: this._playerId, reason: ev.reason || 'disconnected' },
+        })
+      }
+    }
+  }
+
+  /** Attempt automatic reconnection with exponential backoff */
+  private attemptReconnect() {
+    this._reconnectAttempt++
+
+    if (this._reconnectAttempt > MAX_RECONNECT_ATTEMPTS) {
+      console.warn(`[Net] Reconnect failed after ${MAX_RECONNECT_ATTEMPTS} attempts`)
+      this._state = 'disconnected'
+      this.onReconnectFailed?.('Connection lost after multiple retries')
+      // Dispatch disconnect so MultiplayerManager can handle it
+      this.dispatchMessage({
+        type: MessageType.PLAYER_LEFT,
+        senderId: this._playerId,
+        data: { playerId: this._playerId, reason: 'Connection lost' },
+      })
+      return
+    }
+
+    const delay = RECONNECT_BASE_DELAY * Math.pow(2, this._reconnectAttempt - 1)
+    console.log(`[Net] Reconnecting (${this._reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}) in ${delay}ms...`)
+    this._state = 'reconnecting'
+    this.onReconnecting?.(this._reconnectAttempt, MAX_RECONNECT_ATTEMPTS)
+
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = null
+      if (this._state !== 'reconnecting') return // was cancelled
+
+      // Create a dummy promise pair — reconnect resolves silently via onReconnected callback
+      const resolve = (_data: JoinAccepted) => {
+        // Handled by onReconnected callback
+      }
+      const reject = (_err: Error) => {
+        // Will be handled by onerror/onclose → attemptReconnect
+      }
+      this.connectInternal(resolve, reject)
+    }, delay)
   }
 
   /** Disconnect from the session */
   disconnect() {
+    this._intentionalDisconnect = true
+    if (this._reconnectTimer) {
+      clearTimeout(this._reconnectTimer)
+      this._reconnectTimer = null
+    }
+    this._reconnectAttempt = 0
     if (this.ws) {
       this.ws.close()
       this.ws = null

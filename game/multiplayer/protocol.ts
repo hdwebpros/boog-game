@@ -84,6 +84,9 @@ export interface InputState {
   seq: number
   /** Delta time this input applies to */
   dt: number
+  /** Client-reported position (used for pickup proximity, sim correction) */
+  px?: number
+  py?: number
 }
 
 export interface TileChangeRequest {
@@ -241,6 +244,8 @@ export interface JoinAccepted {
   worldWidth: number
   worldHeight: number
   dayNightTime: number
+  /** Host's difficulty setting */
+  difficulty?: string
   /** Tile modifications since world gen (delta only) */
   tileChanges: TileChangeRequest[]
   /** All current players */

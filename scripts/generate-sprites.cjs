@@ -288,10 +288,22 @@ const BOSSES = [
     name: 'boss_mothership', w: 64, h: 48,
     desc: 'alien UFO mothership boss for a 2D side-scrolling platformer game. Wide pink-purple flying saucer with a glass dome cockpit on top, row of small cyan glowing windows around the rim, two engine pods on sides, tractor beam emitter underneath. Hovering. Pixel art boss sprite.',
   },
-  // ─── VOID LORD BOSS ────────────────────────────────────────
+  // ─── VOID LORD BOSS (4 animation frames) ──────────────────
   {
     name: 'boss_void_lord', w: 128, h: 192,
-    desc: 'massive void lord final boss for a 2D side-scrolling platformer game. Towering dark purple-black demonic entity with enormous curved horns, four glowing magenta eyes, flowing dark robes made of void energy, huge clawed hands crackling with purple lightning, swirling dimensional rift energy around the lower body, crown of floating dark crystals above head. Menacing and godlike. Facing right. Pixel art boss sprite.',
+    desc: 'massive void lord final boss idle pose for a 2D side-scrolling platformer game. Towering dark purple-black demonic entity with enormous curved horns, four glowing magenta eyes, flowing dark robes made of void energy, huge clawed hands at sides crackling with purple lightning, swirling dimensional rift energy around the lower body, crown of floating dark crystals above head. Menacing and godlike. Facing right. Pixel art boss sprite.',
+  },
+  {
+    name: 'boss_void_lord_idle2', w: 128, h: 192,
+    desc: 'massive void lord final boss idle pose variant for a 2D side-scrolling platformer game. Same towering dark purple-black demonic entity with enormous curved horns and four glowing magenta eyes. Arms slightly raised outward, void energy robes billowing wider, dark crystals above head repositioned. Subtle pose shift from idle 1. Facing right. Pixel art boss sprite.',
+  },
+  {
+    name: 'boss_void_lord_attack', w: 128, h: 192,
+    desc: 'massive void lord final boss attack pose for a 2D side-scrolling platformer game. Same towering dark purple-black demonic entity with enormous curved horns and four glowing magenta eyes. Both huge clawed hands thrust forward shooting concentrated purple void beam energy, mouth open roaring, void robes flaring outward dramatically, dark crystals above head glowing bright. Aggressive attack stance. Facing right. Pixel art boss sprite.',
+  },
+  {
+    name: 'boss_void_lord_cast', w: 128, h: 192,
+    desc: 'massive void lord final boss summoning pose for a 2D side-scrolling platformer game. Same towering dark purple-black demonic entity with enormous curved horns and four glowing magenta eyes. Arms raised high above head forming a dark energy portal between clawed hands, void robes swirling upward, dimensional rift opening below, dark crystals orbiting rapidly. Casting spell. Facing right. Pixel art boss sprite.',
   },
 ]
 

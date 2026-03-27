@@ -4,6 +4,7 @@ import { EnemyAI } from '../data/enemies'
 import { ChunkManager } from '../world/ChunkManager'
 import { TILE_SIZE, TileType } from '../world/TileRegistry'
 import { resolveX, resolveY, unstick } from '../systems/PhysicsResolver'
+import { DifficultyManager } from '../systems/DifficultyManager'
 
 const GRAVITY = 600
 const DESPAWN_DIST = 800 // pixels from camera edge
@@ -13,6 +14,7 @@ export class Enemy {
   def: EnemyDef
   alive = true
   hp: number
+  effectiveDamage: number
   vx = 0
   vy = 0
   facingRight = true
@@ -43,7 +45,10 @@ export class Enemy {
   constructor(scene: Phaser.Scene, x: number, y: number, def: EnemyDef) {
     this.scene = scene
     this.def = def
-    this.hp = def.hp
+    const dm = DifficultyManager.get()
+    this.hp = Math.round(def.hp * dm.enemyHp)
+    this.effectiveDamage = Math.round(def.damage * dm.enemyDamage)
+    this.speedMult = dm.enemySpeed
 
     const texKey = `enemy_${def.type}`
     if (scene.textures.exists(texKey)) {
@@ -206,8 +211,9 @@ export class Enemy {
 
   getLoot(): { itemId: number; count: number }[] {
     const drops: { itemId: number; count: number }[] = []
+    const lootMult = DifficultyManager.get().lootChanceMult
     for (const l of this.def.loot) {
-      if (Math.random() < l.chance) {
+      if (Math.random() < Math.min(1, l.chance * lootMult)) {
         drops.push({ itemId: l.itemId, count: l.count })
       }
     }

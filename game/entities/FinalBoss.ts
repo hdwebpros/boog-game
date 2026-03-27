@@ -5,6 +5,7 @@ import type { ChunkManager } from '../world/ChunkManager'
 import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 import { EnemyType } from '../data/enemies'
 import { resolveX, resolveY } from '../systems/PhysicsResolver'
+import { DifficultyManager } from '../systems/DifficultyManager'
 
 const MAX_BOSS_SPEED = 500
 
@@ -54,6 +55,8 @@ export class FinalBoss {
   def: BossDef
   alive = true
   hp: number
+  scaledMaxHp: number
+  damageMult: number
   vx = 0
   vy = 0
   entityId = 0
@@ -81,10 +84,23 @@ export class FinalBoss {
   private eyeGfx: Phaser.GameObjects.Graphics
   private eyeGlowTimer = 0
 
+  // Animation state
+  private hasAnimFrames = false
+  private idleFrameTimer = 0
+  private idleFrameIndex = 0
+  private readonly idleFrames: string[] = []
+  private currentAnim: 'idle' | 'attack' | 'cast' = 'idle'
+  private animLockTimer = 0
+  private baseY = 0 // for hover bob
+  private teleportFadeTimer = 0 // fade in/out on teleport
+
   constructor(scene: Phaser.Scene, x: number, y: number, def: BossDef) {
     this.scene = scene
     this.def = def
-    this.hp = def.maxHp
+    const dm = DifficultyManager.get()
+    this.scaledMaxHp = Math.round(def.maxHp * dm.bossHp)
+    this.hp = this.scaledMaxHp
+    this.damageMult = dm.bossDamage
     this.phase = def.phases[0]!
 
     // Try loading a sprite, fall back to a rectangle
@@ -95,6 +111,21 @@ export class FinalBoss {
       this.sprite = scene.add.rectangle(x, y, def.width, def.height, def.color)
     }
     this.sprite.setDepth(9)
+
+    // Check for animation frames
+    const idle2Key = `${texKey}_idle2`
+    const attackKey = `${texKey}_attack`
+    const castKey = `${texKey}_cast`
+    if (scene.textures.exists(idle2Key)) {
+      this.hasAnimFrames = true
+      this.idleFrames.push(texKey, idle2Key)
+    } else {
+      this.idleFrames.push(texKey)
+    }
+    if (!scene.textures.exists(attackKey)) this.hasAnimFrames = false
+    if (!scene.textures.exists(castKey)) this.hasAnimFrames = false
+
+    this.baseY = y
 
     // Void energy aura (drawn behind sprite)
     this.auraGfx = scene.add.graphics().setDepth(8)
@@ -171,6 +202,7 @@ export class FinalBoss {
         result = { shootAtPlayer: false, projectiles: [], spawnMinions: [], createRifts: [] }
     }
 
+    this.updateAnimation(dt, playerX)
     this.drawBoss()
     this.drawHpBar()
     return result
@@ -203,6 +235,7 @@ export class FinalBoss {
 
   getPhaseIndex(): number { return this.phaseIndex }
   getShieldActive(): boolean { return this.shieldActive }
+  getContactDamage(): number { return Math.round(this.def.damage * this.damageMult) }
 
   getBounds() {
     return {
@@ -237,12 +270,13 @@ export class FinalBoss {
     // Void beam at player
     if (this.attackTimer <= 0) {
       this.attackTimer = this.phase.attackInterval
+      this.playAttackAnim()
       projectiles.push({
         x: this.sprite.x,
         y: this.sprite.y - this.def.height * 0.25,
         tx: playerX,
         ty: playerY,
-        damage: this.phase.damage,
+        damage: Math.round(this.phase.damage * this.damageMult),
       })
 
       // Ground slam when player is close
@@ -253,7 +287,7 @@ export class FinalBoss {
             y: this.sprite.y + this.def.height * 0.4,
             tx: this.sprite.x + i * 40,
             ty: this.sprite.y + this.def.height * 0.4 - 120,
-            damage: this.phase.damage * 0.8,
+            damage: Math.round(this.phase.damage * 0.8 * this.damageMult),
           })
         }
       }
@@ -262,6 +296,7 @@ export class FinalBoss {
     // Summon 2 void wraiths every 15s
     if (this.minionTimer <= 0) {
       this.minionTimer = 15000
+      this.playCastAnim()
       for (let i = 0; i < 2; i++) {
         spawnMinions.push({
           type: EnemyType.VOID_WRAITH,
@@ -296,20 +331,21 @@ export class FinalBoss {
     // Void beams — more frequent, dual shot
     if (this.attackTimer <= 0) {
       this.attackTimer = this.phase.attackInterval
+      this.playAttackAnim()
       projectiles.push(
         {
           x: this.sprite.x - 30,
           y: this.sprite.y - this.def.height * 0.25,
           tx: playerX,
           ty: playerY,
-          damage: this.phase.damage,
+          damage: Math.round(this.phase.damage * this.damageMult),
         },
         {
           x: this.sprite.x + 30,
           y: this.sprite.y - this.def.height * 0.25,
           tx: playerX,
           ty: playerY,
-          damage: this.phase.damage,
+          damage: Math.round(this.phase.damage * this.damageMult),
         },
       )
     }
@@ -322,7 +358,7 @@ export class FinalBoss {
         y: playerY + 20,
         width: 64,
         height: 16,
-        damage: this.phase.damage * 0.5,
+        damage: Math.round(this.phase.damage * 0.5 * this.damageMult),
         duration: 5000,
       })
     }
@@ -339,6 +375,7 @@ export class FinalBoss {
     // Continue summoning wraiths
     if (this.minionTimer <= 0) {
       this.minionTimer = 15000
+      this.playCastAnim()
       for (let i = 0; i < 2; i++) {
         spawnMinions.push({
           type: EnemyType.VOID_WRAITH,
@@ -372,6 +409,7 @@ export class FinalBoss {
       this.sprite.y = playerY - 50
       this.vx = 0
       this.vy = 0
+      this.triggerTeleportFade()
 
       // Flash effect on teleport
       if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(0xcc00ff)
@@ -392,6 +430,7 @@ export class FinalBoss {
     // Spread of 5 void projectiles
     if (this.attackTimer <= 0) {
       this.attackTimer = this.phase.attackInterval
+      this.playAttackAnim()
       const baseAngle = Math.atan2(dy, dx)
       for (let i = -2; i <= 2; i++) {
         const angle = baseAngle + i * 0.25
@@ -400,7 +439,7 @@ export class FinalBoss {
           y: this.sprite.y - this.def.height * 0.25,
           tx: this.sprite.x + Math.cos(angle) * 350,
           ty: this.sprite.y + Math.sin(angle) * 350,
-          damage: this.phase.damage,
+          damage: Math.round(this.phase.damage * this.damageMult),
         })
       }
     }
@@ -414,7 +453,7 @@ export class FinalBoss {
           y: playerY + 20,
           width: 80,
           height: 16,
-          damage: this.phase.damage * 0.5,
+          damage: Math.round(this.phase.damage * 0.5 * this.damageMult),
           duration: 8000,
         })
       }
@@ -423,6 +462,7 @@ export class FinalBoss {
     // Summon 4 void wraiths
     if (this.minionTimer <= 0) {
       this.minionTimer = 12000
+      this.playCastAnim()
       for (let i = 0; i < 4; i++) {
         const angle = (i / 4) * Math.PI * 2
         spawnMinions.push({
@@ -471,6 +511,7 @@ export class FinalBoss {
       this.sprite.y = playerY - 40
       this.vx = 0
       this.vy = 0
+      this.triggerTeleportFade()
 
       if ('setTint' in this.sprite) (this.sprite as Phaser.GameObjects.Image).setTint(0xff0000)
       else (this.sprite as Phaser.GameObjects.Rectangle).fillColor = 0xff0000
@@ -490,6 +531,7 @@ export class FinalBoss {
     // Constant void beam barrage
     if (this.attackTimer <= 0) {
       this.attackTimer = this.phase.attackInterval
+      this.playAttackAnim()
       // Ring of projectiles + aimed shots
       const ringCount = 8
       for (let i = 0; i < ringCount; i++) {
@@ -499,7 +541,7 @@ export class FinalBoss {
           y: this.sprite.y,
           tx: this.sprite.x + Math.cos(angle) * 300,
           ty: this.sprite.y + Math.sin(angle) * 300,
-          damage: this.phase.damage,
+          damage: Math.round(this.phase.damage * this.damageMult),
         })
       }
       // Direct aimed shots
@@ -509,14 +551,14 @@ export class FinalBoss {
           y: this.sprite.y - this.def.height * 0.3,
           tx: playerX,
           ty: playerY,
-          damage: this.phase.damage * 1.2,
+          damage: Math.round(this.phase.damage * 1.2 * this.damageMult),
         },
         {
           x: this.sprite.x + 40,
           y: this.sprite.y - this.def.height * 0.3,
           tx: playerX,
           ty: playerY,
-          damage: this.phase.damage * 1.2,
+          damage: Math.round(this.phase.damage * 1.2 * this.damageMult),
         },
       )
     }
@@ -530,7 +572,7 @@ export class FinalBoss {
           y: playerY + (Math.random() - 0.5) * 100,
           width: 96,
           height: 16,
-          damage: this.phase.damage * 0.6,
+          damage: Math.round(this.phase.damage * 0.6 * this.damageMult),
           duration: 10000,
         })
       }
@@ -539,6 +581,7 @@ export class FinalBoss {
     // Summon dark knights
     if (this.minionTimer <= 0) {
       this.minionTimer = 10000
+      this.playCastAnim()
       for (let i = 0; i < 2; i++) {
         spawnMinions.push({
           type: EnemyType.DARK_KNIGHT,
@@ -562,7 +605,7 @@ export class FinalBoss {
   // ── Phase Management ────────────────────────────────────
 
   private updatePhase() {
-    const hpPct = this.hp / this.def.maxHp
+    const hpPct = this.hp / this.scaledMaxHp
     for (let i = this.def.phases.length - 1; i >= 0; i--) {
       const p = this.def.phases[i]!
       if (hpPct <= p.hpThreshold) {
@@ -586,6 +629,87 @@ export class FinalBoss {
     }
   }
 
+  // ── Animation ──────────────────────────────────────────
+
+  /** Update sprite animation frames, hover bob, facing, and fade effects. */
+  private updateAnimation(dt: number, playerX: number) {
+    if (!this.alive) return
+    const dtMs = dt * 1000
+    const isImage = 'setTexture' in this.sprite
+
+    // Facing direction — flip sprite to face player
+    if (isImage) {
+      (this.sprite as Phaser.GameObjects.Image).setFlipX(playerX < this.sprite.x)
+    }
+
+    // Animation lock countdown (for attack/cast hold)
+    if (this.animLockTimer > 0) {
+      this.animLockTimer -= dtMs
+      if (this.animLockTimer <= 0) {
+        this.currentAnim = 'idle'
+      }
+    }
+
+    // Frame cycling for idle animation
+    if (this.currentAnim === 'idle' && isImage && this.idleFrames.length > 1) {
+      this.idleFrameTimer += dtMs
+      // Faster cycle in later phases
+      const cycleSpeed = this.phaseIndex >= 3 ? 400 : this.phaseIndex >= 2 ? 600 : 800
+      if (this.idleFrameTimer >= cycleSpeed) {
+        this.idleFrameTimer = 0
+        this.idleFrameIndex = (this.idleFrameIndex + 1) % this.idleFrames.length
+        ;(this.sprite as Phaser.GameObjects.Image).setTexture(this.idleFrames[this.idleFrameIndex]!)
+      }
+    }
+
+    // Hover bob — sinusoidal vertical offset
+    const bobSpeed = this.phaseIndex >= 3 ? 0.004 : 0.002
+    const bobAmp = this.phaseIndex >= 3 ? 8 : 5
+    const bobOffset = Math.sin(this.eyeGlowTimer * bobSpeed) * bobAmp
+    // Apply bob only in floating phases (2+), ground phases use resolved Y
+    if (this.phaseIndex >= 2) {
+      this.sprite.y += bobOffset * dt * 10
+    }
+
+    // Teleport fade effect
+    if (this.teleportFadeTimer > 0) {
+      this.teleportFadeTimer -= dtMs
+      const fadeProgress = this.teleportFadeTimer / 300
+      if (isImage) {
+        (this.sprite as Phaser.GameObjects.Image).setAlpha(1 - fadeProgress * 0.7)
+      }
+    } else if (isImage) {
+      (this.sprite as Phaser.GameObjects.Image).setAlpha(1)
+    }
+
+    // Scale pulse in enrage phase
+    if (this.phaseIndex >= 3 && isImage) {
+      const scalePulse = 1 + Math.sin(this.eyeGlowTimer * 0.006) * 0.03
+      ;(this.sprite as Phaser.GameObjects.Image).setScale(scalePulse)
+    }
+  }
+
+  /** Switch to attack animation frame (held briefly). */
+  private playAttackAnim() {
+    if (!this.hasAnimFrames || !('setTexture' in this.sprite)) return
+    this.currentAnim = 'attack';
+    (this.sprite as Phaser.GameObjects.Image).setTexture(`boss_${this.def.type}_attack`)
+    this.animLockTimer = 400
+  }
+
+  /** Switch to cast/summon animation frame (held briefly). */
+  private playCastAnim() {
+    if (!this.hasAnimFrames || !('setTexture' in this.sprite)) return
+    this.currentAnim = 'cast';
+    (this.sprite as Phaser.GameObjects.Image).setTexture(`boss_${this.def.type}_cast`)
+    this.animLockTimer = 600
+  }
+
+  /** Trigger teleport fade-in effect. */
+  private triggerTeleportFade() {
+    this.teleportFadeTimer = 300
+  }
+
   // ── Rendering ───────────────────────────────────────────
 
   /** Draw the void energy aura and glowing eyes. */
@@ -599,59 +723,134 @@ export class FinalBoss {
     const hw = this.def.width / 2
     const hh = this.def.height / 2
 
+    // Phase-scaled aura intensity
+    const phaseIntensity = 1 + this.phaseIndex * 0.3
+
     // Void energy aura — pulsing dark purple glow
     const pulse = Math.sin(this.eyeGlowTimer * 0.003) * 0.3 + 0.5
-    const auraSize = 12 + pulse * 8
+    const auraSize = (12 + pulse * 8) * phaseIntensity
 
-    this.auraGfx.fillStyle(0x4400aa, 0.15 + pulse * 0.1)
+    this.auraGfx.fillStyle(0x4400aa, (0.15 + pulse * 0.1) * phaseIntensity)
     this.auraGfx.fillEllipse(bx, by, this.def.width + auraSize * 2, this.def.height + auraSize * 2)
 
-    // Inner void swirl
-    this.auraGfx.fillStyle(0x220066, 0.2)
+    // Inner void swirl — more swirl particles in later phases
+    const swirlCount = 4 + this.phaseIndex * 2
+    this.auraGfx.fillStyle(0x220066, 0.2 * phaseIntensity)
     const swirlAngle = this.eyeGlowTimer * 0.002
-    for (let i = 0; i < 4; i++) {
-      const angle = swirlAngle + (i / 4) * Math.PI * 2
+    for (let i = 0; i < swirlCount; i++) {
+      const angle = swirlAngle + (i / swirlCount) * Math.PI * 2
       const sx = bx + Math.cos(angle) * hw * 0.6
       const sy = by + Math.sin(angle) * hh * 0.5
       this.auraGfx.fillCircle(sx, sy, 8 + pulse * 4)
     }
 
-    // Shield visual
-    if (this.shieldActive) {
-      this.auraGfx.lineStyle(3, 0x6666ff, 0.6)
-      this.auraGfx.strokeEllipse(bx, by, this.def.width + 24, this.def.height + 24)
+    // Rising void wisps — energy particles floating upward from the body
+    const wispCount = 3 + this.phaseIndex * 2
+    for (let i = 0; i < wispCount; i++) {
+      const wispPhase = (this.eyeGlowTimer * 0.001 + i * 1.7) % 3
+      const wispX = bx + Math.sin(i * 2.3 + this.eyeGlowTimer * 0.003) * hw * 0.8
+      const wispY = by + hh * 0.3 - wispPhase * hh * 0.5
+      const wispAlpha = (1 - wispPhase / 3) * 0.4
+      const wispColor = this.phaseIndex >= 3 ? 0xff00ff : 0x8800cc
+      this.auraGfx.fillStyle(wispColor, wispAlpha)
+      this.auraGfx.fillCircle(wispX, wispY, 2 + (1 - wispPhase / 3) * 3)
     }
 
-    // Glowing purple eyes
+    // Attack glow — brief flash when in attack anim
+    if (this.currentAnim === 'attack') {
+      this.eyeGfx.fillStyle(0xcc00ff, 0.25)
+      this.eyeGfx.fillEllipse(bx, by - hh * 0.2, hw * 1.5, hh * 0.6)
+    }
+
+    // Cast glow — portal ring when summoning
+    if (this.currentAnim === 'cast') {
+      const castPulse = Math.sin(this.eyeGlowTimer * 0.01) * 0.3 + 0.5
+      this.eyeGfx.lineStyle(2, 0xcc00ff, castPulse)
+      this.eyeGfx.strokeEllipse(bx, by + hh * 0.3, hw * 1.8, 20)
+      this.eyeGfx.lineStyle(1, 0x8800ff, castPulse * 0.6)
+      this.eyeGfx.strokeEllipse(bx, by + hh * 0.3, hw * 2.2, 28)
+    }
+
+    // Shield visual
+    if (this.shieldActive) {
+      const shieldPulse = Math.sin(this.eyeGlowTimer * 0.008) * 0.2 + 0.6
+      this.auraGfx.lineStyle(3, 0x6666ff, shieldPulse)
+      this.auraGfx.strokeEllipse(bx, by, this.def.width + 24, this.def.height + 24)
+      this.auraGfx.lineStyle(1, 0xaaaaff, shieldPulse * 0.5)
+      this.auraGfx.strokeEllipse(bx, by, this.def.width + 32, this.def.height + 32)
+    }
+
+    // Glowing purple eyes (4 eyes — outer pair + inner pair)
     const eyeY = by - hh * 0.45
-    const eyeSpacing = hw * 0.35
+    const outerSpacing = hw * 0.35
+    const innerSpacing = hw * 0.15
     const eyeGlow = Math.sin(this.eyeGlowTimer * 0.005) * 0.3 + 0.7
     const eyeRadius = 5 + (this.phaseIndex >= 3 ? 2 : 0)
 
-    // Eye glow halo
+    // Eye glow halo — outer pair
     this.eyeGfx.fillStyle(0xcc44ff, eyeGlow * 0.4)
-    this.eyeGfx.fillCircle(bx - eyeSpacing, eyeY, eyeRadius + 4)
-    this.eyeGfx.fillCircle(bx + eyeSpacing, eyeY, eyeRadius + 4)
+    this.eyeGfx.fillCircle(bx - outerSpacing, eyeY, eyeRadius + 4)
+    this.eyeGfx.fillCircle(bx + outerSpacing, eyeY, eyeRadius + 4)
 
-    // Eye core
+    // Eye core — outer pair
     const eyeColor = this.phaseIndex >= 3 ? 0xff0000 : 0xcc00ff
     this.eyeGfx.fillStyle(eyeColor, eyeGlow)
-    this.eyeGfx.fillCircle(bx - eyeSpacing, eyeY, eyeRadius)
-    this.eyeGfx.fillCircle(bx + eyeSpacing, eyeY, eyeRadius)
+    this.eyeGfx.fillCircle(bx - outerSpacing, eyeY, eyeRadius)
+    this.eyeGfx.fillCircle(bx + outerSpacing, eyeY, eyeRadius)
 
-    // Eye pupil
+    // Inner pair (smaller, slightly below)
+    const innerEyeY = eyeY + 6
+    const innerRadius = eyeRadius * 0.7
+    this.eyeGfx.fillStyle(0xcc44ff, eyeGlow * 0.3)
+    this.eyeGfx.fillCircle(bx - innerSpacing, innerEyeY, innerRadius + 3)
+    this.eyeGfx.fillCircle(bx + innerSpacing, innerEyeY, innerRadius + 3)
+    this.eyeGfx.fillStyle(eyeColor, eyeGlow * 0.9)
+    this.eyeGfx.fillCircle(bx - innerSpacing, innerEyeY, innerRadius)
+    this.eyeGfx.fillCircle(bx + innerSpacing, innerEyeY, innerRadius)
+
+    // Eye pupils — all 4 eyes
     this.eyeGfx.fillStyle(0xffffff, 0.9)
-    this.eyeGfx.fillCircle(bx - eyeSpacing, eyeY, 2)
-    this.eyeGfx.fillCircle(bx + eyeSpacing, eyeY, 2)
+    this.eyeGfx.fillCircle(bx - outerSpacing, eyeY, 2)
+    this.eyeGfx.fillCircle(bx + outerSpacing, eyeY, 2)
+    this.eyeGfx.fillCircle(bx - innerSpacing, innerEyeY, 1.5)
+    this.eyeGfx.fillCircle(bx + innerSpacing, innerEyeY, 1.5)
 
-    // Enrage visual — particles around boss in phase 4
+    // Phase 2+ — void energy tendrils
+    if (this.phaseIndex >= 1) {
+      const tendrilCount = 2 + this.phaseIndex
+      for (let i = 0; i < tendrilCount; i++) {
+        const tAngle = (i / tendrilCount) * Math.PI + Math.sin(this.eyeGlowTimer * 0.002 + i) * 0.3
+        const tLen = hh * 0.4 + Math.sin(this.eyeGlowTimer * 0.004 + i * 2) * 15
+        const tx = bx + Math.cos(tAngle) * hw * 0.7
+        const ty = by + hh * 0.3
+        const tex = tx + Math.cos(tAngle + 0.5) * tLen
+        const tey = ty + Math.sin(tAngle) * tLen
+        this.auraGfx.lineStyle(2, 0x6600cc, 0.3 + pulse * 0.2)
+        this.auraGfx.lineBetween(tx, ty, tex, tey)
+        this.auraGfx.fillStyle(0xaa00ff, 0.5)
+        this.auraGfx.fillCircle(tex, tey, 3)
+      }
+    }
+
+    // Enrage visual — more particles orbiting faster in phase 4
     if (this.phaseIndex >= 3) {
+      for (let i = 0; i < 10; i++) {
+        const pAngle = this.eyeGlowTimer * 0.006 + (i / 10) * Math.PI * 2
+        const pDist = hw * 0.9 + Math.sin(this.eyeGlowTimer * 0.008 + i) * 25
+        const px = bx + Math.cos(pAngle) * pDist
+        const py = by + Math.sin(pAngle) * (hh * 0.8)
+        const pColor = i % 2 === 0 ? 0xff00ff : 0xff4400
+        this.eyeGfx.fillStyle(pColor, 0.6)
+        this.eyeGfx.fillCircle(px, py, 2 + Math.sin(this.eyeGlowTimer * 0.01 + i) * 2)
+      }
+    } else if (this.phaseIndex >= 2) {
+      // Phase 3 — fewer orbiting particles
       for (let i = 0; i < 6; i++) {
         const pAngle = this.eyeGlowTimer * 0.004 + (i / 6) * Math.PI * 2
         const pDist = hw * 0.8 + Math.sin(this.eyeGlowTimer * 0.006 + i) * 20
         const px = bx + Math.cos(pAngle) * pDist
         const py = by + Math.sin(pAngle) * (hh * 0.7)
-        this.eyeGfx.fillStyle(0xff00ff, 0.6)
+        this.eyeGfx.fillStyle(0xff00ff, 0.5)
         this.eyeGfx.fillCircle(px, py, 3)
       }
     }
@@ -672,7 +871,7 @@ export class FinalBoss {
     this.hpBarGfx.fillRect(x, y, barW, barH)
 
     // Fill
-    const pct = Math.max(0, this.hp / this.def.maxHp)
+    const pct = Math.max(0, this.hp / this.scaledMaxHp)
     const fillColor = pct > 0.5 ? 0x9900ff : pct > 0.25 ? 0xff4400 : 0xff0000
     this.hpBarGfx.fillStyle(fillColor, 0.9)
     this.hpBarGfx.fillRect(x, y, barW * pct, barH)

@@ -114,8 +114,11 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`enemy_${e}`, `/sprites/enemy_${e}.png`)
     }
 
-    // Load Void Lord boss PNG
+    // Load Void Lord boss PNGs (4 animation frames)
     this.load.image('boss_void_lord', '/sprites/boss_void_lord.png')
+    this.load.image('boss_void_lord_idle2', '/sprites/boss_void_lord_idle2.png')
+    this.load.image('boss_void_lord_attack', '/sprites/boss_void_lord_attack.png')
+    this.load.image('boss_void_lord_cast', '/sprites/boss_void_lord_cast.png')
   }
 
   create() {
@@ -246,6 +249,10 @@ export class BootScene extends Phaser.Scene {
           this.registry.set('mpNetwork', network)
           this.registry.set('mpJoinData', joinData)
           this.registry.remove('saveData')
+          // Apply host's difficulty
+          if (joinData.difficulty) {
+            this.registry.set('difficulty', joinData.difficulty)
+          }
         },
       })
     } else if (loadSlotId) {
@@ -273,6 +280,8 @@ export class BootScene extends Phaser.Scene {
           // Pass slot info so WorldScene knows which slot to auto-save to
           this.registry.set('loadSlotId', loadSlotId)
           this.registry.set('loadSlotName', saveData.name)
+          // Restore difficulty (default to normal for old saves)
+          this.registry.set('difficulty', saveData.difficulty ?? 'normal')
         },
       })
     } else if (this.registry.get('voidDimension')) {
@@ -339,7 +348,12 @@ export class BootScene extends Phaser.Scene {
     // Transition immediately — WorldScene chunks load progressively
     this.statusText.setText('Ready!')
     this.setProgress(1)
-    this.scene.start('WorldScene')
+    if (this.registry.get('introCutscene')) {
+      // Signal the cutscene scene that loading is done
+      this.registry.set('bootComplete', true)
+    } else {
+      this.scene.start('WorldScene')
+    }
   }
 
   private setProgress(value: number) {

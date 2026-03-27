@@ -4,6 +4,7 @@ import { BossAI } from '../data/bosses'
 import { ChunkManager } from '../world/ChunkManager'
 import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT } from '../world/TileRegistry'
 import { resolveX, resolveY } from '../systems/PhysicsResolver'
+import { DifficultyManager } from '../systems/DifficultyManager'
 
 const MAX_BOSS_SPEED = 400
 
@@ -12,6 +13,8 @@ export class Boss {
   def: BossDef
   alive = true
   hp: number
+  scaledMaxHp: number
+  damageMult: number
   vx = 0
   vy = 0
   entityId = 0 // unique ID for multiplayer entity tracking
@@ -34,7 +37,10 @@ export class Boss {
   constructor(scene: Phaser.Scene, x: number, y: number, def: BossDef) {
     this.scene = scene
     this.def = def
-    this.hp = def.maxHp
+    const dm = DifficultyManager.get()
+    this.scaledMaxHp = Math.round(def.maxHp * dm.bossHp)
+    this.hp = this.scaledMaxHp
+    this.damageMult = dm.bossDamage
     this.phase = def.phases[0]!
 
     const texKey = `boss_${def.type}`
@@ -125,6 +131,7 @@ export class Boss {
 
   getPhaseIndex(): number { return this.phaseIndex }
   getShieldActive(): boolean { return this.shieldActive }
+  getContactDamage(): number { return Math.round(this.def.damage * this.damageMult) }
 
   getBounds() {
     return {
@@ -136,7 +143,7 @@ export class Boss {
   }
 
   private updatePhase() {
-    const hpPct = this.hp / this.def.maxHp
+    const hpPct = this.hp / this.scaledMaxHp
     for (let i = this.def.phases.length - 1; i >= 0; i--) {
       const p = this.def.phases[i]!
       if (hpPct <= p.hpThreshold) {
@@ -166,7 +173,7 @@ export class Boss {
     this.hpBarGfx.fillStyle(0x330000, 0.8)
     this.hpBarGfx.fillRect(x, y, barW, barH)
     // Fill
-    const pct = Math.max(0, this.hp / this.def.maxHp)
+    const pct = Math.max(0, this.hp / this.scaledMaxHp)
     const fillColor = pct > 0.5 ? 0xff2222 : pct > 0.25 ? 0xff8800 : 0xff0000
     this.hpBarGfx.fillStyle(fillColor, 0.9)
     this.hpBarGfx.fillRect(x, y, barW * pct, barH)
@@ -199,7 +206,7 @@ export class Boss {
             y: this.sprite.y,
             tx: playerX + i * 40,
             ty: playerY,
-            damage: this.phase.damage,
+            damage: Math.round(this.phase.damage * this.damageMult),
           })
         }
       }
@@ -236,7 +243,7 @@ export class Boss {
           y: this.sprite.y,
           tx: this.sprite.x + Math.cos(angle) * 200,
           ty: this.sprite.y + Math.sin(angle) * 200,
-          damage: this.phase.damage,
+          damage: Math.round(this.phase.damage * this.damageMult),
         })
       }
     }
@@ -265,7 +272,7 @@ export class Boss {
           y: playerY - 300,
           tx: playerX + offsetX,
           ty: playerY + 50,
-          damage: this.phase.damage,
+          damage: Math.round(this.phase.damage * this.damageMult),
         })
       }
 
@@ -273,8 +280,8 @@ export class Boss {
       if (distToPlayer < 80 && this.isGrounded) {
         this.vy = -200
         projectiles.push(
-          { x: this.sprite.x - 60, y: this.sprite.y, tx: this.sprite.x - 60, ty: this.sprite.y - 100, damage: this.phase.damage },
-          { x: this.sprite.x + 60, y: this.sprite.y, tx: this.sprite.x + 60, ty: this.sprite.y - 100, damage: this.phase.damage }
+          { x: this.sprite.x - 60, y: this.sprite.y, tx: this.sprite.x - 60, ty: this.sprite.y - 100, damage: Math.round(this.phase.damage * this.damageMult) },
+          { x: this.sprite.x + 60, y: this.sprite.y, tx: this.sprite.x + 60, ty: this.sprite.y - 100, damage: Math.round(this.phase.damage * this.damageMult) }
         )
       }
     }
@@ -332,7 +339,7 @@ export class Boss {
           y: this.sprite.y,
           tx: this.sprite.x + Math.cos(angle) * 300,
           ty: this.sprite.y + Math.sin(angle) * 300,
-          damage: this.phase.damage,
+          damage: Math.round(this.phase.damage * this.damageMult),
         })
       }
     }
@@ -389,7 +396,7 @@ export class Boss {
           y: this.sprite.y,
           tx: this.sprite.x + Math.cos(angle) * 250,
           ty: this.sprite.y + Math.sin(angle) * 250,
-          damage: this.phase.damage,
+          damage: Math.round(this.phase.damage * this.damageMult),
         })
       }
 
@@ -444,7 +451,7 @@ export class Boss {
             y: this.sprite.y + this.def.height / 2,
             tx: this.sprite.x + offsetX,
             ty: playerY + 50,
-            damage: this.phase.damage,
+            damage: Math.round(this.phase.damage * this.damageMult),
           })
         }
       } else {

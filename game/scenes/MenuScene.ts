@@ -4,6 +4,7 @@ import type { SaveSlotInfo } from '../systems/SaveManager'
 import { AudioManager, MusicTrack } from '../systems/AudioManager'
 import { SoundId } from '../data/sounds'
 import { gamePrompt } from '../ui/GameDialog'
+import { Difficulty, DifficultyManager } from '../systems/DifficultyManager'
 
 export class MenuScene extends Phaser.Scene {
   private isPause = false
@@ -70,8 +71,7 @@ export class MenuScene extends Phaser.Scene {
     newGameBtn.on('pointerout', () => newGameBtn.setColor('#00ff88'))
     newGameBtn.on('pointerdown', () => {
       AudioManager.get()?.play(SoundId.MENU_SELECT)
-      AudioManager.get()?.stopMusic()
-      this.scene.start('BootScene')
+      this.showDifficultySelect(width, height, false)
     })
 
     // Load Game button (if saves exist)
@@ -97,7 +97,7 @@ export class MenuScene extends Phaser.Scene {
     hostBtn.on('pointerout', () => hostBtn.setColor('#8888ff'))
     hostBtn.on('pointerdown', () => {
       AudioManager.get()?.play(SoundId.MENU_SELECT)
-      this.showMultiplayerLobby(width, height, true)
+      this.showDifficultySelect(width, height, true)
     })
 
     const joinBtn = this.add.text(width / 2, height / 2 + 155, '[ JOIN GAME ]', {
@@ -219,8 +219,17 @@ export class MenuScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
 
     // Save name
-    this.add.text(50, y + 10, save.name, {
+    const nameText = this.add.text(50, y + 10, save.name, {
       fontSize: '16px', color: '#ffffff', fontFamily: 'monospace',
+    })
+
+    // Difficulty tag next to name
+    const diff = save.difficulty ?? 'normal'
+    DifficultyManager.set(diff)
+    const diffLabel = DifficultyManager.getLabel()
+    const diffColor = DifficultyManager.getColor()
+    this.add.text(nameText.x + nameText.width + 10, y + 12, `[${diffLabel}]`, {
+      fontSize: '12px', color: diffColor, fontFamily: 'monospace',
     })
 
     // Timestamp
@@ -357,6 +366,82 @@ export class MenuScene extends Phaser.Scene {
     })
   }
 
+  private showDifficultySelect(width: number, height: number, isHost: boolean) {
+    this.children.removeAll(true)
+    this.cameras.main.setBackgroundColor(0x0a0a1a)
+
+    // Stars
+    for (let i = 0; i < 40; i++) {
+      const x = Math.random() * width
+      const y = Math.random() * height
+      const alpha = Math.random() * 0.3 + 0.1
+      this.add.rectangle(x, y, Math.random() < 0.3 ? 2 : 1, Math.random() < 0.3 ? 2 : 1, 0xffffff, alpha)
+    }
+
+    this.add.text(width / 2, 40, 'SELECT DIFFICULTY', {
+      fontSize: '24px', color: '#00ffff', fontFamily: 'monospace', fontStyle: 'bold',
+      stroke: '#003333', strokeThickness: 3,
+    }).setOrigin(0.5)
+
+    const options: { difficulty: Difficulty; label: string; color: string; subtitle: string }[] = [
+      { difficulty: Difficulty.EASY, label: 'EASY', color: '#44ff44', subtitle: 'More HP, weaker enemies, better loot' },
+      { difficulty: Difficulty.NORMAL, label: 'NORMAL', color: '#ffffff', subtitle: 'The intended experience' },
+      { difficulty: Difficulty.HARD, label: 'HARD', color: '#ff8800', subtitle: 'Less HP, tougher enemies, fewer drops' },
+      { difficulty: Difficulty.HARDCORE, label: 'HARDCORE', color: '#ff2222', subtitle: 'Hard + permadeath — one life only' },
+    ]
+
+    const startY = 110
+    const rowH = 70
+
+    for (let i = 0; i < options.length; i++) {
+      const opt = options[i]!
+      const y = startY + i * rowH
+
+      const bg = this.add.rectangle(width / 2, y + 20, width - 80, 55, 0x111133, 0.6)
+        .setInteractive({ useHandCursor: true })
+
+      const label = this.add.text(width / 2, y + 12, `[ ${opt.label} ]`, {
+        fontSize: '20px', color: opt.color, fontFamily: 'monospace',
+      }).setOrigin(0.5)
+
+      this.add.text(width / 2, y + 34, opt.subtitle, {
+        fontSize: '11px', color: '#888888', fontFamily: 'monospace',
+      }).setOrigin(0.5)
+
+      bg.on('pointerover', () => {
+        bg.setFillStyle(0x223355, 0.8)
+        label.setColor('#ffffff')
+      })
+      bg.on('pointerout', () => {
+        bg.setFillStyle(0x111133, 0.6)
+        label.setColor(opt.color)
+      })
+      bg.on('pointerdown', () => {
+        AudioManager.get()?.play(SoundId.MENU_SELECT)
+        this.registry.set('difficulty', opt.difficulty)
+        if (isHost) {
+          this.showMultiplayerLobby(width, height, true)
+        } else {
+          AudioManager.get()?.stopMusic()
+          this.registry.set('introCutscene', true)
+          this.scene.start('IntroCutsceneScene')
+        }
+      })
+    }
+
+    // Back button
+    const backBtn = this.add.text(width / 2, height - 40, '[ BACK ]', {
+      fontSize: '18px', color: '#888888', fontFamily: 'monospace',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+
+    backBtn.on('pointerover', () => backBtn.setColor('#ffffff'))
+    backBtn.on('pointerout', () => backBtn.setColor('#888888'))
+    backBtn.on('pointerdown', () => {
+      AudioManager.get()?.play(SoundId.MENU_SELECT)
+      this.scene.restart({ pause: false })
+    })
+  }
+
   private createPauseMenu(width: number, height: number) {
     this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7)
 
@@ -364,11 +449,16 @@ export class MenuScene extends Phaser.Scene {
       fontSize: '32px', color: '#ffffff', fontFamily: 'monospace',
     }).setOrigin(0.5)
 
+    // Difficulty label below pause title
+    this.add.text(width / 2, height / 3 + 30, DifficultyManager.getLabel(), {
+      fontSize: '14px', color: DifficultyManager.getColor(), fontFamily: 'monospace',
+    }).setOrigin(0.5)
+
     // Show room code if hosting multiplayer
     const mpMode = this.registry.get('mpMode') as string | undefined
     const roomCode = this.registry.get('mpRoomCode') as string | undefined
     if (mpMode === 'host' && roomCode) {
-      this.add.text(width / 2, height / 3 + 35, `Room Code: ${roomCode}`, {
+      this.add.text(width / 2, height / 3 + 50, `Room Code: ${roomCode}`, {
         fontSize: '16px', color: '#8888ff', fontFamily: 'monospace',
       }).setOrigin(0.5)
     }

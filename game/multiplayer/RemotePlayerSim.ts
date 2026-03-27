@@ -36,11 +36,16 @@ export class RemotePlayerSim {
   respawnTimer = 0
   actionAnim = '' // 'mining' | 'attacking' | ''
   weaponStyle = '' // 'melee' | 'ranged' | 'magic' | 'summon' | ''
+  /** Client-reported position (more accurate than sim for features like pickup) */
+  clientX = 0
+  clientY = 0
   private maxFallVy = 0
 
   constructor(x: number, y: number) {
     this.x = x
     this.y = y
+    this.clientX = x
+    this.clientY = y
   }
 
   /** Apply damage (host-side). Returns true if the hit was valid (not blocked by i-frames). */
@@ -65,6 +70,8 @@ export class RemotePlayerSim {
     this.mana = this.maxMana
     this.x = spawnX
     this.y = spawnY
+    this.clientX = spawnX
+    this.clientY = spawnY
     this.vx = 0
     this.vy = 0
     this.iFrames = IFRAMES_DURATION * 3
@@ -73,6 +80,12 @@ export class RemotePlayerSim {
   /** Simulate one tick. Returns fall damage dealt (0 if none) so host can broadcast combat event. */
   simulate(input: InputState, dt: number, chunks: ChunkManager): number {
     if (this.dead) return 0
+
+    // Store client-reported position for accurate pickup/interaction checks
+    if (input.px !== undefined && input.py !== undefined) {
+      this.clientX = input.px
+      this.clientY = input.py
+    }
 
     // Tick down i-frames
     if (this.iFrames > 0) this.iFrames -= dt * 1000

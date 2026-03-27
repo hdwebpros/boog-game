@@ -110,8 +110,12 @@ export class MultiplayerManager {
 
   /** Callback to WorldScene for handling host messages */
   onHostMessage: ((msg: NetworkMessage) => void) | null = null
-  /** Callback when disconnected from host (client mode) */
+  /** Callback when disconnected from host (client mode) — only fires after all reconnect attempts fail */
   onDisconnected: ((reason: string) => void) | null = null
+  /** Callback when reconnection is being attempted */
+  onReconnecting: ((attempt: number, maxAttempts: number) => void) | null = null
+  /** Callback when reconnection succeeds */
+  onReconnected: (() => void) | null = null
 
   get mode(): MultiplayerMode { return this._mode }
   get isOnline(): boolean { return this._mode !== 'offline' }
@@ -154,6 +158,7 @@ export class MultiplayerManager {
 
     // Set up message handlers before connecting
     this.setupClientHandlers()
+    this.setupReconnectHandlers()
 
     const joinData = await this.network.connect(url, playerName, roomCode)
     this._localPlayerId = joinData.playerId
@@ -174,6 +179,7 @@ export class MultiplayerManager {
     this.entities.clear()
     this.inputCollector = new InputCollector(scene)
     this.setupClientHandlers()
+    this.setupReconnectHandlers()
   }
 
   /** Get the host session (only valid in host mode) */
@@ -542,7 +548,8 @@ export class MultiplayerManager {
     this.network.on(MessageType.PLAYER_LEFT, (msg) => {
       const { playerId, reason } = msg.data
       if (playerId === this._localPlayerId) {
-        // We were disconnected (host left)
+        // We were disconnected — but if reconnecting, don't kick to menu
+        if (this.network && this.network.state === 'reconnecting') return
         this.onDisconnected?.(reason ?? 'Disconnected')
         return
       }
@@ -585,6 +592,30 @@ export class MultiplayerManager {
     this.network.on(MessageType.ENTITY_DESPAWN, (msg) => {
       this.onHostMessage?.(msg)
     })
+  }
+
+  /** Wire up NetworkManager reconnection callbacks to MultiplayerManager events */
+  private setupReconnectHandlers() {
+    if (!this.network) return
+
+    this.network.onReconnecting = (attempt, max) => {
+      console.log(`[MP] Reconnecting (${attempt}/${max})...`)
+      this.onReconnecting?.(attempt, max)
+    }
+
+    this.network.onReconnected = () => {
+      console.log('[MP] Reconnected, new playerId:', this.network?.playerId)
+      // Update local player ID since we rejoined as a new player
+      if (this.network) {
+        this._localPlayerId = this.network.playerId
+      }
+      this.onReconnected?.()
+    }
+
+    this.network.onReconnectFailed = (reason) => {
+      console.warn('[MP] Reconnect failed:', reason)
+      this.onDisconnected?.(reason)
+    }
   }
 
   /** Clean up everything */

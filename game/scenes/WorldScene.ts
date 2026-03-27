@@ -22,6 +22,7 @@ import { DayNightCycle } from '../systems/DayNightCycle'
 import { NPC } from '../entities/NPC'
 import { ParticleManager } from '../systems/ParticleManager'
 import { MultiplayerManager, RoomConnector, RemotePlayerSim, REMOTE_COL_W, REMOTE_COL_H, encodeMessage, MessageType } from '../multiplayer'
+import { DifficultyManager } from '../systems/DifficultyManager'
 import type { NetworkManager } from '../multiplayer'
 import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, ProjectileSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage, AttackRequest, CombatEvent, BossSummonRequest } from '../multiplayer'
 
@@ -101,6 +102,7 @@ export class WorldScene extends Phaser.Scene {
   finalBoss: FinalBoss | null = null
   private voidPortalPromptText: Phaser.GameObjects.Text | null = null
   private worldSeed: string = ''
+  private permadeathTriggered = false
 
   constructor() {
     super({ key: 'WorldScene' })
@@ -123,6 +125,7 @@ export class WorldScene extends Phaser.Scene {
     this.discoveredAltars = new Set()
     this.usedRunestones = new Set()
     this.discoveredPOIs = new Set()
+    this.permadeathTriggered = false
 
     // Check if this is a void dimension world
     if (this.registry.get('voidDimension')) {
@@ -179,6 +182,9 @@ export class WorldScene extends Phaser.Scene {
     if (this.isVoidDimension) {
       this.enemySpawner.setVoidDimension(true)
     }
+
+    // Initialize difficulty
+    DifficultyManager.set(this.registry.get('difficulty') as string ?? 'normal')
 
     // Spawn player
     const spawnPx = this.worldData.spawnX * TILE_SIZE + TILE_SIZE / 2
@@ -457,10 +463,16 @@ export class WorldScene extends Phaser.Scene {
       this.player.onItemDrop = (itemId, count) => {
         this.mp.sendItemDrop(itemId, count)
       }
+      this.mp.onReconnecting = (attempt, max) => {
+        this.showNotification(`Connection lost. Reconnecting (${attempt}/${max})...`, 0xffaa00)
+      }
+      this.mp.onReconnected = () => {
+        this.showNotification('Reconnected!', 0x88ff88)
+      }
       this.mp.onDisconnected = (reason) => {
         this.showNotification(`Disconnected: ${reason}`, 0xff4444)
         // Return to menu after a short delay
-        this.time.delayedCall(2000, () => {
+        this.time.delayedCall(3000, () => {
           AudioManager.get()?.stopMusic()
           this.registry.remove('mpMode')
           this.registry.remove('mpRoomCode')
@@ -599,6 +611,34 @@ export class WorldScene extends Phaser.Scene {
 
       this.player.update(dt, this.chunkManager, this.combat, allTargets)
 
+      // Permadeath: if player dies on Hardcore (single-player only), delete save and return to menu
+      if (this.player.dead && DifficultyManager.isPermadeath() && !this.mp.isHost && !this.mp.isClient && !this.permadeathTriggered) {
+        this.permadeathTriggered = true
+        // Delete the save
+        if (this.saveSlotId) {
+          SaveManager.deleteSave(this.saveSlotId)
+        }
+        // Show GAME OVER overlay
+        const cam = this.cameras.main
+        this.add.rectangle(cam.centerX, cam.centerY, 800, 600, 0x000000, 0.85)
+          .setScrollFactor(0).setDepth(999)
+        this.add.text(cam.centerX, cam.centerY - 20, 'GAME OVER', {
+          fontSize: '36px', color: '#ff2222', fontFamily: 'monospace', fontStyle: 'bold',
+          stroke: '#000000', strokeThickness: 4,
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(1000)
+        this.add.text(cam.centerX, cam.centerY + 20, 'Hardcore — Your world has been deleted.', {
+          fontSize: '14px', color: '#888888', fontFamily: 'monospace',
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(1000)
+        // Return to menu after 4 seconds
+        this.time.delayedCall(4000, () => {
+          AudioManager.get()?.stopMusic()
+          this.registry.remove('mpMode')
+          this.scene.stop('UIScene')
+          this.scene.start('MenuScene', { pause: false })
+        })
+        return
+      }
+
       // Void Lord summon MUST come first — JustDown(keyF) is consuming,
       // so later checks (e.g. void portal nearby) would swallow the F press.
       this.checkVoidLordSummon()
@@ -661,7 +701,7 @@ export class WorldScene extends Phaser.Scene {
           this.combat.fireEnemyProjectile(
             enemy.sprite.x, enemy.sprite.y,
             nearestX, nearestY,
-            enemy.def.damage, enemy.def.color
+            enemy.effectiveDamage, enemy.def.color
           )
         }
       }
@@ -680,13 +720,13 @@ export class WorldScene extends Phaser.Scene {
               rpTop < eb.y + eb.h && rpTop + REMOTE_COL_H > eb.y) {
             const kbx = (sim.x - enemy.sprite.x) > 0 ? 180 : -180
             const kby = -120
-            if (sim.takeDamage(enemy.def.damage, kbx, kby)) {
+            if (sim.takeDamage(enemy.effectiveDamage, kbx, kby)) {
               this.mp.broadcastCombatEvent({
                 type: 'damage',
                 targetType: 'player',
                 targetId: rpId,
                 sourceId: enemy.entityId,
-                amount: enemy.def.damage,
+                amount: enemy.effectiveDamage,
                 x: sim.x,
                 y: sim.y,
                 kbx,
@@ -734,7 +774,7 @@ export class WorldScene extends Phaser.Scene {
           const py = this.player.sprite.y - 14
           if (px < bb.x + bb.w && px + 12 > bb.x && py < bb.y + bb.h && py + 28 > bb.y) {
             const kbx = (this.player.sprite.x - this.activeBoss.sprite.x) > 0 ? 200 : -200
-            this.player.takeDamage(this.activeBoss.def.damage, kbx, -150, this.combat)
+            this.player.takeDamage(this.activeBoss.getContactDamage(), kbx, -150, this.combat)
           }
         }
 
@@ -749,13 +789,13 @@ export class WorldScene extends Phaser.Scene {
                 rpTop < bb.y + bb.h && rpTop + REMOTE_COL_H > bb.y) {
               const kbx = (sim.x - this.activeBoss.sprite.x) > 0 ? 200 : -200
               const kby = -150
-              if (sim.takeDamage(this.activeBoss.def.damage, kbx, kby)) {
+              if (sim.takeDamage(this.activeBoss.getContactDamage(), kbx, kby)) {
                 this.mp.broadcastCombatEvent({
                   type: 'damage',
                   targetType: 'player',
                   targetId: rpId,
                   sourceId: 0,
-                  amount: this.activeBoss.def.damage,
+                  amount: this.activeBoss.getContactDamage(),
                   x: sim.x,
                   y: sim.y,
                   kbx,
@@ -784,7 +824,7 @@ export class WorldScene extends Phaser.Scene {
           const py = this.player.sprite.y - 14
           if (px < fb.x + fb.w && px + 12 > fb.x && py < fb.y + fb.h && py + 28 > fb.y) {
             const kbx = (this.player.sprite.x - this.finalBoss.sprite.x) > 0 ? 250 : -250
-            this.player.takeDamage(this.finalBoss.def.damage, kbx, -180, this.combat)
+            this.player.takeDamage(this.finalBoss.getContactDamage(), kbx, -180, this.combat)
           }
         }
 
@@ -945,6 +985,8 @@ export class WorldScene extends Phaser.Scene {
         const input = this.mp.collectInput(dt)
         if (input) {
           input.actionAnim = this.player.actionAnim
+          input.px = this.player.sprite.x
+          input.py = this.player.sprite.y
           this.mp.sendInput(input)
         }
       }
@@ -2061,11 +2103,13 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
-      // Host: check remote player pickups
+      // Host: check remote player pickups (use client-reported position for accuracy)
       if (this.mp.isHost && drop.canPickup()) {
         for (const [rpId, sim] of this.remotePlayerSims) {
           if (sim.dead) continue
-          if (drop.isNear(sim.x, sim.y)) {
+          // Check both sim position and client-reported position — client pos is more
+          // accurate since the sim doesn't account for speed modifiers/skills
+          if (drop.isNear(sim.x, sim.y) || drop.isNear(sim.clientX, sim.clientY)) {
             // Notify the client that they picked up this item
             this.mp.getHostSession()!.broadcast({
               type: MessageType.ITEM_PICKUP,
@@ -2083,6 +2127,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private grantXP(amount: number, worldX: number, worldY: number) {
+    amount = Math.round(amount * DifficultyManager.get().xpMult)
     const levelsGained = this.player.skills.addXP(amount)
 
     // Show XP number
@@ -2308,7 +2353,8 @@ export class WorldScene extends Phaser.Scene {
       this.player.buffs.serialize(),
       this.hasVisitedVoid,
       this.hasCompletedGame,
-      Array.from(this.player.inventory.trashFilter)
+      Array.from(this.player.inventory.trashFilter),
+      DifficultyManager.getDifficulty()
     )
   }
 
@@ -2480,6 +2526,7 @@ export class WorldScene extends Phaser.Scene {
         worldWidth: this.worldData.width,
         worldHeight: this.worldData.height,
         dayNightTime: this.dayNight.time,
+        difficulty: DifficultyManager.getDifficulty(),
         tileChanges: hostSession.getAllTileChanges(),
         players: this.buildPlayerSnapshots(),
         enemies: this.buildEnemySnapshots(),
@@ -2830,13 +2877,11 @@ export class WorldScene extends Phaser.Scene {
         // Host says alive → respawn at host position
         this.player.forceRespawn(correction.x, correction.y, correction.hp, correction.mana)
         this.mp.consumeCombatEvents()
-      } else {
-        // Normal: sync server-authoritative stats only
-        this.player.hp = correction.hp
-        this.player.maxHp = correction.maxHp
-        this.player.mana = correction.mana
-        this.player.maxMana = correction.maxMana
       }
+      // HP/mana are NOT synced from the host correction in the normal case.
+      // The host's RemotePlayerSim lacks regen/skills/buffs, so its HP is always
+      // stale-low, and damage is already applied via COMBAT_EVENT — syncing HP
+      // here would double-count damage AND prevent the client from healing.
     }
 
     // Apply item pickups from host

@@ -5,6 +5,7 @@ import { ENEMY_DEFS } from '../data/enemies'
 import { ChunkManager } from '../world/ChunkManager'
 import { TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT, TileType } from '../world/TileRegistry'
 import { VOID_WORLD_WIDTH, VOID_WORLD_HEIGHT } from '../world/VoidWorldGenerator'
+import { DifficultyManager } from './DifficultyManager'
 
 const MAX_ENEMIES_DAY = 15
 const MAX_ENEMIES_NIGHT = 22
@@ -64,6 +65,9 @@ export class EnemySpawner {
       spawnInterval = isNight ? SPAWN_INTERVAL_NIGHT : SPAWN_INTERVAL_DAY
       baseMax = isNight ? MAX_ENEMIES_NIGHT : MAX_ENEMIES_DAY
     }
+    const dm = DifficultyManager.get()
+    spawnInterval = Math.round(spawnInterval * dm.spawnIntervalMult)
+    baseMax = Math.round(baseMax * dm.spawnCapMult)
     const extraPlayers = Math.max(0, playerPositions.length - 1)
     const maxEnemies = baseMax + extraPlayers * (isNight ? ENEMIES_PER_EXTRA_PLAYER_NIGHT : ENEMIES_PER_EXTRA_PLAYER_DAY)
 

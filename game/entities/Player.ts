@@ -15,6 +15,7 @@ import { ACCESSORY_EFFECTS } from '../data/accessories'
 import type { AccessoryEffect } from '../data/accessories'
 import { BuffManager } from '../systems/BuffManager'
 import { POTION_BUFF_MAP, BUFF_DEFS } from '../data/potions'
+import { DifficultyManager } from '../systems/DifficultyManager'
 
 // Physics
 const MOVE_SPEED = 200
@@ -214,6 +215,13 @@ export class Player {
         AudioManager.get()?.play(SoundId.SLOT_CHANGE)
       })
     }
+
+    // Apply difficulty scaling to HP and mana
+    const dm = DifficultyManager.get()
+    this.maxHp = Math.round(MAX_HP * dm.playerMaxHp)
+    this.hp = this.maxHp
+    this.maxMana = Math.round(MAX_MANA * dm.playerMaxMana)
+    this.mana = this.maxMana
 
     // Mouse wheel slot cycling
     scene.input.on('wheel', (_pointer: Phaser.Input.Pointer, _dx: number[], _dy: number[], dz: number) => {
@@ -430,8 +438,9 @@ export class Player {
 
     const armorEnch = this.getArmorEnchantmentBonuses()
     const ascMult = mods.allStatsMultiplier
+    const dmMult = DifficultyManager.get()
     const defense = Math.round((this.inventory.getTotalDefense() + mods.defenseBonus + armorEnch.defenseBonus + this.buffs.getDefenseBonus()) * ascMult)
-    amount = Math.max(1, amount - defense)
+    amount = Math.max(1, amount - Math.round(defense * dmMult.defenseEfficiency))
 
     // Endurance potion: reduce damage taken
     amount = Math.max(1, Math.round(amount * this.buffs.getDamageTakenMult()))
@@ -452,7 +461,7 @@ export class Player {
     }
 
     this.hp -= amount
-    this.iFrames = IFRAMES_DURATION
+    this.iFrames = Math.round(IFRAMES_DURATION * dmMult.playerIFramesMult)
     this.vx += kbx
     this.vy += kby
     AudioManager.get()?.play(SoundId.PLAYER_HURT)
@@ -520,7 +529,7 @@ export class Player {
       this.jetpackFlame.destroy()
       this.jetpackFlame = null
     }
-    this.respawnTimer = RESPAWN_DELAY
+    this.respawnTimer = Math.round(RESPAWN_DELAY * DifficultyManager.get().playerRespawnMult)
     AudioManager.get()?.play(SoundId.PLAYER_DIE)
   }
 
@@ -845,7 +854,7 @@ export class Player {
       if (px < eb.x + eb.w && px + pw > eb.x &&
           py < eb.y + eb.h && py + ph > eb.y) {
         const kbx = (this.sprite.x - e.sprite.x) > 0 ? 180 : -180
-        this.takeDamage(e.def.damage, kbx, -120, combat)
+        this.takeDamage(e.effectiveDamage, kbx, -120, combat)
         break
       }
     }
@@ -1181,14 +1190,18 @@ export class Player {
 
     if (this.actionAnim === 'mining') {
       // 2-frame mining swing: windup then strike
-      newFrame = this.actionAnimTimer > 150 ? 'player_mine1' : 'player_mine2'
+      newFrame = this.actionAnimTimer > 50 ? 'player_mine1' : 'player_mine2'
+      this.sprite.setOrigin(0.5, 0.5)
     } else if (this.actionAnim === 'attacking') {
       // 2-frame sword swing: windup then slash
-      newFrame = this.actionAnimTimer > 150 ? 'player_attack1' : 'player_attack2'
+      newFrame = this.actionAnimTimer > 50 ? 'player_attack1' : 'player_attack2'
+      this.sprite.setOrigin(0.5, 0.5)
     } else if (!this.isGrounded && this.vy < -50) {
       newFrame = 'player_jump'
+      this.sprite.setOrigin(0.5, 0.5)
     } else if (!this.isGrounded && this.vy > 50) {
       newFrame = 'player_fall'
+      this.sprite.setOrigin(0.5, 0.5)
     } else if (this.vx !== 0) {
       // Walk cycle
       this.walkTimer += dt * 1000
@@ -1198,10 +1211,11 @@ export class Player {
       }
       const walkFrames = ['player_walk1', 'player_walk2', 'player_walk3', 'player_walk4']
       newFrame = walkFrames[this.walkFrameIndex]!
+      this.sprite.setOrigin(0.5, 0.5)
     } else {
-      // Idle breathing
-      this.walkTimer += dt * 1000
-      newFrame = this.walkTimer % 1000 < 500 ? 'player_idle1' : 'player_idle2'
+      // Idle — just stand still
+      newFrame = 'player_idle1'
+      this.sprite.setOrigin(0.5, 0.5)
     }
 
     // Flip sprite based on facing direction
@@ -1236,7 +1250,7 @@ export class Player {
       this.equipOverlay.setPosition(this.sprite.x, this.sprite.y)
       if (this.heldItemSprite) {
         const dir = this.facingRight ? 1 : -1
-        this.heldItemSprite.setPosition(this.sprite.x + dir * 8, this.sprite.y + 4)
+        this.heldItemSprite.setPosition(this.sprite.x + dir * 6, this.sprite.y + 2)
         this.heldItemSprite.setFlipX(!this.facingRight)
       }
       return
@@ -1314,7 +1328,7 @@ export class Player {
         if (isSwinging) {
           // Swing the held item — pivot from shoulder, synced to arm frames
           // t goes from 1 (windup) to 0 (end of swing)
-          const t = this.actionAnimTimer / 300
+          const t = this.actionAnimTimer / 100
           // Shoulder pivot offset from player center (upper torso, toward facing side)
           const shoulderX = dir * 4
           const shoulderY = -6
@@ -1324,25 +1338,29 @@ export class Player {
           const worldAngle = baseAngle + swingAngle * dir
 
           // Arm length from shoulder to hand
-          const armLen = 14 + 6 * (1 - t) // slight extension at full swing
+          const armLen = 10 + 4 * (1 - t) // slight extension at full swing
           const offsetX = shoulderX + Math.cos(worldAngle) * armLen
           const offsetY = shoulderY + Math.sin(worldAngle) * armLen
-          this.heldItemSprite.setPosition(this.sprite.x + offsetX, this.sprite.y + offsetY)
-
           // Rotate the sprite to match the swing angle
           // Items point diagonally — add 45° base rotation
-          const spriteRot = this.facingRight
-            ? swingAngle + Math.PI / 4
-            : Math.PI - swingAngle - Math.PI / 4
-          this.heldItemSprite.setRotation(spriteRot)
-          this.heldItemSprite.setScale(1.1)
-          this.heldItemSprite.setFlipX(false) // rotation handles direction
-        } else {
-          // Idle held position
-          this.heldItemSprite.setPosition(this.sprite.x + dir * 8, this.sprite.y + 4)
+          const swingRot = swingAngle + Math.PI / 4
+
+          // Offset along tool direction so hand grips the handle, not the blade
+          const gripOffset = 4
+          const gpX = -Math.cos(swingRot) * gripOffset * dir
+          const gpY = -Math.sin(swingRot) * gripOffset
+          this.heldItemSprite.setPosition(this.sprite.x + offsetX + gpX, this.sprite.y + offsetY + gpY)
+          this.heldItemSprite.setRotation(this.facingRight ? swingRot : -swingRot)
+          this.heldItemSprite.setScale(0.45)
           this.heldItemSprite.setFlipX(!this.facingRight)
-          this.heldItemSprite.setRotation(0)
-          this.heldItemSprite.setScale(0.75)
+        } else {
+          // Idle held position — tool held at the player's hand
+          const restAngle = -45 * (Math.PI / 180)
+          const restRot = restAngle + Math.PI / 4 // 0° at rest (vertical)
+          this.heldItemSprite.setPosition(this.sprite.x + dir * 6, this.sprite.y + 2)
+          this.heldItemSprite.setFlipX(!this.facingRight)
+          this.heldItemSprite.setRotation(this.facingRight ? restRot : -restRot)
+          this.heldItemSprite.setScale(0.4)
         }
         this.heldItemSprite.setAlpha(this.sprite.alpha)
       }
@@ -1357,17 +1375,20 @@ export class Player {
   /** Trigger a mining animation */
   playMineAnim() {
     this.actionAnim = 'mining'
-    this.actionAnimTimer = 300
+    this.actionAnimTimer = 100
   }
 
   /** Trigger an attack animation */
   playAttackAnim() {
     this.actionAnim = 'attacking'
-    this.actionAnimTimer = 300
+    this.actionAnimTimer = 100
   }
 
 
   private applyFallDamage() {
+    // Network clients skip local fall damage — the host's RemotePlayerSim detects
+    // the landing and sends a COMBAT_EVENT, so applying it here would double-count.
+    if (this.isNetworkClient) return
     if (this.dead || this.hasAccessoryEffect('noFallDamage') || this.buffs.hasNoFallDamage()) return
     const mods = this.skills.getModifiers()
     const damage = Math.floor((this.maxFallVy - FALL_DMG_THRESHOLD) * FALL_DMG_FACTOR * mods.fallDamageMult)

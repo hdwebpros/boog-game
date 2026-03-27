@@ -14,7 +14,6 @@ import { HostSession } from './HostSession'
 import {
   type NetworkMessage,
   encodeMessage,
-  decodeMessage,
   MessageType,
 } from './protocol'
 
