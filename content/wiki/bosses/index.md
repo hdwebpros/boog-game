@@ -23,6 +23,8 @@ Bosses are designed to be fought in a specific order. Each one is found deeper i
 | 6 | [Mothership](/wiki/bosses/mothership) | 1,500 | 50-80 | 4 | Surface | Navigation Module |
 | 7 | [The Void Lord](/wiki/bosses/void-lord) | 5,000 | 80-150 | 4 | Overworld (post-game) | Trophy of the Void Lord |
 
+**Note:** All boss HP and damage values in the table above are for Normal difficulty. Boss HP scales from 0.7x (Easy) to 1.8x (Hardcore), and boss damage scales from 0.6x to 1.6x. See [Difficulty](/wiki/mechanics/difficulty) for full details.
+
 ## How Summoning Works
 
 1. Explore the correct world layer to find the boss altar (altars generate during world creation).

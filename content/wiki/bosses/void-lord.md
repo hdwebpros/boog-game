@@ -29,7 +29,9 @@ size: 128x192
 ---
 ::
 
-**The Void Lord** is the true final boss of Starfall. A towering 128x192 pixel entity of pure void energy, it dwarfs every other creature in the game. With 5000 HP, four brutal phases, and an arsenal of reality-warping attacks -- void beams, dimensional rifts, minion summoning, and teleportation -- the Void Lord is the ultimate challenge. Defeating it triggers the True Ending.
+**The Void Lord** is the true final boss of Starfall. A towering 128x192 pixel entity of pure void energy, it dwarfs every other creature in the game. With 5000 base HP (scaled by [difficulty](/wiki/mechanics/difficulty) -- up to 9000 on Hardcore), four brutal phases, and an arsenal of reality-warping attacks -- void beams, dimensional rifts, minion summoning, and teleportation -- the Void Lord is the ultimate challenge. Defeating it triggers the True Ending.
+
+**Difficulty scaling:** The Void Lord's HP and damage scale with your difficulty setting. On Easy, it has 3500 HP and deals 60% damage. On Hardcore, it has 9000 HP and deals 160% damage with shorter i-frames for the player.
 
 ## How to Summon
 
@@ -52,36 +54,37 @@ The Void Lord cannot be fought until you have completed the following:
 
 ### Phase 1 -- Awakening (100%-75% HP)
 - **Speed:** 100
-- **Damage:** 80
+- **Damage:** 80 (base)
 - **Attack Interval:** 2.0s
-- The Void Lord materializes and attacks with void beams and basic melee strikes. It teleports periodically to reposition. This is the most forgiving phase, but 80 base damage is still punishing.
+- The Void Lord materializes and patrols the arena, firing single void beams and ground slams (7 projectiles in an arc). Summons **2 Void Wraiths** every 15 seconds. This is the most forgiving phase, but 80 base damage is still punishing.
 
 ### Phase 2 -- Dominion (75%-50% HP)
 - **Speed:** 120
-- **Damage:** 100
+- **Damage:** 100 (base)
 - **Attack Interval:** 1.6s
-- The Void Lord opens dimensional rifts that spawn void minions. Void beams become wider and teleportation is more frequent. Managing minions while dodging beams is the central challenge.
+- The Void Lord chases more aggressively and fires **dual void beams** (offset left/right). Opens **dimensional rifts** near the player (64px wide, 5s duration, dealing half phase damage). Activates a **damage shield** every 20 seconds for 3 seconds (glows blue, blocks all damage). Continues spawning 2 Void Wraiths every 15 seconds.
 
 ### Phase 3 -- Fury (50%-25% HP)
 - **Speed:** 140
-- **Damage:** 120
+- **Damage:** 120 (base)
 - **Attack Interval:** 1.2s
-- All attacks intensify. Dimensional rifts spawn faster, void beams track the player more aggressively, and the Void Lord moves at 140 speed. The damage output at this stage can kill an unprepared player in two or three hits.
+- The Void Lord begins **teleporting** every 8 seconds (appears near the player). Fires **5-spread projectile patterns**. Spawns **4 Void Wraiths** at once in a circular burst pattern every 12 seconds. Dimensional rifts are wider (80px) and last 8 seconds, with 2 spawning at a time. This phase can kill unprepared players in two or three hits.
 
 ### Phase 4 -- Enrage (Below 25% HP)
 - **Speed:** 160
-- **Damage:** 150
+- **Damage:** 150 (base)
 - **Attack Interval:** 0.8s
-- The Void Lord enrages. It attacks nearly every second for 150 damage, teleports constantly, and floods the arena with minions and void beams simultaneously. This is the hardest phase of any boss in the game. Pure endurance and preparation determine survival.
+- The Void Lord enrages with a **red flash** and constant screen shake. Teleports every 5 seconds at closer range. Fires **rings of 8 projectiles** plus 2 aimed shots. Spawns **Dark Knights** (2 every 10 seconds) alongside void wraiths. Multiple dimensional rifts cover the ground simultaneously. This is the hardest phase of any boss in the game. Pure endurance and preparation determine survival.
 
 ## Attacks
 
-- **Void Beam** -- A massive beam of void energy fired in a line toward the player. In Phase 1 it is narrow and telegraphed. By Phase 3 it is wider and tracks the player's movement.
-- **Dimensional Rift** -- The Void Lord tears open a rift in reality that spawns void minions (Void Wraiths, Shadow Stalkers). Active rifts persist for several seconds, continuously spawning enemies.
-- **Minion Summon** -- Directly calls forth void creatures to aid it. In Phase 4, the Void Lord can have many minions active simultaneously.
-- **Teleportation** -- The Void Lord vanishes and reappears at a new position, often directly beside or behind the player. Frequency increases with each phase.
-- **Void Slam** -- A devastating close-range attack where the Void Lord strikes the ground, creating a shockwave of void energy in all directions.
-- **Reality Distortion** -- In Phase 4, the Void Lord warps the space around it, pulling the player inward while dealing continuous damage.
+- **Void Beam** -- A beam of void energy fired toward the player. Phase 1 fires a single beam. Phase 2 fires **dual beams** offset left and right. Phase 3+ fires 5-spread patterns.
+- **Ground Slam** -- Strikes the ground, launching 7 projectiles in an arc pattern.
+- **Dimensional Rift** -- Tears open a rift near the player (64-80px wide, persists 5-8 seconds). Rifts deal continuous damage to players standing in them. Larger and longer-lasting in later phases.
+- **Minion Summon** -- Calls Void Wraiths (Phases 1-3) and Dark Knights (Phase 4). Phase 3 spawns 4 wraiths in a circular burst. Phase 4 can have many minions active simultaneously.
+- **Teleportation** -- Vanishes and reappears near the player (starts Phase 3, every 8s; Phase 4, every 5s at closer range). Often appears to the side of the player.
+- **Damage Shield** -- Activates in Phase 2+. Glows blue and blocks all incoming damage for 3 seconds every 20 seconds.
+- **Projectile Ring** -- Phase 4 only. Fires a ring of 8 rotating projectiles plus 2 direct aimed shots at the player.
 
 ## Drops
 

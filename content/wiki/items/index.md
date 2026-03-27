@@ -15,7 +15,7 @@ Starfall features over 150 items across 7 categories. From basic wooden tools to
 Melee, ranged, magic, and summon weapons across 7 tiers. Each weapon style has its own attack pattern -- swing arcs for melee, projectiles for ranged, mana-consuming spells for magic, and persistent minions for summon weapons.
 
 ### [Tools](/wiki/items/tools)
-Pickaxes for mining blocks of increasing hardness. Higher-tier pickaxes mine faster and can break tougher materials that lower-tier tools cannot scratch.
+Pickaxes for mining blocks of increasing hardness, plus specialty tools like the Tree Chomper (fast wood harvesting) and Boring Drill (automated drilling machine). Higher-tier pickaxes mine faster and can break tougher materials that lower-tier tools cannot scratch.
 
 ### [Armor](/wiki/items/armor)
 6 armor sets from Wood to Void, with 4 slots each (helmet, chestplate, leggings, boots). Better armor means more defense and survivability against tougher enemies and bosses.
@@ -51,4 +51,16 @@ Items in Starfall follow a tiered progression system. Each tier is color-coded f
 Item IDs determine how the game categorizes each item internally:
 
 - **IDs 0--99**: Blocks (terrain tiles, ores, crafting stations)
-- **IDs 100+**: Non-block items (weapons, tools, armor, materials, consumables, accessories)
+- **IDs 100--199**: Core items (materials, stations, tools, weapons)
+- **IDs 200--219**: Armor sets
+- **IDs 230--243**: Enchantment shards and chant orbs
+- **IDs 250**: Silver Coins (currency)
+- **IDs 300--305**: Accessories
+- **IDs 320--321**: Void stations (Super Portal, Void Forge)
+- **IDs 330--337**: Void weapons
+- **IDs 340--343**: Void armor
+- **IDs 350--355**: Void materials
+- **IDs 360--365**: Void artifacts
+- **IDs 370, 380**: Void special items (Summon Token, Trophy)
+- **IDs 385--389**: Shard Compasses (Ember, Frost, Storm, Void, Life)
+- **IDs 420--421**: Specialty tools (Boring Drill, Tree Chomper)

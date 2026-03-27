@@ -21,7 +21,9 @@ Starfall is a Terraria-style 2D sandbox survival game. You play as a crash-lande
 
 ## Game Overview
 
-You awaken on an alien planet after your ship crashes. The world stretches 6000 tiles wide and 1600 tiles deep, divided into 6 depth layers -- from the sky above to the molten core below. Eight distinct surface biomes offer different resources and challenges. Mine blocks, craft gear, fight enemies, and defeat the 6 bosses who each guard a jetpack component. Assemble all 6 parts at a Fusion Station, take flight, and escape the planet.
+You awaken on an alien planet after your shuttle crashes -- an animated intro cutscene shows the crash landing before the world loads. The world stretches 6000 tiles wide and 1600 tiles deep, divided into 6 depth layers -- from the sky above to the molten core below. Eight distinct surface biomes offer different resources and challenges. Mine blocks, craft gear, fight enemies, and defeat the 6 bosses who each guard a jetpack component. Assemble all 6 parts at a Fusion Station, take flight, and escape the planet.
+
+Before starting, you choose a [difficulty mode](/wiki/mechanics/difficulty) -- Easy, Normal, Hard, or Hardcore (permadeath) -- that scales enemy stats, player HP, loot rates, and more.
 
 For those seeking the true ending, craft a Super Portal after escaping and enter the Void Dimension -- a dangerous nether-like realm with powerful enemies, new resources, and the Void Lord awaiting at the end.
 
@@ -41,6 +43,8 @@ Begin by punching trees to gather wood, then craft a workbench and wooden tools.
 | I | Use item |
 | Q | Drop item |
 | F | Summon boss / Interact with NPC |
+| N | Toggle minimap |
+| M | Open world map |
 | ESC | Pause menu |
 | Space (airborne with jetpack) | Fly |
 

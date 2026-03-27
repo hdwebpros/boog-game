@@ -202,6 +202,22 @@ Incoming damage can be reduced by:
 | Void Armor (Ascension skill) | -30% damage taken |
 | Mana Shield (skill) | 25% redirected to mana |
 
+## Difficulty Scaling
+
+All combat stats are affected by your chosen [difficulty mode](/wiki/mechanics/difficulty). On Easy, enemies deal 60% damage and have 70% HP, giving you more room to learn. On Hard/Hardcore, enemies hit 40-60% harder with 50% more health, while your i-frames are 30-50% shorter. Boss HP scales up to 1.8x on Hardcore. See the [Difficulty page](/wiki/mechanics/difficulty) for the full multiplier table.
+
+## Visual Feedback
+
+Combat features several visual effects to communicate what is happening:
+
+- **Damage flash**: The screen flashes red when you take heavy damage, white for lighter hits.
+- **Low HP vignette**: A pulsing red vignette appears at the screen edges when your HP is low, with a heartbeat effect that speeds up as HP drops.
+- **Chromatic aberration**: Brief red/blue color split on heavy impacts.
+- **Desaturation**: The screen desaturates up to 35% when HP drops below 20%.
+- **Weapon trails**: Melee attacks leave glowing trail effects.
+- **Hit sparks**: Directional particle bursts at the point of impact.
+- **Camera shake**: Impacts cause trauma-based camera shake with Perlin noise for natural-feeling screen rumble.
+
 ## Combat Tips
 
 - **Switch weapons during fights.** Open with ranged/magic to get free hits while the enemy closes distance, then switch to melee for higher DPS.

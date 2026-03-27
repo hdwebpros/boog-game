@@ -250,15 +250,18 @@ export class CombatSystem {
     playerY: number,
     facingRight: boolean,
     enemies: Enemy[],
-    damageMult = 1
+    damageMult = 1,
+    arcOverride?: number,
+    kbyOverride?: number
   ): number {
     const angle = facingRight ? 0 : Math.PI
+    const arc = arcOverride ?? MELEE_ARC
     let totalDamage = 0
     this.lastHitEnemies = []
 
     // Draw swing arc visual — filled wedge with outline
-    const startAngle = angle - MELEE_ARC / 2
-    const endAngle = angle + MELEE_ARC / 2
+    const startAngle = angle - arc / 2
+    const endAngle = angle + arc / 2
     this.meleeGfx.fillStyle(weapon.color, 0.15)
     this.meleeGfx.beginPath()
     this.meleeGfx.moveTo(playerX, playerY)
@@ -292,9 +295,9 @@ export class CombatSystem {
       while (angleDiff > Math.PI) angleDiff -= Math.PI * 2
       while (angleDiff < -Math.PI) angleDiff += Math.PI * 2
 
-      if (Math.abs(angleDiff) <= MELEE_ARC / 2) {
+      if (Math.abs(angleDiff) <= arc / 2) {
         const kbx = dx > 0 ? 200 : -200
-        e.takeDamage(finalDmg, kbx, -100)
+        e.takeDamage(finalDmg, kbx, kbyOverride ?? -100)
         const dmgColor = damageMult >= 2 ? 0xff4444 : 0xffff00 // red for crits
         this.spawnDamageNumber(e.sprite.x, e.sprite.y - e.def.height / 2, finalDmg, dmgColor)
         this.particles?.hitSparks(e.sprite.x, e.sprite.y, dmgColor)

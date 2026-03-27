@@ -82,6 +82,18 @@ A complete reference for every control and hotkey in Starfall. Print this page o
 - The crafting menu shows which recipes you have the materials for.
 - Click a recipe to craft it.
 
+## Map Controls
+
+| Key | Action |
+|-----|--------|
+| **N** | Toggle minimap overlay |
+| **M** | Open world map |
+| **[ / ]** | Zoom map in / out |
+
+**Notes:**
+- The minimap shows a small overhead view of your surroundings in the corner of the screen.
+- The world map shows a larger view. Use **[** and **]** to zoom in and out.
+
 ## Menu Controls
 
 | Key | Action |
@@ -91,6 +103,7 @@ A complete reference for every control and hotkey in Starfall. Print this page o
 
 **Notes:**
 - The game pauses when you open the pause menu (single player).
+- In multiplayer, the pause menu shows the room code and current difficulty.
 - The skill tree shows all available branches: Combat, Survival, Mining, Magic, Mobility, and Ascension.
 - Click a skill to spend skill points on it. Skill points are earned by leveling up (XP from killing enemies).
 
@@ -130,6 +143,9 @@ USE ITEM:     I
 DROP ITEM:    Q
 INTERACT:     F
 SKILL TREE:   TAB
+MINIMAP:      N
+WORLD MAP:    M
+MAP ZOOM:     [ / ]
 PAUSE:        ESC
 CHAT:         T
 FLY:          Space (hold, airborne, jetpack equipped)

@@ -183,6 +183,32 @@ export class WorldGenerator {
       surfaceHeights[x] = Math.floor(SURFACE_BASE + h)
     }
 
+    // Smooth terrain: prevent steep drops/cliffs (max 3 block height change between adjacent columns)
+    const MAX_STEP = 3
+    // Left-to-right pass
+    for (let x = 1; x < width; x++) {
+      const diff = surfaceHeights[x]! - surfaceHeights[x - 1]!
+      if (diff > MAX_STEP) {
+        surfaceHeights[x] = surfaceHeights[x - 1]! + MAX_STEP
+      } else if (diff < -MAX_STEP) {
+        surfaceHeights[x] = surfaceHeights[x - 1]! - MAX_STEP
+      }
+    }
+    // Right-to-left pass (average both directions for symmetry)
+    const smoothed = new Float64Array(surfaceHeights)
+    for (let x = width - 2; x >= 0; x--) {
+      const diff = smoothed[x]! - smoothed[x + 1]!
+      if (diff > MAX_STEP) {
+        smoothed[x] = smoothed[x + 1]! + MAX_STEP
+      } else if (diff < -MAX_STEP) {
+        smoothed[x] = smoothed[x + 1]! - MAX_STEP
+      }
+    }
+    // Average both passes for natural-looking slopes
+    for (let x = 0; x < width; x++) {
+      surfaceHeights[x] = Math.floor((surfaceHeights[x]! + smoothed[x]!) / 2)
+    }
+
     // Pass 1: Fill base terrain
     this.fillBaseTerrain(tiles, width, height, surfaceHeights, surfaceBiomes)
 
@@ -796,15 +822,28 @@ export class WorldGenerator {
       const MIN_SPAWN_DIST = 200 // tiles away from player spawn
 
       let placed = false
+      const ALTAR_FLAT_RADIUS = 8 // tiles on each side to flatten for surface altars
+
       for (let attempt = 0; attempt < 100; attempt++) {
         const tx = Math.floor(zoneStart + rng() * (zoneEnd - zoneStart))
-        if (tx < 2 || tx >= width - 2) continue
+        if (tx < ALTAR_FLAT_RADIUS + 2 || tx >= width - ALTAR_FLAT_RADIUS - 2) continue
 
         // Find valid Y position — place ON the ground (solid tile), graphics draw upward
         let ty = -1
-        if (altarDef.biomeYMin < surfaceHeights[tx]!) {
-          // Surface altar: place on the surface tile itself
-          ty = Math.floor(surfaceHeights[tx]!)
+        const isSurfaceAltar = altarDef.biomeYMin < surfaceHeights[tx]!
+        if (isSurfaceAltar) {
+          // Surface altar: check that surrounding terrain is relatively flat
+          const centerH = surfaceHeights[tx]!
+          let maxDeviation = 0
+          for (let dx = -ALTAR_FLAT_RADIUS; dx <= ALTAR_FLAT_RADIUS; dx++) {
+            const sx = tx + dx
+            if (sx < 0 || sx >= width) continue
+            maxDeviation = Math.max(maxDeviation, Math.abs(surfaceHeights[sx]! - centerH))
+          }
+          // Prefer naturally flat areas (allow up to 5 block deviation, we'll flatten it)
+          if (maxDeviation > 5) continue
+
+          ty = Math.floor(centerH)
         } else {
           // Underground altar: find air with solid below, place on the solid tile
           for (let scanY = altarDef.biomeYMin; scanY < Math.min(altarDef.biomeYMax, height - 2); scanY++) {
@@ -821,7 +860,40 @@ export class WorldGenerator {
         const groundTile = tiles[ty * width + tx]!
         if (groundTile === TileType.AIR || groundTile === TileType.WATER || groundTile === TileType.LAVA) continue
 
-        // Clear air space above for the altar (3 wide, 4 tall above ground)
+        // For surface altars, flatten the area around the altar
+        if (isSurfaceAltar) {
+          for (let dx = -ALTAR_FLAT_RADIUS; dx <= ALTAR_FLAT_RADIUS; dx++) {
+            const sx = tx + dx
+            if (sx < 0 || sx >= width) continue
+            const oldSurface = Math.floor(surfaceHeights[sx]!)
+            // Set this column to the altar's ground level
+            if (oldSurface !== ty) {
+              if (oldSurface < ty) {
+                // Old surface at lower Y = terrain was higher, clear down to new level
+                for (let fy = oldSurface; fy < ty; fy++) {
+                  tiles[fy * width + sx] = TileType.AIR
+                }
+                tiles[ty * width + sx] = groundTile
+              } else {
+                // Old surface at higher Y = terrain was lower, fill up to new level
+                tiles[ty * width + sx] = groundTile
+                for (let fy = ty + 1; fy <= oldSurface; fy++) {
+                  tiles[fy * width + sx] = groundTile
+                }
+              }
+              surfaceHeights[sx] = ty
+            }
+            // Clear air space above the flat area (6 tiles tall) to remove trees/obstructions
+            for (let dy = -6; dy <= -1; dy++) {
+              const ay = ty + dy
+              if (ay >= 0 && ay < height) {
+                tiles[ay * width + sx] = TileType.AIR
+              }
+            }
+          }
+        }
+
+        // Clear air space above the altar itself (3 wide, 4 tall above ground)
         for (let dx = -1; dx <= 1; dx++) {
           for (let dy = -4; dy <= -1; dy++) {
             const ax = tx + dx

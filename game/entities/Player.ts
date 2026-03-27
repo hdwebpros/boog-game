@@ -55,6 +55,17 @@ const MANA_REGEN = 8 // per second
 const IFRAMES_DURATION = 500 // ms
 const RESPAWN_DELAY = 2000 // ms
 
+// Dash
+const DASH_SPEED = 600
+const DASH_DURATION = 150 // ms
+const DASH_COOLDOWN = 800 // ms
+const DASH_IFRAMES = 100 // brief invulnerability during dash
+
+// Combo system
+const COMBO_WINDOW = 1200 // ms to land next hit before combo resets
+const COMBO_BASE_MULT = 0.15 // +15% damage per combo hit
+const COMBO_DISPLAY_DURATION = 2000 // ms to show combo counter after last hit
+
 export class Player {
   sprite: Phaser.GameObjects.Image
   inventory: InventoryManager
@@ -126,6 +137,20 @@ export class Player {
   // Double jump tracking
   private hasUsedDoubleJump = false
 
+  // Dash state
+  private keyShift: Phaser.Input.Keyboard.Key
+  private dashTimer = 0 // remaining dash time
+  private dashCooldown = 0
+  private dashDir = 1 // 1 or -1
+  private isDashing = false
+
+  // Combo state
+  comboCount = 0
+  private comboTimer = 0 // time remaining to land next hit
+  private comboDisplayTimer = 0
+  private comboText: Phaser.GameObjects.Text | null = null
+  private comboGfx: Phaser.GameObjects.Graphics
+
   // Water / Oxygen
   isInWater = false
   oxygen = MAX_OXYGEN
@@ -192,6 +217,10 @@ export class Player {
     this.voidAuraGfx = scene.add.graphics()
     this.voidAuraGfx.setDepth(9)
 
+    // Combo counter graphics
+    this.comboGfx = scene.add.graphics()
+    this.comboGfx.setDepth(16)
+
     // Overlay for tile highlights and mining progress
     this.overlay = scene.add.graphics()
     this.overlay.setDepth(15)
@@ -203,6 +232,7 @@ export class Player {
     this.keyS = kb.addKey(Phaser.Input.Keyboard.KeyCodes.S)
     this.keyW = kb.addKey(Phaser.Input.Keyboard.KeyCodes.W)
     this.keySpace = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
+    this.keyShift = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT)
     this.cursors = kb.createCursorKeys()
 
     // Number keys 1-0 → hotbar slots 0-9
@@ -369,6 +399,18 @@ export class Player {
     // I-frames
     this.iFrames -= dt * 1000
     this.attackCooldown -= dt * 1000
+    this.dashCooldown -= dt * 1000
+
+    // Combo timer — reset combo if window expires
+    if (this.comboTimer > 0) {
+      this.comboTimer -= dt * 1000
+      if (this.comboTimer <= 0) this.comboCount = 0
+    }
+    // Combo display fade
+    if (this.comboDisplayTimer > 0) {
+      this.comboDisplayTimer -= dt * 1000
+    }
+    this.updateComboDisplay()
 
     // Flash during i-frames
     this.flashTimer -= dt * 1000
@@ -779,8 +821,35 @@ export class Player {
 
     switch (def.weaponStyle) {
       case 'melee': {
-        const mult = mods.meleeDamageMult * this.buffs.getMeleeDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult * allDmgMult * voidDmgMult
-        dmgDealt = combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies, mult)
+        // Combo damage scaling: +15% per consecutive hit
+        const comboMult = 1 + this.comboCount * COMBO_BASE_MULT
+        const mult = mods.meleeDamageMult * this.buffs.getMeleeDamageMult() * lowHpBonus * crit * manaOverloadBonus * emberBonus * buffDmgMult * allDmgMult * voidDmgMult * comboMult
+
+        // Combo finishers modify the attack style
+        const comboHit = this.comboCount + 1 // what this hit will be
+        if (comboHit >= 7 && comboHit % 7 === 0) {
+          // Whirlwind: 360° sweep hitting all nearby enemies
+          dmgDealt = combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies, mult * 1.5, Math.PI * 2)
+          this.spawnComboVfx('whirlwind', def.color)
+        } else if (comboHit >= 5 && comboHit % 5 === 0) {
+          // Uppercut: extra upward knockback
+          dmgDealt = combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies, mult * 1.3, undefined, -300)
+          this.spawnComboVfx('uppercut', def.color)
+        } else if (comboHit >= 3 && comboHit % 3 === 0) {
+          // Flurry: wider arc + bonus damage
+          dmgDealt = combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies, mult * 1.2, Math.PI * 1.0)
+          this.spawnComboVfx('flurry', def.color)
+        } else {
+          dmgDealt = combat.meleeAttack(def, this.sprite.x, this.sprite.y, this.facingRight, enemies, mult)
+        }
+
+        // Advance combo on hit
+        if (dmgDealt > 0) {
+          this.comboCount++
+          this.comboTimer = COMBO_WINDOW
+          this.comboDisplayTimer = COMBO_DISPLAY_DURATION
+        }
+
         // Weapon trail afterimage
         const trailDir = this.facingRight ? 1 : -1
         for (let ti = 0; ti < 4; ti++) {
@@ -791,8 +860,9 @@ export class Player {
             def.color
           )
         }
-        // Camera nudge toward target
-        ws.cameraCtrl?.triggerAttackNudge(trailDir * 50, 0)
+        // Camera nudge toward target (stronger at higher combo)
+        const nudgeScale = Math.min(2, 1 + this.comboCount * 0.1)
+        ws.cameraCtrl?.triggerAttackNudge(trailDir * 50 * nudgeScale, 0)
         // Arcane Strikes: melee hits release a magic shockwave
         if (mods.arcaneStrikes && dmgDealt > 0) {
           const shockDir = this.facingRight ? 1 : -1
@@ -880,6 +950,106 @@ export class Player {
         this.hp = Math.min(this.maxHp, this.hp + 3)
         combat.spawnDamageNumber(this.sprite.x, this.sprite.y - 20, 3, 0x33ff66)
         break
+    }
+  }
+
+  // ─── Combo & Dash VFX ─────────────────────────────────────
+
+  private spawnComboVfx(type: 'flurry' | 'uppercut' | 'whirlwind', color: number) {
+    const gfx = this.scene.add.graphics().setDepth(14)
+    const x = this.sprite.x
+    const y = this.sprite.y
+
+    if (type === 'whirlwind') {
+      // Full circle sweep
+      gfx.lineStyle(3, color, 0.7)
+      gfx.strokeCircle(x, y, 60)
+      gfx.lineStyle(2, 0xffffff, 0.4)
+      gfx.strokeCircle(x, y, 50)
+    } else if (type === 'uppercut') {
+      // Upward slash line
+      const dir = this.facingRight ? 1 : -1
+      gfx.lineStyle(4, color, 0.8)
+      gfx.beginPath()
+      gfx.moveTo(x - dir * 10, y + 20)
+      gfx.lineTo(x + dir * 20, y - 30)
+      gfx.lineTo(x + dir * 15, y - 45)
+      gfx.strokePath()
+    } else {
+      // Flurry: multiple slash lines
+      const dir = this.facingRight ? 1 : -1
+      gfx.lineStyle(2, color, 0.6)
+      for (let i = 0; i < 3; i++) {
+        const oy = -15 + i * 12
+        gfx.beginPath()
+        gfx.moveTo(x, y + oy)
+        gfx.lineTo(x + dir * 40, y + oy + (Math.random() - 0.5) * 10)
+        gfx.strokePath()
+      }
+    }
+
+    this.scene.time.delayedCall(200, () => gfx.destroy())
+  }
+
+  private spawnDashAfterimage() {
+    // Create a fading copy of the player sprite at current position
+    const ghost = this.scene.add.image(this.sprite.x, this.sprite.y, this.animFrame)
+    ghost.setOrigin(0.5, 0.5)
+    ghost.setDepth(9)
+    ghost.setAlpha(0.5)
+    ghost.setTint(0x4488ff)
+    ghost.setFlipX(!this.facingRight)
+    ghost.setScale(this.sprite.scaleX, this.sprite.scaleY)
+
+    // Dust particles at dash origin
+    const ws = this.scene as any
+    ws.particles?.landingDust(this.sprite.x, this.sprite.y, 200)
+
+    // Fade and destroy
+    this.scene.tweens.add({
+      targets: ghost,
+      alpha: 0,
+      duration: 250,
+      onComplete: () => ghost.destroy()
+    })
+  }
+
+  private updateComboDisplay() {
+    this.comboGfx.clear()
+    if (this.comboCount >= 2 && this.comboDisplayTimer > 0) {
+      const alpha = Math.min(1, this.comboDisplayTimer / 500)
+      const x = this.sprite.x
+      const y = this.sprite.y - 32
+
+      // Combo text
+      if (!this.comboText) {
+        this.comboText = this.scene.add.text(x, y, '', {
+          fontFamily: 'monospace',
+          fontSize: '10px',
+          color: '#ffffff',
+          stroke: '#000000',
+          strokeThickness: 3,
+          align: 'center'
+        }).setOrigin(0.5).setDepth(20)
+      }
+
+      // Finisher labels
+      let label = `${this.comboCount} HIT`
+      let color = '#ffff44'
+      if (this.comboCount >= 7) { label += ' WHIRLWIND!'; color = '#ff44ff' }
+      else if (this.comboCount >= 5) { label += ' UPPERCUT!'; color = '#44ffff' }
+      else if (this.comboCount >= 3) { label += ' FLURRY!'; color = '#ff8844' }
+
+      this.comboText.setText(label)
+      this.comboText.setColor(color)
+      this.comboText.setPosition(x, y - 4)
+      this.comboText.setAlpha(alpha)
+      // Pulse scale on new hits
+      const scale = 1 + Math.max(0, (this.comboDisplayTimer - (COMBO_DISPLAY_DURATION - 100)) / 100) * 0.3
+      this.comboText.setScale(scale)
+    } else if (this.comboText) {
+      this.comboText.destroy()
+      this.comboText = null
     }
   }
 
@@ -1073,7 +1243,25 @@ export class Player {
       speed *= this.hasRebreather ? WATER_REBREATHER_MULT : WATER_MOVE_MULT
     }
 
-    if (left && !right) {
+    // Dash — Shift key
+    if (Phaser.Input.Keyboard.JustDown(this.keyShift) && this.dashCooldown <= 0 && !this.isInWater && !this.isClimbing) {
+      this.isDashing = true
+      this.dashTimer = DASH_DURATION
+      this.dashCooldown = DASH_COOLDOWN
+      this.dashDir = this.facingRight ? 1 : -1
+      this.iFrames = Math.max(this.iFrames, DASH_IFRAMES)
+      AudioManager.get()?.play(SoundId.JUMP)
+      // Spawn afterimage at current position
+      this.spawnDashAfterimage()
+    }
+
+    if (this.isDashing) {
+      this.dashTimer -= dt * 1000
+      this.vx = DASH_SPEED * this.dashDir
+      if (this.dashTimer <= 0) {
+        this.isDashing = false
+      }
+    } else if (left && !right) {
       this.vx = -speed
       this.facingRight = false
     } else if (right && !left) {

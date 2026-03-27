@@ -9,9 +9,22 @@ tags: [guide, beginner, tutorial, controls, inventory, crafting]
 
 Welcome to **Starfall**. You are a crash-landed astronaut stranded on an alien planet. Your mission: collect 6 jetpack components by defeating powerful bosses, assemble the jetpack, and fly off the planet to escape. This guide covers everything you need to survive your first hours.
 
+## Starting a New Game
+
+When you select **New Game** from the title screen, you first choose a **difficulty mode**:
+
+- **Easy** -- More HP, weaker enemies, more loot. Great for learning.
+- **Normal** -- The intended experience. Balanced stats.
+- **Hard** -- Less HP, tougher enemies, scarcer loot. A real challenge.
+- **Hardcore** -- Permadeath. One life, no respawns. For veterans only.
+
+See the [Difficulty page](/wiki/mechanics/difficulty) for full details on how each mode scales the game.
+
+After choosing difficulty, an **intro cutscene** plays showing your shuttle crashing onto the planet. You can skip it by pressing any key.
+
 ## The Story
 
-Your ship crash-landed. The planet is hostile, filled with creatures and hazards across diverse biomes. Six bosses guard jetpack components scattered throughout the world. Defeat all six, assemble the jetpack at a Fusion Station, and fly high enough to trigger your escape.
+Your shuttle crash-landed. The planet is hostile, filled with creatures and hazards across diverse biomes. Six bosses guard jetpack components scattered throughout the world. Defeat all six, assemble the jetpack at a Fusion Station, and fly high enough to trigger your escape.
 
 ## First Steps
 
@@ -92,6 +105,14 @@ Bring **Torches** (craft 4 from 1 Wood + 1 Plant Fiber) to light your way. Place
 | **Q** | Drop selected item from hotbar |
 | **TAB** | Open skill tree |
 | **ESC** | Pause menu (save, settings, quit) |
+
+### Map
+
+| Key | Action |
+|-----|--------|
+| **N** | Toggle minimap |
+| **M** | Open world map |
+| **[ / ]** | Zoom map in / out |
 
 ### Interaction
 
@@ -193,6 +214,8 @@ Stay near your shelter at night until you have strong enough gear to fight comfo
 ## Death and Respawning
 
 When you die, you **respawn at your spawn point** and **keep all your items**. There is no item loss on death, so don't panic. However, you will need to travel back to where you died if you were exploring far from base.
+
+**Exception: Hardcore mode.** In Hardcore difficulty, death is permanent. Your save file is deleted and all progress is lost. See [Difficulty](/wiki/mechanics/difficulty) for details.
 
 ## What's Next
 

@@ -11,6 +11,9 @@ Starfall has several interconnected systems that govern how you interact with th
 
 ## Mechanic Guides
 
+### [Difficulty](/wiki/mechanics/difficulty)
+Choose from 4 difficulty modes at game start: Easy, Normal, Hard, or Hardcore (permadeath). Difficulty scales enemy HP/damage, boss HP, player max HP, loot rates, and i-frame duration. Your difficulty is saved with your world and visible on the pause screen.
+
 ### [Combat](/wiki/mechanics/combat)
 The combat system covers 4 weapon styles (melee, ranged, magic, summon), damage calculation, defense, invincibility frames, and enemy AI patterns. Learn how each weapon type works and how to maximize your damage output.
 
