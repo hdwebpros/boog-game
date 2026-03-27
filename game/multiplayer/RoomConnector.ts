@@ -175,7 +175,9 @@ export class RoomConnector {
   /** Disconnect and close the room */
   disconnect() {
     if (this.ws) {
-      this.ws.send(JSON.stringify({ type: 'leave_room' }))
+      if (this.ws.readyState === WebSocket.OPEN) {
+        try { this.ws.send(JSON.stringify({ type: 'leave_room' })) } catch {}
+      }
       this.ws.close()
       this.ws = null
     }

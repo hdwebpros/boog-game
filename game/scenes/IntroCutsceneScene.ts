@@ -15,7 +15,7 @@ export class IntroCutsceneScene extends Phaser.Scene {
   private astronaut!: Phaser.GameObjects.Container
   private astroFrame = 0
   private astroTimer = 0
-  private astroGraphics: Phaser.GameObjects.Graphics[] = []
+  private astroImages: Phaser.GameObjects.Image[] = []
 
   private flashRect!: Phaser.GameObjects.Rectangle
   private fadeRect!: Phaser.GameObjects.Rectangle
@@ -28,6 +28,11 @@ export class IntroCutsceneScene extends Phaser.Scene {
 
   constructor() {
     super({ key: 'IntroCutsceneScene' })
+  }
+
+  preload() {
+    this.load.image('astro_fall_0', '/sprites/astro_fall_0.png')
+    this.load.image('astro_fall_1', '/sprites/astro_fall_1.png')
   }
 
   create() {
@@ -104,8 +109,8 @@ export class IntroCutsceneScene extends Phaser.Scene {
       if (this.astroTimer > 250) {
         this.astroTimer = 0
         this.astroFrame = (this.astroFrame + 1) % 2
-        this.astroGraphics[0]!.setVisible(this.astroFrame === 0)
-        this.astroGraphics[1]!.setVisible(this.astroFrame === 1)
+        this.astroImages[0]!.setVisible(this.astroFrame === 0)
+        this.astroImages[1]!.setVisible(this.astroFrame === 1)
       }
     }
 
@@ -158,44 +163,16 @@ export class IntroCutsceneScene extends Phaser.Scene {
     this.shuttle.setDepth(10)
   }
 
-  // ── Astronaut construction (two frames) ───────────────────────
+  // ── Astronaut (PNG sprites from Godot project) ────────────────
 
   private buildAstronaut() {
-    // Frame 1 — arms out
-    const f1 = this.add.graphics()
-    f1.fillStyle(0xcccccc)
-    f1.fillCircle(0, -14, 7)         // helmet
-    f1.fillStyle(0x4db3ff)
-    f1.fillRect(-4, -17, 8, 5)       // visor
-    f1.fillStyle(0xdddddd)
-    f1.fillRect(-5, -7, 10, 16)      // torso
-    f1.fillRect(-14, -5, 9, 4)       // left arm
-    f1.fillRect(5, -5, 9, 4)         // right arm
-    f1.fillRect(-5, 9, 4, 10)        // left leg
-    f1.fillRect(1, 9, 4, 10)         // right leg
-    f1.fillStyle(0x888888)
-    f1.fillRect(5, -6, 4, 12)        // backpack
+    const f0 = this.add.image(0, 0, 'astro_fall_0').setOrigin(0.5)
+    const f1 = this.add.image(0, 0, 'astro_fall_1').setOrigin(0.5)
+    f1.setVisible(false)
 
-    // Frame 2 — arms/legs different pose (tumbling look)
-    const f2 = this.add.graphics()
-    f2.fillStyle(0xcccccc)
-    f2.fillCircle(0, -14, 7)
-    f2.fillStyle(0x4db3ff)
-    f2.fillRect(-4, -17, 8, 5)
-    f2.fillStyle(0xdddddd)
-    f2.fillRect(-5, -7, 10, 16)
-    f2.fillRect(-12, -8, 7, 4)       // left arm up
-    f2.fillRect(5, 0, 7, 4)          // right arm down
-    f2.fillRect(-7, 9, 4, 10)        // left leg spread
-    f2.fillRect(3, 9, 4, 10)         // right leg spread
-    f2.fillStyle(0x888888)
-    f2.fillRect(5, -6, 4, 12)
-
-    f2.setVisible(false)
-
-    this.astroGraphics = [f1, f2]
-    this.astronaut = this.add.container(0, -60, [f1, f2])
-    this.astronaut.setScale(3)
+    this.astroImages = [f0, f1]
+    this.astronaut = this.add.container(0, -60, [f0, f1])
+    this.astronaut.setScale(4)
     this.astronaut.setDepth(15)
   }
 
@@ -294,8 +271,8 @@ export class IntroCutsceneScene extends Phaser.Scene {
     this.astronaut.setAlpha(1)
     this.astroFrame = 0
     this.astroTimer = 0
-    this.astroGraphics[0]!.setVisible(true)
-    this.astroGraphics[1]!.setVisible(false)
+    this.astroImages[0]!.setVisible(true)
+    this.astroImages[1]!.setVisible(false)
 
     // Starfield accelerates downward (atmospheric entry feel)
     this.tweens.add({

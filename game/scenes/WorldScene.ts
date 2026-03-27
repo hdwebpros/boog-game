@@ -2792,6 +2792,26 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
+      // Correct sim drift using client-reported position
+      // The sim runs independent physics that drifts from the client's real Player physics
+      // over time (different dt values, input latency, collision differences compound).
+      // CLIENT_STATUS arrives every 100ms with the client's actual position.
+      if (clientState && !clientDead) {
+        const dx = clientState.x - sim.x
+        const dy = clientState.y - sim.y
+        const distSq = dx * dx + dy * dy
+        if (distSq > 64 * 64) {
+          // More than 4 tiles off — snap immediately
+          sim.x = clientState.x
+          sim.y = clientState.y
+        } else if (distSq > 4) {
+          // Blend toward client position (converges in ~3 frames)
+          const blend = Math.min(1, dt * 10)
+          sim.x += dx * blend
+          sim.y += dy * blend
+        }
+      }
+
       // Update the snapshot with sim physics + client-reported vitals
       hostSession.updatePlayerSnapshot(rp.id, {
         x: sim.x,

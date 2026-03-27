@@ -116,6 +116,11 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`enemy_${e}`, `/sprites/enemy_${e}.png`)
     }
 
+    // Void Lord boss animation frames
+    this.load.image('boss_void_lord_idle2', '/sprites/boss_void_lord_idle2.png')
+    this.load.image('boss_void_lord_attack', '/sprites/boss_void_lord_attack.png')
+    this.load.image('boss_void_lord_cast', '/sprites/boss_void_lord_cast.png')
+
     // NPC shopkeeper
     this.load.image('npc_shopkeeper', '/sprites/npc_shopkeeper.png')
   }
