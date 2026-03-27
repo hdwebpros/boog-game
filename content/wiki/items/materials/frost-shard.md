@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 231
 tier: 2
-icon: ''
+icon: item_231.png
 tags: [material, shard, frost, enchanting, tier-2]
 craftedAt: ''
 ---

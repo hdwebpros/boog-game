@@ -2,6 +2,7 @@
 title: Enchanting
 description: How the enchanting system works in Starfall - elemental crystals, chant orbs, weapon enchantments, and the Eternal Chant.
 category: mechanic
+icon: item_230.png
 tags: [mechanic, enchanting, crystals, shards, arcane, weapons]
 ---
 

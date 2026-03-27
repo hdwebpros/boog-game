@@ -2,6 +2,7 @@
 title: Void Forest
 description: A twisted woodland of dark trees in the Void Dimension, stalked by shadow creatures.
 category: biome
+icon: tile_49.png
 tags: [biome, void-dimension, void-forest, void-wood, shadow]
 stats:
   layer: Void Dimension

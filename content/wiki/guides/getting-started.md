@@ -2,6 +2,7 @@
 title: Getting Started
 description: A complete beginner's guide to surviving in Starfall. Learn the controls, inventory management, crafting progression, and early-game strategy.
 category: guide
+icon: astro_idle_0.png
 tags: [guide, beginner, tutorial, controls, inventory, crafting]
 ---
 

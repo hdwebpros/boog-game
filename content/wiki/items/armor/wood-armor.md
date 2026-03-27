@@ -5,7 +5,7 @@ category: item
 subcategory: armor
 gameId: 200
 tier: 0
-icon: ''
+icon: item_200.png
 tags: [armor, wood, tier-0, defense, early-game]
 craftedAt: Workbench
 ---

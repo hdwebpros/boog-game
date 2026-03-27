@@ -2,6 +2,7 @@
 title: Shard Compasses
 description: Five special compasses that help locate crystal shard deposits in the world.
 category: tool
+icon: item_385.png
 tags: [tool, special, compass, shards, void-forge, endgame]
 ---
 

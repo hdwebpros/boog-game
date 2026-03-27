@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 100
 tier: 1
-icon: ''
+icon: item_100.png
 tags: [material, iron, smelting, tier-1]
 craftedAt: Furnace
 ---

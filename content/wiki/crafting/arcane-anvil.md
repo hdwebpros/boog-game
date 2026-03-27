@@ -4,7 +4,7 @@ description: A magic-focused crafting station for chant orbs and arcane items.
 category: crafting
 gameId: 236
 tier: 2
-icon: ''
+icon: tile_36.png
 tags: [crafting, station, arcane-anvil, magic, chants, tier-2]
 ---
 

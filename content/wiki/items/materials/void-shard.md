@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 233
 tier: 3
-icon: ''
+icon: item_233.png
 tags: [material, shard, void, enchanting, tier-3]
 craftedAt: ''
 ---

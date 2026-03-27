@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 235
 tier: 1
-icon: ''
+icon: item_235.png
 tags: [material, arcane, enchanting, tier-1, enemy-drop]
 craftedAt: ''
 ---

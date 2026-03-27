@@ -2,6 +2,7 @@
 title: Boss Strategy Guide
 description: Strategy and tips for defeating all 6 bosses and the true final boss in Starfall.
 category: guide
+icon: boss_void_lord.png
 tags: [guide, bosses, strategy, combat, jetpack]
 ---
 

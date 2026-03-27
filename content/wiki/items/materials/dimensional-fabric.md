@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 355
 tier: 5
-icon: ''
+icon: item_355.png
 tags: [material, void, dimensional, tier-5, void-dimension]
 craftedAt: Void Forge
 ---

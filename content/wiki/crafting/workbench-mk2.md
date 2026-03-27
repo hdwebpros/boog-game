@@ -4,7 +4,7 @@ description: An upgraded workbench that unlocks stone-tier equipment and the Fur
 category: crafting
 gameId: 115
 tier: 1
-icon: ''
+icon: tile_19.png
 tags: [crafting, station, workbench, stone, tier-1]
 ---
 

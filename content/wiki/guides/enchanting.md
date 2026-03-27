@@ -2,6 +2,7 @@
 title: Enchanting Guide
 description: How to find elemental crystals, craft enchantments, and power up your weapons in Starfall.
 category: guide
+icon: item_230.png
 tags: [guide, enchanting, crystals, shards, magic, weapons]
 ---
 

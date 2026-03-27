@@ -2,6 +2,7 @@
 title: Jetpack
 description: How the jetpack works in Starfall - assembly, flight mechanics, fuel, and the ending trigger.
 category: mechanic
+icon: item_186.png
 tags: [mechanic, jetpack, flight, fuel, ending, bosses]
 ---
 

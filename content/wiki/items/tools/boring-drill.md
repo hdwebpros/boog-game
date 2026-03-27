@@ -4,6 +4,7 @@ description: An automated mining machine that drills straight down, harvesting a
 category: tool
 itemId: 420
 tier: 2
+icon: item_420.png
 tags: [tool, mining, automation, special, boring-drill]
 ---
 

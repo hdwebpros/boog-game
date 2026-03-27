@@ -2,6 +2,7 @@
 title: Multiplayer
 description: How multiplayer works in Starfall - hosting, joining, syncing, and chat.
 category: mechanic
+icon: astro_idle_0.png
 tags: [mechanic, multiplayer, networking, co-op, hosting]
 ---
 

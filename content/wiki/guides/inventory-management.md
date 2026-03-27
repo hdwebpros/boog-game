@@ -2,6 +2,7 @@
 title: Inventory Guide
 description: Deep dive into inventory management, equipment, storage, and shopping in Starfall.
 category: guide
+icon: astro_idle_0.png
 tags: [guide, inventory, equipment, armor, accessories, shopping, storage]
 ---
 

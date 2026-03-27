@@ -2,6 +2,7 @@
 title: Dark Citadel
 description: A nether brick fortress in the Void Dimension, the most dangerous zone in the game.
 category: biome
+icon: tile_58.png
 tags: [biome, void-dimension, dark-citadel, nether-brick, endgame]
 stats:
   layer: Void Dimension

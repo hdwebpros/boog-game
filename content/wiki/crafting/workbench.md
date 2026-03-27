@@ -4,7 +4,7 @@ description: The first crafting station, unlocking wood-tier tools, weapons, and
 category: crafting
 gameId: 110
 tier: 0
-icon: ''
+icon: tile_14.png
 tags: [crafting, station, workbench, wood, tier-0]
 ---
 

@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 230
 tier: 2
-icon: ''
+icon: item_230.png
 tags: [material, shard, ember, enchanting, tier-2]
 craftedAt: ''
 ---

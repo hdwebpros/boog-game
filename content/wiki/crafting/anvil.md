@@ -4,7 +4,7 @@ description: Mid-tier crafting station for iron equipment and advanced items.
 category: crafting
 gameId: 112
 tier: 2
-icon: ''
+icon: tile_16.png
 tags: [crafting, station, anvil, iron, tier-2]
 ---
 

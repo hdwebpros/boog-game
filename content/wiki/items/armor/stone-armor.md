@@ -5,7 +5,7 @@ category: item
 subcategory: armor
 gameId: 204
 tier: 1
-icon: ''
+icon: item_204.png
 tags: [armor, stone, tier-1, defense]
 craftedAt: Workbench Mk2
 ---

@@ -5,7 +5,7 @@ category: item
 subcategory: armor
 gameId: 208
 tier: 2
-icon: ''
+icon: item_208.png
 tags: [armor, iron, tier-2, defense, mid-game]
 craftedAt: Anvil
 ---

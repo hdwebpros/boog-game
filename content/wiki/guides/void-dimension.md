@@ -2,6 +2,7 @@
 title: Void Dimension Guide
 description: Complete guide to the Void Dimension endgame content in Starfall, including entry, materials, enemies, and the true final boss.
 category: guide
+icon: tile_49.png
 tags: [guide, void, endgame, bosses, dimension, artifacts]
 ---
 

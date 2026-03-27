@@ -2,6 +2,7 @@
 title: Potions & Buffs
 description: How the potion and buff system works in Starfall - brewing, buff types, durations, and stacking.
 category: mechanic
+icon: item_400.png
 tags: [mechanic, potions, buffs, brewing, consumables]
 ---
 

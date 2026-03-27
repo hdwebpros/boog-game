@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 105
 tier: 0
-icon: ''
+icon: item_105.png
 tags: [material, plant, fiber, tier-0]
 craftedAt: Workbench
 ---

@@ -2,6 +2,7 @@
 title: Snow
 description: A frozen tundra biome patrolled by wolves and wisps.
 category: biome
+icon: tile_12.png
 tags: [biome, surface, snow, ice, frozen]
 stats:
   layer: Surface

@@ -25,6 +25,9 @@ xp: 5000
 location: Overworld (post-game)
 drop: Trophy of the Void Lord
 sprite: boss_void_lord.png
+spriteAttack: boss_void_lord_attack.png
+spriteCast: boss_void_lord_cast.png
+spriteIdle2: boss_void_lord_idle2.png
 size: 128x192
 ---
 ::

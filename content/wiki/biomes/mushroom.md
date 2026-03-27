@@ -2,6 +2,7 @@
 title: Mushroom
 description: A surreal fungal biome filled with giant mushrooms and unusual terrain.
 category: biome
+icon: tile_13.png
 tags: [biome, surface, mushroom, fungal]
 stats:
   layer: Surface

@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 232
 tier: 2
-icon: ''
+icon: item_232.png
 tags: [material, shard, storm, enchanting, tier-2]
 craftedAt: ''
 ---

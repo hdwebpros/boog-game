@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 353
 tier: 5
-icon: ''
+icon: item_353.png
 tags: [material, void, chaos, tier-5, void-dimension, enemy-drop]
 craftedAt: ''
 ---

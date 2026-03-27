@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 101
 tier: 2
-icon: ''
+icon: item_101.png
 tags: [material, diamond, smelting, tier-2]
 craftedAt: Furnace
 ---

@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 351
 tier: 5
-icon: ''
+icon: item_351.png
 tags: [material, void, hellfire, tier-5, void-dimension, enemy-drop]
 craftedAt: ''
 ---

@@ -4,7 +4,7 @@ description: Top-tier crafting station for titanium/carbon gear, the Jetpack, an
 category: crafting
 gameId: 114
 tier: 4
-icon: ''
+icon: tile_18.png
 tags: [crafting, station, fusion, titanium, carbon, tier-4, jetpack]
 ---
 

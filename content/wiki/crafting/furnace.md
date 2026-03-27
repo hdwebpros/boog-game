@@ -4,7 +4,7 @@ description: A smelting station that converts raw ores into refined bars and mat
 category: crafting
 gameId: 111
 tier: 1
-icon: ''
+icon: tile_15.png
 tags: [crafting, station, furnace, smelting, tier-1]
 ---
 

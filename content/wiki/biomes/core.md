@@ -2,6 +2,7 @@
 title: Core
 description: The planet's molten heart, where carbon fiber deposits and extreme danger await.
 category: biome
+icon: tile_23.png
 tags: [biome, core, carbon-fiber, lava, endgame]
 stats:
   layer: Core (y 1320+)

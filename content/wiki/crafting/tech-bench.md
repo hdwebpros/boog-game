@@ -4,7 +4,7 @@ description: High-tier crafting station for diamond equipment and titanium smelt
 category: crafting
 gameId: 113
 tier: 3
-icon: ''
+icon: tile_17.png
 tags: [crafting, station, tech-bench, diamond, tier-3]
 ---
 

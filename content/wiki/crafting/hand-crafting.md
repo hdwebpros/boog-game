@@ -4,7 +4,7 @@ description: The most basic crafting method, available from the moment you land 
 category: crafting
 gameId: 0
 tier: 0
-icon: ''
+icon: item_120.png
 tags: [crafting, station, hand, tier-0]
 ---
 

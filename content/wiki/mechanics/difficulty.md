@@ -2,6 +2,7 @@
 title: Difficulty
 description: How the difficulty system works in Starfall - Easy, Normal, Hard, and Hardcore modes with stat scaling.
 category: mechanic
+icon: astro_idle_0.png
 tags: [mechanic, difficulty, settings, game-modes]
 ---
 

@@ -4,7 +4,7 @@ description: A potion-brewing station that produces all 16 combat and utility po
 category: crafting
 gameId: 118
 tier: 1
-icon: ''
+icon: tile_61.png
 tags: [crafting, station, brewing-stand, potions, tier-1]
 ---
 

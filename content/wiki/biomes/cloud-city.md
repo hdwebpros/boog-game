@@ -2,6 +2,8 @@
 title: Cloud City
 description: A floating island city high in the sky, home to the Sky Merchant and rare accessories.
 category: biome
+icon: tile_38.png
+npcSprite: npc_shopkeeper.png
 tags: [biome, sky, cloud-city, shop, accessories, artifacts]
 stats:
   layer: Sky (y=60)

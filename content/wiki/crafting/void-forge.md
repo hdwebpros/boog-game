@@ -4,7 +4,7 @@ description: The ultimate crafting station for void-tier weapons, armor, and the
 category: crafting
 gameId: 321
 tier: 5
-icon: ''
+icon: tile_321.png
 tags: [crafting, station, void-forge, void, endgame, tier-5]
 ---
 

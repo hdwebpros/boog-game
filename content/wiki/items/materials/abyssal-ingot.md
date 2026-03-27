@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 354
 tier: 5
-icon: ''
+icon: item_354.png
 tags: [material, void, abyssal, tier-5, void-dimension]
 craftedAt: Void Forge
 ---

@@ -5,7 +5,7 @@ category: item
 subcategory: armor
 gameId: 212
 tier: 3
-icon: ''
+icon: item_212.png
 tags: [armor, diamond, tier-3, defense, late-game]
 craftedAt: Tech Bench
 ---

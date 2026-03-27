@@ -2,6 +2,7 @@
 title: Desert
 description: A sandy biome with scorching heat, cacti, and dangerous scorpions.
 category: biome
+icon: tile_11.png
 tags: [biome, surface, desert, sand, sandstone]
 stats:
   layer: Surface

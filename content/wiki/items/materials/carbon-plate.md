@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 103
 tier: 4
-icon: ''
+icon: item_103.png
 tags: [material, carbon, tier-4, end-game]
 craftedAt: Fusion Station
 ---

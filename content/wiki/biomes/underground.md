@@ -2,6 +2,7 @@
 title: Underground
 description: A vast network of caves beneath the surface, rich in ores and teeming with hostile creatures.
 category: biome
+icon: tile_3.png
 tags: [biome, underground, caves, mining, ores]
 stats:
   layer: Underground (y 180-640)

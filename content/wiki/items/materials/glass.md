@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 104
 tier: 0
-icon: ''
+icon: item_104.png
 tags: [material, glass, smelting, tier-0]
 craftedAt: Furnace
 ---

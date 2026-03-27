@@ -2,6 +2,7 @@
 title: Jungle
 description: A dense tropical biome crawling with spiders and vine creatures.
 category: biome
+icon: tile_4.png
 tags: [biome, surface, jungle, tropical, vines]
 stats:
   layer: Surface

@@ -2,6 +2,7 @@
 title: Forest
 description: A dense woodland biome rich in timber and plant materials.
 category: biome
+icon: tile_4.png
 tags: [biome, surface, forest, trees, wood]
 stats:
   layer: Surface

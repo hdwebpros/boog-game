@@ -2,6 +2,7 @@
 title: Ashen Wastes
 description: The entry zone of the Void Dimension, a desolate expanse of ash and brimstone.
 category: biome
+icon: tile_49.png
 tags: [biome, void-dimension, ashen-wastes, ash, brimstone]
 stats:
   layer: Void Dimension

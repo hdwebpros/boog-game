@@ -2,6 +2,7 @@
 title: Plains
 description: A flat grassland biome and the ideal starting area for crash-landed astronauts.
 category: biome
+icon: tile_1.png
 tags: [biome, surface, plains, grass, starter]
 stats:
   layer: Surface

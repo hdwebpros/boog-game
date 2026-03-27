@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 234
 tier: 1
-icon: ''
+icon: item_234.png
 tags: [material, shard, life, enchanting, tier-1]
 craftedAt: ''
 ---

@@ -2,6 +2,7 @@
 title: Lake
 description: A water biome with coral reefs, aquatic life, and underwater resources.
 category: biome
+icon: tile_10.png
 tags: [biome, surface, lake, ocean, water, coral]
 stats:
   layer: Surface / Ocean

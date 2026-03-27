@@ -2,6 +2,7 @@
 title: Controls & Hotkeys
 description: Complete reference for all keyboard and mouse controls in Starfall.
 category: guide
+icon: astro_walk_0.png
 tags: [guide, controls, hotkeys, keyboard, mouse, reference]
 ---
 

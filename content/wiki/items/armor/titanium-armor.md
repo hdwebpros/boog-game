@@ -5,7 +5,7 @@ category: item
 subcategory: armor
 gameId: 216
 tier: 4
-icon: ''
+icon: item_216.png
 tags: [armor, titanium, tier-4, defense, end-game]
 craftedAt: Fusion Station
 ---

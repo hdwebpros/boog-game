@@ -5,7 +5,7 @@ category: item
 subcategory: armor
 gameId: 340
 tier: 5
-icon: ''
+icon: item_340.png
 tags: [armor, void, tier-5, defense, post-game, void-dimension]
 craftedAt: Void Forge
 ---

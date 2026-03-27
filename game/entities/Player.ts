@@ -1273,7 +1273,7 @@ export class Player {
 
     if (this.isClimbing) {
       // ── Vine climbing: move up/down, no gravity ──
-      const climbSpeed = MOVE_SPEED * 0.6
+      const climbSpeed = MOVE_SPEED * 1.2
       if (holdUp) {
         this.vy = -climbSpeed
       } else if (holdDown) {

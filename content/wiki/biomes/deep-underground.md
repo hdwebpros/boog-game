@@ -2,6 +2,7 @@
 title: Deep Underground
 description: Vast caverns deep beneath the surface, home to titanium ore and rivers of lava.
 category: biome
+icon: tile_24.png
 tags: [biome, deep-underground, caverns, titanium, lava]
 stats:
   layer: Deep Underground (y 640-1320)

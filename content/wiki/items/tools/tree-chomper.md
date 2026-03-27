@@ -4,6 +4,7 @@ description: A specialized tool for quickly harvesting trees, leaves, and other 
 category: tool
 itemId: 421
 tier: 2
+icon: item_421.png
 tags: [tool, mining, tree, wood, harvesting]
 ---
 

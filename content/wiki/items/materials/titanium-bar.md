@@ -5,7 +5,7 @@ category: item
 subcategory: material
 gameId: 102
 tier: 3
-icon: ''
+icon: item_102.png
 tags: [material, titanium, smelting, tier-3]
 craftedAt: Tech Bench
 ---

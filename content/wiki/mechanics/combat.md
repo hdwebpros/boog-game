@@ -2,6 +2,7 @@
 title: Combat
 description: How combat works in Starfall - weapons, damage, defense, i-frames, and enchantments.
 category: mechanic
+icon: astro_attack_0.png
 tags: [mechanic, combat, weapons, damage, defense, enchantment]
 ---
 

@@ -2,6 +2,7 @@
 title: Mountains
 description: An elevated rocky biome with exposed iron ore and swooping hawks.
 category: biome
+icon: tile_3.png
 tags: [biome, surface, mountains, stone, iron, mining]
 stats:
   layer: Surface

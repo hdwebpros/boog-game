@@ -2,6 +2,7 @@
 title: Hellfire Caverns
 description: Lava-flooded tunnels in the Void Dimension, rich with hellfire ore.
 category: biome
+icon: tile_54.png
 tags: [biome, void-dimension, hellfire-caverns, lava, hellfire-ore]
 stats:
   layer: Void Dimension
