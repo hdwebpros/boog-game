@@ -13,6 +13,7 @@ import {
   type JoinRejected,
   type ChatMessage,
   type AttackRequest,
+  type ClientStatus,
   MessageType,
   PROTOCOL_VERSION,
   PLAYER_SYNC_INTERVAL,
@@ -372,6 +373,15 @@ export class NetworkManager {
       type: MessageType.ITEM_DROP,
       senderId: this._playerId,
       data: { itemId, count },
+    })
+  }
+
+  /** Send client vitals/position status to host */
+  sendClientStatus(status: ClientStatus) {
+    this.send({
+      type: MessageType.CLIENT_STATUS,
+      senderId: this._playerId,
+      data: status,
     })
   }
 

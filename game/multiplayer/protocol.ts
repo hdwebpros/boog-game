@@ -40,6 +40,7 @@ export enum MessageType {
   CHAT_MESSAGE     = 15,
   ATTACK_REQUEST   = 16,
   CHEST_REQUEST    = 17,  // client → host: open/close chest
+  CLIENT_STATUS    = 18,  // client → host: vitals + position (client-authoritative)
 
   // Targeted (host → specific client, broadcast with playerId filter)
   ITEM_PICKUP      = 32,  // item picked up by remote player
@@ -131,6 +132,17 @@ export interface AttackRequest {
   manaCost?: number
   attackSpeed?: number
   facingRight: boolean
+}
+
+/** Client-reported vitals and position (client → host, client-authoritative) */
+export interface ClientStatus {
+  hp: number
+  maxHp: number
+  mana: number
+  maxMana: number
+  dead: boolean
+  x: number
+  y: number
 }
 
 // ── State Snapshots ───────────────────────────────────────
@@ -280,6 +292,9 @@ export const MAX_PLAYERS = 8
 
 /** Chunk size for streaming tile data */
 export const TILE_CHUNK_SIZE = 32
+
+/** How often clients send their vitals/position to host (ms) */
+export const CLIENT_STATUS_INTERVAL = 100
 
 // ── Serialization helpers ─────────────────────────────────
 

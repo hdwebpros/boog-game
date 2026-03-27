@@ -18,12 +18,9 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     // Load PixelLab-generated tile PNGs (take priority over procedural sprites)
-    for (let i = 1; i <= 19; i++) {
+    for (let i = 1; i <= 48; i++) {
       this.load.image(`tile_${i}`, `/sprites/tile_${i}.png`)
     }
-    this.load.image('tile_36', '/sprites/tile_36.png')
-    this.load.image('tile_42', '/sprites/tile_42.png')
-    this.load.image('tile_48', '/sprites/tile_48.png')
 
     // Load player frame PNGs directly (all 32x64 or 48x64)
     const playerFrames = ['idle1', 'idle2', 'walk1', 'walk2', 'walk3', 'walk4']
@@ -37,13 +34,18 @@ export class BootScene extends Phaser.Scene {
     this.load.image('player_attack2', '/sprites/player_attack2.png')
 
     // Load enemy PNGs
-    const enemies = ['space_slug', 'cave_bat', 'rock_golem', 'anglerfish', 'lava_serpent', 'corrupted_drone', 'vampire']
+    const enemies = [
+      'space_slug', 'cave_bat', 'rock_golem', 'anglerfish', 'lava_serpent', 'corrupted_drone', 'vampire',
+      'dust_devil', 'fish', 'frost_wolf', 'fungal_shambler', 'gloom_moth', 'ice_wisp',
+      'jungle_spider', 'mimic', 'mountain_hawk', 'phantom_wraith', 'sand_scorpion',
+      'shock_beetle', 'sporeling', 'vine_strangler',
+    ]
     for (const e of enemies) {
       this.load.image(`enemy_${e}`, `/sprites/enemy_${e}.png`)
     }
 
     // Load boss PNGs
-    const bosses = ['vine_guardian', 'deep_sea_leviathan', 'crystal_golem', 'magma_wyrm', 'core_sentinel', 'mothership']
+    const bosses = ['vine_guardian', 'deep_sea_leviathan', 'crystal_golem', 'magma_wyrm', 'core_sentinel', 'mothership', 'void_lord']
     for (const b of bosses) {
       this.load.image(`boss_${b}`, `/sprites/boss_${b}.png`)
     }
@@ -97,8 +99,8 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`item_${id}`, `/sprites/item_${id}.png`)
     }
 
-    // Load void dimension tile PNGs (49-60)
-    for (let i = 49; i <= 60; i++) {
+    // Load void dimension tile PNGs (49-69)
+    for (let i = 49; i <= 69; i++) {
       this.load.image(`tile_${i}`, `/sprites/tile_${i}.png`)
     }
 
@@ -114,8 +116,8 @@ export class BootScene extends Phaser.Scene {
       this.load.image(`enemy_${e}`, `/sprites/enemy_${e}.png`)
     }
 
-    // Void Lord boss sprites are generated procedurally by SpriteGenerator
-    // (PNGs removed — no preload needed)
+    // NPC shopkeeper
+    this.load.image('npc_shopkeeper', '/sprites/npc_shopkeeper.png')
   }
 
   create() {

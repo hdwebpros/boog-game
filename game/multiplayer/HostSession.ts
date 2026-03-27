@@ -16,6 +16,7 @@ import {
   type DroppedItemSnapshot,
   type ProjectileSnapshot,
   type JoinRejected,
+  type ClientStatus,
   MessageType,
   PROTOCOL_VERSION,
   MAX_PLAYERS,
@@ -37,6 +38,8 @@ export interface RemotePlayer {
   ws: any  // WebSocket reference (browser or server)
   lastInput: InputState | null
   snapshot: PlayerSnapshot
+  /** Client-reported vitals (authoritative for HP/mana/dead) */
+  clientState: ClientStatus | null
   joinedAt: number
 }
 
@@ -130,6 +133,9 @@ export class HostSession {
         // Forward to WorldScene for chest interaction
         return msg
 
+      case MessageType.CLIENT_STATUS:
+        return this.handleClientStatus(msg)
+
       default:
         return null
     }
@@ -170,6 +176,7 @@ export class HostSession {
       name: req.playerName,
       ws: null,
       lastInput: null,
+      clientState: null,
       snapshot: {
         id: playerId,
         name: req.playerName,
@@ -202,6 +209,19 @@ export class HostSession {
     if (!player) return null
     player.lastInput = msg.data as InputState
     return msg // Forward to WorldScene for processing
+  }
+
+  /** Handle client-reported vitals (client-authoritative HP/mana/dead/position) */
+  private handleClientStatus(msg: NetworkMessage): NetworkMessage | null {
+    const player = this.players.get(msg.senderId)
+    if (!player) return null
+    player.clientState = msg.data as ClientStatus
+    return null  // consumed here, not forwarded to WorldScene
+  }
+
+  /** Get client-reported state for a remote player */
+  getClientState(playerId: number): ClientStatus | null {
+    return this.players.get(playerId)?.clientState ?? null
   }
 
   /** Handle tile change request — validates and records */

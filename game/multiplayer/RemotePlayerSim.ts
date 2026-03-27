@@ -1,6 +1,9 @@
 /**
  * Lightweight physics simulation for a remote player on the host.
- * No sprites, no audio, no inventory — just position, velocity, and AABB collision.
+ * Tracks position/velocity/collision for hit detection and enemy AI targeting.
+ *
+ * HP, mana, and death state are CLIENT-AUTHORITATIVE — the client reports them
+ * via CLIENT_STATUS messages. This sim only handles physics and hit cooldowns.
  */
 
 import type { InputState } from './protocol'
@@ -16,8 +19,7 @@ export const REMOTE_COL_W = 12
 export const REMOTE_COL_H = 28
 const FALL_DMG_THRESHOLD = 450
 const FALL_DMG_FACTOR = 0.1
-const IFRAMES_DURATION = 500
-const RESPAWN_DELAY = 3000
+const HIT_COOLDOWN = 500
 
 export class RemotePlayerSim {
   x: number
@@ -26,69 +28,35 @@ export class RemotePlayerSim {
   vy = 0
   isGrounded = false
   facingRight = true
-  hp = 100
-  maxHp = 100
-  mana = 100
-  maxMana = 100
-  dead = false
-  iFrames = 0
+  /** Hit cooldown — gates how often COMBAT_EVENTs are sent (prevents spam) */
+  hitCooldown = 0
   isInWater = false
-  respawnTimer = 0
   actionAnim = '' // 'mining' | 'attacking' | ''
   weaponStyle = '' // 'melee' | 'ranged' | 'magic' | 'summon' | ''
-  /** Client-reported position (more accurate than sim for features like pickup) */
-  clientX = 0
-  clientY = 0
   private maxFallVy = 0
 
   constructor(x: number, y: number) {
     this.x = x
     this.y = y
-    this.clientX = x
-    this.clientY = y
   }
 
-  /** Apply damage (host-side). Returns true if the hit was valid (not blocked by i-frames). */
-  takeDamage(amount: number, kbx: number, kby: number): boolean {
-    if (this.iFrames > 0 || this.dead) return false
-    this.hp -= amount
-    this.iFrames = IFRAMES_DURATION
+  /**
+   * Apply knockback and start hit cooldown. Returns true if the hit should
+   * be reported to the client via COMBAT_EVENT (not on cooldown).
+   * Does NOT track HP or death — the client handles that.
+   */
+  applyHit(kbx: number, kby: number): boolean {
+    if (this.hitCooldown > 0) return false
+    this.hitCooldown = HIT_COOLDOWN
     this.vx += kbx
     this.vy += kby
-    if (this.hp <= 0) {
-      this.hp = 0
-      this.dead = true
-      this.respawnTimer = RESPAWN_DELAY
-    }
     return true
   }
 
-  /** Respawn at a given position */
-  respawn(spawnX: number, spawnY: number) {
-    this.dead = false
-    this.hp = this.maxHp
-    this.mana = this.maxMana
-    this.x = spawnX
-    this.y = spawnY
-    this.clientX = spawnX
-    this.clientY = spawnY
-    this.vx = 0
-    this.vy = 0
-    this.iFrames = IFRAMES_DURATION * 3
-  }
-
-  /** Simulate one tick. Returns fall damage dealt (0 if none) so host can broadcast combat event. */
+  /** Simulate one tick. Returns fall damage amount (0 if none) so host can broadcast COMBAT_EVENT. */
   simulate(input: InputState, dt: number, chunks: ChunkManager): number {
-    if (this.dead) return 0
-
-    // Store client-reported position for accurate pickup/interaction checks
-    if (input.px !== undefined && input.py !== undefined) {
-      this.clientX = input.px
-      this.clientY = input.py
-    }
-
-    // Tick down i-frames
-    if (this.iFrames > 0) this.iFrames -= dt * 1000
+    // Tick down hit cooldown
+    if (this.hitCooldown > 0) this.hitCooldown -= dt * 1000
 
     // Use client-reported action animation (mining/attacking)
     // weaponStyle is set by handleRemoteAttack, clear when actionAnim clears
@@ -139,7 +107,7 @@ export class RemotePlayerSim {
     return fallDmg
   }
 
-  /** Returns fall damage dealt this tick (0 if none). */
+  /** Returns fall damage amount this tick (0 if none). Does NOT apply damage. */
   private resolveCollisions(dt: number, chunks: ChunkManager): number {
     const hw = REMOTE_COL_W / 2
     const hh = REMOTE_COL_H / 2
@@ -156,7 +124,6 @@ export class RemotePlayerSim {
         this.isGrounded = true
         if (this.maxFallVy > FALL_DMG_THRESHOLD) {
           fallDamage = Math.floor((this.maxFallVy - FALL_DMG_THRESHOLD) * FALL_DMG_FACTOR)
-          if (fallDamage > 0) this.takeDamage(fallDamage, 0, 0)
         }
         this.maxFallVy = 0
       }

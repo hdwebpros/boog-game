@@ -24,6 +24,7 @@ import {
   type JoinAccepted,
   type CombatEvent,
   type AttackRequest,
+  type ClientStatus,
   MessageType,
   PLAYER_SYNC_INTERVAL,
 } from './protocol'
@@ -260,6 +261,13 @@ export class MultiplayerManager {
   sendChestRequest(tx: number, ty: number, action: 'open' | 'close', items?: (any | null)[]) {
     if (this._mode === 'client' && this.network) {
       this.network.sendChestRequest(tx, ty, action, items)
+    }
+  }
+
+  /** Send client vitals/position to host (client mode only) */
+  sendClientStatus(status: ClientStatus) {
+    if (this._mode === 'client' && this.network) {
+      this.network.sendClientStatus(status)
     }
   }
 

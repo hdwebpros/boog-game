@@ -24,7 +24,8 @@ import { ParticleManager } from '../systems/ParticleManager'
 import { MultiplayerManager, RoomConnector, RemotePlayerSim, REMOTE_COL_W, REMOTE_COL_H, encodeMessage, MessageType } from '../multiplayer'
 import { DifficultyManager } from '../systems/DifficultyManager'
 import type { NetworkManager } from '../multiplayer'
-import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, ProjectileSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage, AttackRequest, CombatEvent, BossSummonRequest } from '../multiplayer'
+import type { PlayerSnapshot, EnemySnapshot, BossSnapshot, DroppedItemSnapshot, ProjectileSnapshot, JoinAccepted, TileChangeRequest, NetworkMessage, AttackRequest, CombatEvent, BossSummonRequest, ClientStatus } from '../multiplayer'
+import { CLIENT_STATUS_INTERVAL } from '../multiplayer'
 
 // Y pixel thresholds for music zones (start music slightly before layer boundary)
 const SKY_Y         = 80 * TILE_SIZE                       // above Cloud City
@@ -83,6 +84,7 @@ export class WorldScene extends Phaser.Scene {
   mp = new MultiplayerManager()
   private roomConnector: RoomConnector | null = null
   private remotePlayerSims = new Map<number, RemotePlayerSim>()
+  private clientStatusTimer = 0
   /** Client-side enemy sprites (rendered from host sync data) */
   private clientEnemySprites = new Map<number, Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle>()
   /** Client-side boss sprite */
@@ -654,8 +656,10 @@ export class WorldScene extends Phaser.Scene {
       const allPlayerPositions: { x: number; y: number; id: number }[] = [
         { x: this.player.sprite.x, y: this.player.sprite.y, id: this.mp.localPlayerId },
       ]
+      const hostSession = this.mp.getHostSession()!
       for (const [id, sim] of this.remotePlayerSims) {
-        if (!sim.dead) {
+        const clientDead = hostSession.getClientState(id)?.dead ?? false
+        if (!clientDead) {
           allPlayerPositions.push({ x: sim.x, y: sim.y, id })
         }
       }
@@ -708,7 +712,8 @@ export class WorldScene extends Phaser.Scene {
 
       // Check enemy contact damage against remote players (host side)
       for (const [rpId, sim] of this.remotePlayerSims) {
-        if (sim.dead || sim.iFrames > 0) continue
+        const rpDead = hostSession.getClientState(rpId)?.dead ?? false
+        if (rpDead || sim.hitCooldown > 0) continue
         for (const enemy of this.enemies) {
           if (!enemy.alive || enemy.intangible) continue
           const eb = enemy.getBounds()
@@ -720,7 +725,7 @@ export class WorldScene extends Phaser.Scene {
               rpTop < eb.y + eb.h && rpTop + REMOTE_COL_H > eb.y) {
             const kbx = (sim.x - enemy.sprite.x) > 0 ? 180 : -180
             const kby = -120
-            if (sim.takeDamage(enemy.effectiveDamage, kbx, kby)) {
+            if (sim.applyHit(kbx, kby)) {
               this.mp.broadcastCombatEvent({
                 type: 'damage',
                 targetType: 'player',
@@ -782,14 +787,15 @@ export class WorldScene extends Phaser.Scene {
         {
           const bb = this.activeBoss.getBounds()
           for (const [rpId, sim] of this.remotePlayerSims) {
-            if (sim.dead || sim.iFrames > 0) continue
+            const rpDead = hostSession.getClientState(rpId)?.dead ?? false
+            if (rpDead || sim.hitCooldown > 0) continue
             const rpLeft = sim.x - REMOTE_COL_W / 2
             const rpTop = sim.y - REMOTE_COL_H / 2
             if (rpLeft < bb.x + bb.w && rpLeft + REMOTE_COL_W > bb.x &&
                 rpTop < bb.y + bb.h && rpTop + REMOTE_COL_H > bb.y) {
               const kbx = (sim.x - this.activeBoss.sprite.x) > 0 ? 200 : -200
               const kby = -150
-              if (sim.takeDamage(this.activeBoss.getContactDamage(), kbx, kby)) {
+              if (sim.applyHit(kbx, kby)) {
                 this.mp.broadcastCombatEvent({
                   type: 'damage',
                   targetType: 'player',
@@ -852,7 +858,8 @@ export class WorldScene extends Phaser.Scene {
 
       // Check enemy projectile hits against remote players
       for (const [rpId, sim] of this.remotePlayerSims) {
-        if (sim.dead || sim.iFrames > 0) continue
+        const rpDead = hostSession.getClientState(rpId)?.dead ?? false
+        if (rpDead || sim.hitCooldown > 0) continue
         const rpBounds = {
           x: sim.x - REMOTE_COL_W / 2,
           y: sim.y - REMOTE_COL_H / 2,
@@ -866,7 +873,7 @@ export class WorldScene extends Phaser.Scene {
               pb.y < rpBounds.y + rpBounds.h && pb.y + pb.h > rpBounds.y) {
             const kbx = p.vx > 0 ? 100 : -100
             const kby = -80
-            if (sim.takeDamage(p.damage, kbx, kby)) {
+            if (sim.applyHit(kbx, kby)) {
               this.mp.broadcastCombatEvent({
                 type: 'damage',
                 targetType: 'player',
@@ -1012,6 +1019,21 @@ export class WorldScene extends Phaser.Scene {
 
       // Apply pending state from host
       this.applyClientSync()
+
+      // Send client vitals/position to host periodically
+      this.clientStatusTimer += dt * 1000
+      if (this.clientStatusTimer >= CLIENT_STATUS_INTERVAL) {
+        this.clientStatusTimer = 0
+        this.mp.sendClientStatus({
+          hp: this.player.hp,
+          maxHp: this.player.maxHp,
+          mana: this.player.mana,
+          maxMana: this.player.maxMana,
+          dead: this.player.dead,
+          x: this.player.sprite.x,
+          y: this.player.sprite.y,
+        })
+      }
     }
 
     // Clients skip combat.update() — still need to animate damage numbers
@@ -2103,13 +2125,14 @@ export class WorldScene extends Phaser.Scene {
         }
       }
 
-      // Host: check remote player pickups (use client-reported position for accuracy)
+      // Host: check remote player pickups
       if (this.mp.isHost && drop.canPickup()) {
+        const hs = this.mp.getHostSession()!
         for (const [rpId, sim] of this.remotePlayerSims) {
-          if (sim.dead) continue
-          // Check both sim position and client-reported position — client pos is more
-          // accurate since the sim doesn't account for speed modifiers/skills
-          if (drop.isNear(sim.x, sim.y) || drop.isNear(sim.clientX, sim.clientY)) {
+          const cs = hs.getClientState(rpId)
+          if (cs?.dead) continue
+          // Check both sim position and client-reported position
+          if (drop.isNear(sim.x, sim.y) || (cs && drop.isNear(cs.x, cs.y))) {
             // Notify the client that they picked up this item
             this.mp.getHostSession()!.broadcast({
               type: MessageType.ITEM_PICKUP,
@@ -2739,46 +2762,48 @@ export class WorldScene extends Phaser.Scene {
       const sim = this.remotePlayerSims.get(rp.id)
       if (!sim) continue
 
-      // Respawn dead remote players after delay (Fix #12)
-      if (sim.dead) {
-        sim.respawnTimer -= dt * 1000
-        if (sim.respawnTimer <= 0) {
-          const spawnX = this.worldData.spawnX * TILE_SIZE + TILE_SIZE / 2
-          const spawnY = this.worldData.spawnY * TILE_SIZE + TILE_SIZE / 2
-          sim.respawn(spawnX, spawnY)
+      // Get client-reported state (authoritative for HP/mana/dead)
+      const clientState = hostSession.getClientState(rp.id)
+      const clientDead = clientState?.dead ?? false
+
+      if (clientDead) {
+        // Client is dead — sync sim position from client report, skip physics
+        if (clientState) {
+          sim.x = clientState.x
+          sim.y = clientState.y
+        }
+      } else {
+        // Apply latest input from this player
+        const input = rp.lastInput
+        if (input) {
+          const fallDmg = sim.simulate(input, dt, this.chunkManager)
+          if (fallDmg > 0) {
+            this.mp.broadcastCombatEvent({
+              type: 'damage',
+              targetType: 'player',
+              targetId: rp.id,
+              sourceId: 0,
+              amount: fallDmg,
+              x: sim.x,
+              y: sim.y,
+              color: 0xff4444,
+            })
+          }
         }
       }
 
-      // Apply latest input from this player
-      const input = rp.lastInput
-      if (input) {
-        const fallDmg = sim.simulate(input, dt, this.chunkManager)
-        if (fallDmg > 0) {
-          this.mp.broadcastCombatEvent({
-            type: 'damage',
-            targetType: 'player',
-            targetId: rp.id,
-            sourceId: 0,
-            amount: fallDmg,
-            x: sim.x,
-            y: sim.y,
-            color: 0xff4444,
-          })
-        }
-      }
-
-      // Update the snapshot that gets broadcast (Fix #5 — include all fields)
+      // Update the snapshot with sim physics + client-reported vitals
       hostSession.updatePlayerSnapshot(rp.id, {
         x: sim.x,
         y: sim.y,
         vx: sim.vx,
         vy: sim.vy,
         facingRight: sim.facingRight,
-        hp: sim.hp,
-        maxHp: sim.maxHp,
-        mana: sim.mana,
-        maxMana: sim.maxMana,
-        dead: sim.dead,
+        hp: clientState?.hp ?? 100,
+        maxHp: clientState?.maxHp ?? 100,
+        mana: clientState?.mana ?? 100,
+        maxMana: clientState?.maxMana ?? 100,
+        dead: clientDead,
         isInWater: sim.isInWater,
         actionAnim: sim.actionAnim,
         weaponStyle: sim.weaponStyle,
@@ -2795,9 +2820,9 @@ export class WorldScene extends Phaser.Scene {
         rpState.targetX = sim.x
         rpState.targetY = sim.y
         rpState.facingRight = sim.facingRight
-        rpState.hp = sim.hp
-        rpState.maxHp = sim.maxHp
-        rpState.dead = sim.dead
+        rpState.hp = clientState?.hp ?? 100
+        rpState.maxHp = clientState?.maxHp ?? 100
+        rpState.dead = clientDead
         rpState.actionAnim = sim.actionAnim
         rpState.weaponStyle = sim.weaponStyle
         rpState.interpT = 1 // no interpolation needed for host
@@ -2863,25 +2888,18 @@ export class WorldScene extends Phaser.Scene {
       this.dayNight.time = dayNightTime
     }
 
-    // Apply host-authoritative state to local player (HP, mana, death/respawn only).
-    // The client is authoritative for its own movement — position is NOT corrected
-    // from the host's RemotePlayerSim, since they run identical physics on different
-    // clocks and will always diverge slightly, causing jitter if corrected.
+    // Client is authoritative for its own vitals (HP/mana/dead).
+    // The host snapshot just echoes what the client reported via CLIENT_STATUS.
+    // Only handle reconnect/respawn: if host says alive but client is dead.
     const correction = this.mp.consumeLocalPlayerCorrection()
     if (correction) {
-      if (correction.dead && !this.player.dead) {
-        // Host says dead → kill client
-        this.player.hp = 0
-        this.player.takeDamage(0, 0, 0, this.combat)
-      } else if (!correction.dead && this.player.dead) {
-        // Host says alive → respawn at host position
-        this.player.forceRespawn(correction.x, correction.y, correction.hp, correction.mana)
+      if (!correction.dead && this.player.dead) {
+        // Host says alive → respawn (reconnect scenario)
+        this.player.forceRespawn(correction.x, correction.y, this.player.maxHp, this.player.maxMana)
         this.mp.consumeCombatEvents()
       }
-      // HP/mana are NOT synced from the host correction in the normal case.
-      // The host's RemotePlayerSim lacks regen/skills/buffs, so its HP is always
-      // stale-low, and damage is already applied via COMBAT_EVENT — syncing HP
-      // here would double-count damage AND prevent the client from healing.
+      // No HP/mana/death overrides — client handles all of that locally.
+      // Damage comes through COMBAT_EVENTs, regen runs on client.
     }
 
     // Apply item pickups from host
