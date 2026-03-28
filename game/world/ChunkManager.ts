@@ -51,6 +51,7 @@ export class ChunkManager {
   // Altar & runestone sprites (drawn as game objects, not baked into chunks)
   private altarSprites: Phaser.GameObjects.Graphics[] = []
   private runestoneSprites: Phaser.GameObjects.Graphics[] = []
+  private loreRunestoneSprite: Phaser.GameObjects.Graphics | null = null
 
   constructor(scene: Phaser.Scene, worldData: WorldData) {
     this.scene = scene
@@ -78,6 +79,7 @@ export class ChunkManager {
     // Create altar sprites
     this.createAltarSprites()
     this.createRunestoneSprites()
+    this.createLoreRunestoneSprite()
   }
 
   private createAltarSprites() {
@@ -153,6 +155,55 @@ export class ChunkManager {
 
       this.runestoneSprites.push(gfx)
     }
+  }
+
+  private createLoreRunestoneSprite() {
+    const pos = this.worldData.loreRunestonePos
+    if (!pos) return
+
+    const px = pos.tx * TILE_SIZE
+    const py = pos.ty * TILE_SIZE
+
+    const gfx = this.scene.add.graphics()
+    gfx.setPosition(px, py)
+    gfx.setDepth(5)
+
+    // Larger stone tablet (2 tiles tall) with a wider base
+    const w = TILE_SIZE + 4
+    const h = TILE_SIZE * 2
+
+    // Stone body
+    gfx.fillStyle(0x5a5a6a)
+    gfx.fillRect(-2, -h, w, h)
+
+    // Rounded top accent
+    gfx.fillStyle(0x5a5a6a)
+    gfx.fillTriangle(w / 2 - 2, -h - 8, -2, -h, w - 2, -h)
+
+    // Dark border edges
+    gfx.fillStyle(0x3a3a4a)
+    gfx.fillRect(-2, -h, 2, h)
+    gfx.fillRect(w - 4, -h, 2, h)
+
+    // Carved line decorations
+    gfx.fillStyle(0x8888aa, 0.6)
+    gfx.fillRect(3, -h + 6, w - 10, 1)
+    gfx.fillRect(3, -h + 10, w - 10, 1)
+    gfx.fillRect(3, -h + 14, w - 10, 1)
+    gfx.fillRect(3, -h + 18, w - 10, 1)
+    gfx.fillRect(3, -h + 22, w - 10, 1)
+
+    // Glowing amber center rune
+    gfx.fillStyle(0xddaa44, 0.8)
+    gfx.fillRect(w / 2 - 3, -TILE_SIZE - 2, 6, 6)
+    gfx.fillStyle(0xffcc66, 0.5)
+    gfx.fillRect(w / 2 - 2, -TILE_SIZE - 1, 4, 4)
+
+    this.loreRunestoneSprite = gfx
+  }
+
+  getLoreRunestonePos(): { tx: number; ty: number } | null {
+    return this.worldData.loreRunestonePos ?? null
   }
 
   update() {
@@ -541,6 +592,7 @@ export class ChunkManager {
     this.altarSprites = []
     for (const s of this.runestoneSprites) s.destroy()
     this.runestoneSprites = []
+    if (this.loreRunestoneSprite) { this.loreRunestoneSprite.destroy(); this.loreRunestoneSprite = null }
     for (const [, gfx] of this.portalSprites) {
       const label = (gfx as any)._portalLabel as Phaser.GameObjects.Text | undefined
       if (label) label.destroy()

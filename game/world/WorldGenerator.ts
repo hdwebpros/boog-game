@@ -26,6 +26,7 @@ export interface WorldData {
   runestones: RunestonePlacement[]
   surfaceBiomes?: Uint8Array
   npcShopPosition?: { tx: number; ty: number }
+  loreRunestonePos?: { tx: number; ty: number }
 }
 
 const SURFACE_BASE = SURFACE_Y
@@ -265,7 +266,17 @@ export class WorldGenerator {
     // Pass 11: Cloud City in the sky
     const npcShopPosition = this.placeCloudCity(tiles, width, detailNoise)
 
-    return { tiles, width, height, seed: this.seed, spawnX, spawnY, altars, runestones, surfaceBiomes, npcShopPosition }
+    // Place lore runestone at spawn (2 tiles to the right of spawn center)
+    const loreRsX = spawnX + 2
+    const loreRsY = Math.floor(surfaceHeights[loreRsX]!)
+    // Clear air above so it's visible
+    for (let dy = -3; dy <= -1; dy++) {
+      const ay = loreRsY + dy
+      if (ay >= 0 && ay < height) tiles[ay * width + loreRsX] = TileType.AIR
+    }
+    const loreRunestonePos = { tx: loreRsX, ty: loreRsY }
+
+    return { tiles, width, height, seed: this.seed, spawnX, spawnY, altars, runestones, surfaceBiomes, npcShopPosition, loreRunestonePos }
   }
 
   private fillBaseTerrain(

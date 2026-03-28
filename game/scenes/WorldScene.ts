@@ -349,11 +349,15 @@ export class WorldScene extends Phaser.Scene {
       this.registry.remove('voidPlayerState')
     }
 
-    // Flash notification when obtaining a new item type for the first time
+    // Flash notification when obtaining a new item type for the first time + grant XP
     this.player.inventory.onNewItemDiscovered = (id: number) => {
       const def = getItemDef(id)
       if (!def) return
       this.showNewItemFlash(def.name)
+      // Grant XP for discovering a new item
+      if (!this.mp.isClient) {
+        this.grantXP(10, this.player.sprite.x, this.player.sprite.y)
+      }
     }
 
     // Spawn NPC at cloud city shop position (not in void dimension)
@@ -1000,6 +1004,7 @@ export class WorldScene extends Phaser.Scene {
     this.chunkManager.update()
     this.updatePortalParticles()
     this.updateMusic()
+    this.checkProgressionXP()
 
     // Host: simulate remote players and broadcast state
     if (this.mp.isHost) {
@@ -1428,6 +1433,9 @@ export class WorldScene extends Phaser.Scene {
 
           this.tweens.add({ targets: text, alpha: 0, duration: 1500, delay: 3000, onComplete: () => text.destroy() })
           AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+
+          // Grant XP for reading a runestone
+          this.grantXP(40, rs.tx * TILE_SIZE, rs.ty * TILE_SIZE)
 
           this.runestonePromptText.setVisible(false)
           return
@@ -2283,6 +2291,55 @@ export class WorldScene extends Phaser.Scene {
 
       this.time.delayedCall(3000, () => text.destroy())
       AudioManager.get()?.play(SoundId.LEVEL_UP)
+    }
+  }
+
+  // ── Progression XP ──────────────────────────────────────
+
+  private checkProgressionXP() {
+    if (this.player.dead || this.mp.isClient) return
+
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    const tileX = Math.floor(px / TILE_SIZE)
+    const tileY = Math.floor(py / TILE_SIZE)
+
+    // Biome discovery XP (surface biomes)
+    if (tileY < UNDERGROUND_TILE_Y && this.worldData.surfaceBiomes) {
+      const biome = this.worldData.surfaceBiomes[tileX] ?? 0
+      if (!this.discoveredBiomes.has(biome)) {
+        this.discoveredBiomes.add(biome)
+        this.grantXP(50, px, py)
+        this.showNotification('New biome discovered! +50 XP', 0x44ffff)
+      }
+    }
+
+    // Depth zone discovery XP (100=underground, 101=deep, 102=core)
+    if (tileY >= UNDERGROUND_TILE_Y && !this.discoveredBiomes.has(100)) {
+      this.discoveredBiomes.add(100)
+      this.grantXP(75, px, py)
+      this.showNotification('Underground reached! +75 XP', 0x44ffff)
+    }
+    if (tileY >= DEEP_UNDERGROUND_Y && !this.discoveredBiomes.has(101)) {
+      this.discoveredBiomes.add(101)
+      this.grantXP(100, px, py)
+      this.showNotification('Deep underground reached! +100 XP', 0x44ffff)
+    }
+    if (tileY >= 1320 && !this.discoveredBiomes.has(102)) {
+      this.discoveredBiomes.add(102)
+      this.grantXP(150, px, py)
+      this.showNotification('Core reached! +150 XP', 0x44ffff)
+    }
+
+    // Depth milestone XP: every 200 blocks below y=200
+    if (tileY > 200) {
+      const milestone = Math.floor(tileY / 200) * 200
+      for (let m = 200; m <= milestone; m += 200) {
+        if (!this.depthMilestones.has(m)) {
+          this.depthMilestones.add(m)
+          this.grantXP(25, px, py)
+        }
+      }
     }
   }
 
