@@ -66,6 +66,7 @@ export class UIScene extends Phaser.Scene {
     this.pointerJustDown = false
     this.visitedZones = new Set<string>()
     this.currentZoneName = ''
+    this.shardCompassTexts = []
 
     // Create panels
     this.hotbar = new HotbarPanel(this)

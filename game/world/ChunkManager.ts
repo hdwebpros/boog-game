@@ -232,9 +232,11 @@ export class ChunkManager {
     // Draw new tile (if not air)
     if (type !== TileType.AIR) {
       const texKey = `tile_${type}`
-      if (this.stamp && this.scene.textures.exists(texKey)) {
-        this.stamp.setTexture(texKey)
-        this.stamp.setPosition(localX, localY)
+      const hasTex = this.stamp && this.scene.textures.exists(texKey)
+      const src = hasTex ? this.scene.textures.get(texKey).source[0] : null
+      if (hasTex && src && src.image) {
+        this.stamp!.setTexture(texKey)
+        this.stamp!.setPosition(localX, localY)
         chunk.rt.draw(this.stamp)
       } else {
         const props = TILE_PROPERTIES[type]
