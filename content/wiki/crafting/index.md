@@ -40,6 +40,7 @@ Hand Crafting (tier 0)
 | [Arcane Anvil](/wiki/crafting/arcane-anvil) | 2 | Anvil | 8 iron bar + 4 diamond + 5 arcane dust | Chant orbs, magic items |
 | [Brewing Stand](/wiki/crafting/brewing-stand) | 1 | Workbench Mk2 | 15 stone + 3 iron bar + 2 glass | All 16 potions |
 | [Void Forge](/wiki/crafting/void-forge) | 5 | Fusion Station | 20 brimstone + 10 hellfire core | Void-tier endgame gear |
+| [Sleep Chamber](/wiki/crafting/sleep-chamber) | 1 | Workbench Mk2 | 5 iron bar + 3 glass + 10 wood | Set custom spawn point |
 
 ## How Crafting Works
 

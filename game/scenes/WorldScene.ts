@@ -11,6 +11,7 @@ import { EnemySpawner } from '../systems/EnemySpawner'
 import { BOSS_DEFS, ALTAR_DEFS, BossType } from '../data/bosses'
 import { EnemyType, ENEMY_DEFS } from '../data/enemies'
 import { getItemDef, ItemCategory } from '../data/items'
+import { SKILL_MAP } from '../data/skills'
 import { DroppedItem } from '../entities/DroppedItem'
 import { SaveManager } from '../systems/SaveManager'
 import type { SaveData } from '../systems/SaveManager'
@@ -118,6 +119,7 @@ export class WorldScene extends Phaser.Scene {
   finalBoss: FinalBoss | null = null
   private voidPortalPromptText: Phaser.GameObjects.Text | null = null
   private sleepChamberPrompt: Phaser.GameObjects.Text | null = null
+  private loreRunestonePrompt: Phaser.GameObjects.Text | null = null
   private worldSeed: string = ''
   private permadeathTriggered = false
   private activeDrills: BoringDrill[] = []
@@ -360,6 +362,17 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
+    // Grant XP when unlocking skills that complete a branch tier
+    this.player.skills.onSkillUnlocked = (skillId: string) => {
+      if (this.mp.isClient) return
+      const skill = SKILL_MAP[skillId]
+      if (!skill) return
+      if (this.player.skills.isBranchTierComplete(skill.branch, skill.tier)) {
+        this.grantXP(100, this.player.sprite.x, this.player.sprite.y)
+        this.showNotification(`${skill.branch} tier ${skill.tier} complete! +100 XP`, 0x44ffff)
+      }
+    }
+
     // Spawn NPC at cloud city shop position (not in void dimension)
     if (!this.isVoidDimension) {
       const npcPos = this.npcShopPosition ?? this.worldData.npcShopPosition
@@ -389,6 +402,10 @@ export class WorldScene extends Phaser.Scene {
       this.dayNight.time = joinData.dayNightTime
     } else {
       this.mp.initOffline()
+      // Wire up tile change for offline station XP tracking
+      this.player.onTileChange = (_tx, _ty, newType, _oldType) => {
+        this.checkStationPlacementXP(newType)
+      }
     }
     // Register player entity
     this.player.entityId = this.mp.entities.register('player', this.player)
@@ -441,6 +458,12 @@ export class WorldScene extends Phaser.Scene {
       stroke: '#000000', strokeThickness: 3, align: 'center',
     }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
 
+    // Lore runestone prompt (at spawn)
+    this.loreRunestonePrompt = this.add.text(0, 0, '', {
+      fontSize: '11px', color: '#ddaa44', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 3, align: 'center',
+    }).setOrigin(0.5, 1).setDepth(100).setVisible(false)
+
     // Mystical Compass now rendered in UIScene (so it's above all overlays)
 
     // ESC is checked per-frame in update() via JustDown for reliability
@@ -464,6 +487,7 @@ export class WorldScene extends Phaser.Scene {
         const change: TileChangeRequest = { tx, ty, newType, oldType }
         this.mp.getHostSession()!.recordLocalTileChange(change)
         this.mp.sendTileChange(change)
+        this.checkStationPlacementXP(newType)
       }
       // Connect to relay server and create room
       const hostSession = this.mp.getHostSession()!
@@ -682,6 +706,7 @@ export class WorldScene extends Phaser.Scene {
       this.checkPortalInteraction()
       this.checkVoidPortalInteraction()
       this.checkSleepChamberInteraction()
+      this.checkLoreRunestoneInteraction()
 
       // Build list of all player positions for spawning, enemy AI, and despawn checks
       const allPlayerPositions: { x: number; y: number; id: number }[] = [
@@ -953,6 +978,7 @@ export class WorldScene extends Phaser.Scene {
 
       // Sleep chamber spawn point (local only)
       this.checkSleepChamberInteraction()
+      this.checkLoreRunestoneInteraction()
 
       // Client-side attack detection — send attack requests to host
       this.checkClientAttack(dt)
@@ -1943,6 +1969,45 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  // ── Lore Runestone (spawn point) ──────────────────────
+
+  private checkLoreRunestoneInteraction() {
+    if (this.loreRunestonePrompt) this.loreRunestonePrompt.setVisible(false)
+    if (this.player.dead || this.isVoidDimension) return
+
+    const pos = this.chunkManager.getLoreRunestonePos()
+    if (!pos) return
+
+    const ptx = Math.floor(this.player.sprite.x / TILE_SIZE)
+    const pty = Math.floor(this.player.sprite.y / TILE_SIZE)
+    const dx = Math.abs(pos.tx - ptx)
+    const dy = Math.abs(pos.ty - pty)
+    if (dx > RUNESTONE_INTERACT_RANGE || dy > RUNESTONE_INTERACT_RANGE) {
+      this.player.readingLoreRunestone = false
+      return
+    }
+
+    const px = pos.tx * TILE_SIZE + TILE_SIZE / 2
+    const py = pos.ty * TILE_SIZE - TILE_SIZE * 2.5
+
+    if (this.player.readingLoreRunestone) {
+      // Already reading — ESC or F closes
+      if (Phaser.Input.Keyboard.JustDown(this.keyF) || Phaser.Input.Keyboard.JustDown(this.keyESC)) {
+        this.player.readingLoreRunestone = false
+      }
+      return
+    }
+
+    this.loreRunestonePrompt!.setText('[F] Read runestone')
+    this.loreRunestonePrompt!.setPosition(px, py)
+    this.loreRunestonePrompt!.setVisible(true)
+
+    if (Phaser.Input.Keyboard.JustDown(this.keyF)) {
+      this.player.readingLoreRunestone = true
+      this.loreRunestonePrompt!.setVisible(false)
+    }
+  }
+
   // ── Void Lord Boss Summon ──────────────────────────────
 
   /** Check if player uses Void Lord Summon Token (item 370) */
@@ -2296,6 +2361,18 @@ export class WorldScene extends Phaser.Scene {
 
   // ── Progression XP ──────────────────────────────────────
 
+  private checkStationPlacementXP(tileType: number) {
+    // Check if this tile type corresponds to a crafting station
+    for (const [itemId, stationType] of Object.entries(STATION_TILE_TYPE)) {
+      if (stationType === tileType && !this.craftedStationTypes.has(Number(itemId))) {
+        this.craftedStationTypes.add(Number(itemId))
+        this.grantXP(30, this.player.sprite.x, this.player.sprite.y)
+        this.showNotification('New crafting station built! +30 XP', 0x44ffff)
+        break
+      }
+    }
+  }
+
   private checkProgressionXP() {
     if (this.player.dead || this.mp.isClient) return
 
@@ -2331,8 +2408,8 @@ export class WorldScene extends Phaser.Scene {
       this.showNotification('Core reached! +150 XP', 0x44ffff)
     }
 
-    // Depth milestone XP: every 200 blocks below y=200
-    if (tileY > 200) {
+    // Depth milestone XP: every 200 blocks starting at y=200
+    if (tileY >= 200) {
       const milestone = Math.floor(tileY / 200) * 200
       for (let m = 200; m <= milestone; m += 200) {
         if (!this.depthMilestones.has(m)) {

@@ -132,8 +132,8 @@ export class StatsPanel {
 
     // HP Stars
     const hpFilled = (player.hp / player.maxHp) * iconCount
-    const lowHp = player.hp / player.maxHp < 0.25
-    const pulse = lowHp ? 0.5 + 0.5 * Math.sin(this.scene.time.now * 0.008) : 1
+    const lowHp = player.hp / player.maxHp < 0.2
+    const pulse = lowHp ? 0.8 + 0.2 * Math.sin(this.scene.time.now * 0.005) : 1
 
     for (let i = 0; i < iconCount; i++) {
       const cx = x + i * iconSpacing + iconR

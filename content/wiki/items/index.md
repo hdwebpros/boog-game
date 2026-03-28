@@ -18,7 +18,7 @@ Melee, ranged, magic, and summon weapons across 7 tiers. Each weapon style has i
 Pickaxes for mining blocks of increasing hardness, plus specialty tools like the Tree Chomper (fast wood harvesting) and Boring Drill (automated drilling machine). Higher-tier pickaxes mine faster and can break tougher materials that lower-tier tools cannot scratch.
 
 ### [Armor](/wiki/items/armor)
-6 armor sets from Wood to Void, with 4 slots each (helmet, chestplate, leggings, boots). Better armor means more defense and survivability against tougher enemies and bosses.
+6 standard armor sets from Wood to Void plus the special Barbed set, with 4 slots each (helmet, chestplate, leggings, boots). Better armor means more defense and survivability against tougher enemies and bosses.
 
 ### [Materials](/wiki/items/materials)
 Ores, bars, shards, and crafting components. Raw materials are mined from the world and smelted or combined at crafting stations to produce the components needed for weapons, armor, and tools.
@@ -52,7 +52,7 @@ Item IDs determine how the game categorizes each item internally:
 
 - **IDs 0--99**: Blocks (terrain tiles, ores, crafting stations)
 - **IDs 100--199**: Core items (materials, stations, tools, weapons)
-- **IDs 200--219**: Armor sets
+- **IDs 200--223**: Armor sets (standard + Barbed)
 - **IDs 230--243**: Enchantment shards and chant orbs
 - **IDs 250**: Silver Coins (currency)
 - **IDs 300--305**: Accessories
@@ -63,4 +63,4 @@ Item IDs determine how the game categorizes each item internally:
 - **IDs 360--365**: Void artifacts
 - **IDs 370, 380**: Void special items (Summon Token, Trophy)
 - **IDs 385--389**: Shard Compasses (Ember, Frost, Storm, Void, Life)
-- **IDs 420--421**: Specialty tools (Boring Drill, Tree Chomper)
+- **IDs 420--422**: Specialty tools (Boring Drill, Tree Chomper, Sleep Chamber)

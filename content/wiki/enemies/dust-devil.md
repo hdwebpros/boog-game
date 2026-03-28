@@ -11,7 +11,7 @@ stats:
   damage: 12
   speed: 90
   ai: ranged
-  xp: 10
+  xp: 22
 ---
 
 ::enemy-infobox

@@ -11,7 +11,7 @@ stats:
   damage: 0
   speed: 45
   ai: lure
-  xp: 2
+  xp: 5
 ---
 
 ::enemy-infobox

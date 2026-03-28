@@ -121,6 +121,7 @@ export class Player {
   chestOpen = false
   portalNamingOpen = false
   mapOpen = false
+  readingLoreRunestone = false
   openChestPos: { tx: number; ty: number } | null = null
   private lastChunks: ChunkManager | null = null
 
@@ -456,8 +457,8 @@ export class Player {
     // Eternal Chant orbiting orbs (full eternal enchanted armor set)
     this.updateEternalOrbs(dt)
 
-    if (!this.mapOpen) this.handleMovement(dt, chunks)
-    if (!this.inventoryOpen && !this.skillTreeOpen && !this.shopOpen && !this.chestOpen && !this.mapOpen) {
+    if (!this.mapOpen && !this.readingLoreRunestone) this.handleMovement(dt, chunks)
+    if (!this.inventoryOpen && !this.skillTreeOpen && !this.shopOpen && !this.chestOpen && !this.mapOpen && !this.readingLoreRunestone) {
       this.handleMining(dt, chunks)
       this.handleCombat(dt, chunks, combat, enemies)
     }
@@ -1222,9 +1223,10 @@ export class Player {
       this.isInWater = tileMid === TileType.WATER
     }
 
-    const left = !this.portalNamingOpen && (this.keyA.isDown || this.cursors.left.isDown)
-    const right = !this.portalNamingOpen && (this.keyD.isDown || this.cursors.right.isDown)
-    const jump = !this.portalNamingOpen && (Phaser.Input.Keyboard.JustDown(this.keySpace) ||
+    const uiBlock = this.portalNamingOpen || this.readingLoreRunestone
+    const left = !uiBlock && (this.keyA.isDown || this.cursors.left.isDown)
+    const right = !uiBlock && (this.keyD.isDown || this.cursors.right.isDown)
+    const jump = !uiBlock && (Phaser.Input.Keyboard.JustDown(this.keySpace) ||
                  Phaser.Input.Keyboard.JustDown(this.keyW) ||
                  Phaser.Input.Keyboard.JustDown(this.cursors.up!))
 
@@ -1675,21 +1677,21 @@ export class Player {
           this.heldItemSprite.setScale(0.45)
           this.heldItemSprite.setFlipX(!this.facingRight)
         } else if (isBowAttacking) {
-          // Bow attack — position at extended arm, bridge faces away from player
+          // Bow attack — held against body, bridge faces away from player
           const t = this.actionAnimTimer / 100
-          const extendX = dir * (8 + 6 * (1 - t))
-          const extendY = -4 - 2 * (1 - t)
+          const extendX = dir * (4 + 3 * (1 - t))
+          const extendY = -4 - 1 * (1 - t)
           this.heldItemSprite.setPosition(this.sprite.x + extendX, this.sprite.y + extendY)
           const bowRot = 10 * (Math.PI / 180) * dir
           this.heldItemSprite.setRotation(bowRot)
-          this.heldItemSprite.setFlipX(this.facingRight)
+          this.heldItemSprite.setFlipX(!this.facingRight)
           this.heldItemSprite.setScale(0.45)
         } else {
           // Idle held position — tool held at the player's hand
           const restAngle = -45 * (Math.PI / 180)
           const restRot = restAngle + Math.PI / 4 // 0° at rest (vertical)
           this.heldItemSprite.setPosition(this.sprite.x + dir * 6, this.sprite.y + 2)
-          this.heldItemSprite.setFlipX(isBow ? this.facingRight : !this.facingRight)
+          this.heldItemSprite.setFlipX(!this.facingRight)
           this.heldItemSprite.setRotation(this.facingRight ? restRot : -restRot)
           this.heldItemSprite.setScale(0.4)
         }

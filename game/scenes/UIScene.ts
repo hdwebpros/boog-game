@@ -61,6 +61,11 @@ export class UIScene extends Phaser.Scene {
   // Inventory full warning
   private invFullText!: Phaser.GameObjects.Text
 
+  // Lore runestone overlay
+  private loreRunestoneGfx!: Phaser.GameObjects.Graphics
+  private loreRunestoneTexts: Phaser.GameObjects.Text[] = []
+  private loreRunestoneVisible = false
+
   constructor() {
     super({ key: 'UIScene' })
   }
@@ -184,6 +189,11 @@ export class UIScene extends Phaser.Scene {
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5, 1).setDepth(210).setAlpha(0)
 
+    // Lore runestone overlay
+    this.loreRunestoneGfx = this.add.graphics().setDepth(300).setVisible(false)
+    this.loreRunestoneTexts = []
+    this.loreRunestoneVisible = false
+
     // Biome banner
     this.biomeBannerText = this.add.text(width / 2, 80, '', {
       fontSize: '24px', color: '#ffffff', fontFamily: 'monospace',
@@ -253,6 +263,8 @@ export class UIScene extends Phaser.Scene {
         this.chatOverlay.destroy()
         this.chatOverlay = null
       }
+      for (const t of this.loreRunestoneTexts) t.destroy()
+      this.loreRunestoneTexts = []
     })
   }
 
@@ -360,6 +372,7 @@ export class UIScene extends Phaser.Scene {
     this.updateCompass(worldScene)
     this.updateShardCompasses(worldScene)
     this.updateBiomeBanner(player)
+    this.updateLoreRunestone(player)
     this.chatOverlay?.update()
   }
 
@@ -414,6 +427,113 @@ export class UIScene extends Phaser.Scene {
       hold: 1500,
       yoyo: true,
     })
+  }
+
+  // ── Lore Runestone overlay ──────────────────────────────
+
+  private updateLoreRunestone(player: any) {
+    const shouldShow = player.readingLoreRunestone === true
+    if (shouldShow === this.loreRunestoneVisible) return
+
+    this.loreRunestoneVisible = shouldShow
+    this.loreRunestoneGfx.setVisible(shouldShow)
+
+    // Destroy old texts
+    for (const t of this.loreRunestoneTexts) t.destroy()
+    this.loreRunestoneTexts = []
+
+    if (!shouldShow) return
+
+    const { width, height } = this.scale
+    const cx = width / 2
+    const cy = height / 2
+    const pw = 340  // panel width
+    const ph = 360  // panel height
+
+    const gfx = this.loreRunestoneGfx
+    gfx.clear()
+
+    // Dim background
+    gfx.fillStyle(0x000000, 0.55)
+    gfx.fillRect(0, 0, width, height)
+
+    // Stone tablet background
+    const sx = cx - pw / 2
+    const sy = cy - ph / 2
+
+    // Outer stone border
+    gfx.fillStyle(0x3a3a4a)
+    gfx.fillRect(sx - 4, sy - 4, pw + 8, ph + 8)
+
+    // Main stone body
+    gfx.fillStyle(0x555566)
+    gfx.fillRect(sx, sy, pw, ph)
+
+    // Inner stone texture — subtle horizontal lines
+    for (let i = 0; i < ph; i += 6) {
+      const shade = (i % 12 === 0) ? 0x4d4d5d : 0x5a5a6a
+      gfx.fillStyle(shade, 0.5)
+      gfx.fillRect(sx + 2, sy + i, pw - 4, 2)
+    }
+
+    // Chiseled inner border
+    gfx.lineStyle(2, 0x777788, 0.6)
+    gfx.strokeRect(sx + 12, sy + 12, pw - 24, ph - 24)
+
+    // Corner accents
+    const cornerSize = 8
+    const corners = [
+      [sx + 12, sy + 12], [sx + pw - 12 - cornerSize, sy + 12],
+      [sx + 12, sy + ph - 12 - cornerSize], [sx + pw - 12 - cornerSize, sy + ph - 12 - cornerSize],
+    ]
+    for (const [cx2, cy2] of corners) {
+      gfx.fillStyle(0x8888aa, 0.4)
+      gfx.fillRect(cx2!, cy2!, cornerSize, cornerSize)
+    }
+
+    // Glowing rune accent at top center
+    gfx.fillStyle(0xddaa44, 0.7)
+    gfx.fillRect(cx - 12, sy + 18, 24, 3)
+    gfx.fillStyle(0xffcc66, 0.5)
+    gfx.fillRect(cx - 2, sy + 14, 4, 10)
+
+    // Title
+    const title = this.add.text(cx, sy + 36, 'Ancient Runestone', {
+      fontSize: '16px', color: '#ddaa44', fontFamily: 'serif',
+      fontStyle: 'bold',
+    }).setOrigin(0.5, 0).setDepth(301)
+    this.loreRunestoneTexts.push(title)
+
+    // Divider line under title
+    gfx.fillStyle(0x8888aa, 0.4)
+    gfx.fillRect(cx - 80, sy + 58, 160, 1)
+
+    // Poem text
+    const poem = [
+      'Dig deep for the riches in the stone,',
+      'Climb high where the Cloud City stands alone.',
+      'Roam West and East through sand and snow,',
+      'To see how far the biomes go.',
+      '',
+      'Slay the bosses, claim the prize,',
+      'To make your broken jetpack rise.',
+      'Fuel the spark and take to flight\u2014',
+      'And leave this world behind tonight.',
+    ]
+
+    const poemText = this.add.text(cx, sy + 72, poem.join('\n'), {
+      fontSize: '12px', color: '#ccccdd', fontFamily: 'serif',
+      fontStyle: 'italic', align: 'center',
+      lineSpacing: 6,
+      wordWrap: { width: pw - 60 },
+    }).setOrigin(0.5, 0).setDepth(301)
+    this.loreRunestoneTexts.push(poemText)
+
+    // Dismiss hint
+    const hint = this.add.text(cx, sy + ph - 30, 'Press F or ESC to close', {
+      fontSize: '10px', color: '#888899', fontFamily: 'monospace',
+    }).setOrigin(0.5, 0.5).setDepth(301)
+    this.loreRunestoneTexts.push(hint)
   }
 
   // ── Boss markers (shared between minimap and world map) ──

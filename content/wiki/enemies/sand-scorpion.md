@@ -11,7 +11,7 @@ stats:
   damage: 18
   speed: 55
   ai: charge
-  xp: 14
+  xp: 30
 ---
 
 ::enemy-infobox

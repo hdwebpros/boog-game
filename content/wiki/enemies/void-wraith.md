@@ -11,7 +11,7 @@ stats:
   damage: 35
   speed: 180
   ai: phase
-  xp: 80
+  xp: 200
 ---
 
 ::enemy-infobox

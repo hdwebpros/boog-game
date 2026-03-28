@@ -31,28 +31,28 @@ Silver Coins stack up to 999 per slot.
 
 These accessories provide straightforward passive bonuses. Each is purchased once.
 
-| Accessory | Effect | Price |
-|-----------|--------|-------|
-| [Cloud Boots](/wiki/items/accessories/cloud-boots) | No fall damage, +15% move speed | 50 silver |
-| [Star Compass](/wiki/items/accessories/star-compass) | Reveals ores on minimap, +50 max mana | 80 silver |
-| [Gravity Belt](/wiki/items/accessories/gravity-belt) | -40% jetpack fuel use, +20% flight speed | 120 silver |
-| [Miner's Lantern](/wiki/items/accessories/miners-lantern) | +40% mining speed, +1 mining range | 200 silver |
-| [Lucky Charm](/wiki/items/accessories/lucky-charm) | +25% double drop chance, better loot | 150 silver |
-| [Celestial Cape](/wiki/items/accessories/celestial-cape) | +30 max HP, +30 max mana, magnetic pickup (80px) | 300 silver |
-| [Explorer's Belt](/wiki/items/accessories/explorers-belt) | +10 inventory slots (extra row) | 200 silver |
+| | Accessory | Effect | Price |
+|---|-----------|--------|-------|
+| ![](/sprites/item_300.png){width=24} | [Cloud Boots](/wiki/items/accessories/cloud-boots) | No fall damage, +15% move speed | 50 silver |
+| ![](/sprites/item_301.png){width=24} | [Star Compass](/wiki/items/accessories/star-compass) | Reveals ores on minimap, +50 max mana | 80 silver |
+| ![](/sprites/item_302.png){width=24} | [Gravity Belt](/wiki/items/accessories/gravity-belt) | -40% jetpack fuel use, +20% flight speed | 120 silver |
+| ![](/sprites/item_303.png){width=24} | [Miner's Lantern](/wiki/items/accessories/miners-lantern) | +40% mining speed, +1 mining range | 200 silver |
+| ![](/sprites/item_304.png){width=24} | [Lucky Charm](/wiki/items/accessories/lucky-charm) | +25% double drop chance, better loot | 150 silver |
+| ![](/sprites/item_305.png){width=24} | [Celestial Cape](/wiki/items/accessories/celestial-cape) | +30 max HP, +30 max mana, magnetic pickup (80px) | 300 silver |
+| ![](/sprites/item_380.png){width=24} | [Explorer's Belt](/wiki/items/accessories/explorers-belt) | +10 inventory slots (extra row) | 200 silver |
 
 ## Void Artifacts
 
 Void artifacts are powerful accessories with **3 upgrade tiers**. Buy them from the Sky Merchant, then return to upgrade with more Silver Coins. Artifacts are endgame items designed for the Void Dimension and the Void Lord fight.
 
-| Artifact | Tier 1 Effect | Buy Price | Max Tier Cost |
-|----------|---------------|-----------|---------------|
-| [Warp Crystal](/wiki/items/accessories/warp-crystal) | Teleport dash (5s cd) | 500 silver | 1,400 total |
-| [Soul Lantern](/wiki/items/accessories/soul-lantern) | 5% lifesteal aura | 500 silver | 1,400 total |
-| [Chaos Heart](/wiki/items/accessories/chaos-heart) | +100 HP, 10 thorns dmg | 750 silver | 1,950 total |
-| [Void Eye](/wiki/items/accessories/void-eye) | Wall vision (5 range) | 750 silver | 1,950 total |
-| [Temporal Shard](/wiki/items/accessories/temporal-shard) | 15% CDR, 10% attack speed | 600 silver | 1,650 total |
-| [Dimensional Anchor](/wiki/items/accessories/dimensional-anchor) | KB immune, +25% damage | 1,000 silver | 2,500 total |
+| | Artifact | Tier 1 Effect | Buy Price | Max Tier Cost |
+|---|----------|---------------|-----------|---------------|
+| ![](/sprites/item_360.png){width=24} | [Warp Crystal](/wiki/items/accessories/warp-crystal) | Teleport dash (5s cd) | 500 silver | 1,400 total |
+| ![](/sprites/item_361.png){width=24} | [Soul Lantern](/wiki/items/accessories/soul-lantern) | 5% lifesteal aura | 500 silver | 1,400 total |
+| ![](/sprites/item_362.png){width=24} | [Chaos Heart](/wiki/items/accessories/chaos-heart) | +100 HP, 10 thorns dmg | 750 silver | 1,950 total |
+| ![](/sprites/item_363.png){width=24} | [Void Eye](/wiki/items/accessories/void-eye) | Wall vision (5 range) | 750 silver | 1,950 total |
+| ![](/sprites/item_364.png){width=24} | [Temporal Shard](/wiki/items/accessories/temporal-shard) | 15% CDR, 10% attack speed | 600 silver | 1,650 total |
+| ![](/sprites/item_365.png){width=24} | [Dimensional Anchor](/wiki/items/accessories/dimensional-anchor) | KB immune, +25% damage | 1,000 silver | 2,500 total |
 
 ## Recommended Loadouts
 

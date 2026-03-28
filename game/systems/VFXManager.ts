@@ -73,12 +73,12 @@ export class VFXManager {
   // ── Vignette ──────────────────────────────────────────
 
   private updateVignette(dt: number, hpPct: number) {
-    if (hpPct < 0.25 && hpPct > 0) {
-      // Pulse with heartbeat — faster as HP drops
-      const heartRate = 2.5 + (1 - hpPct / 0.25) * 4 // 2.5-6.5 Hz
+    if (hpPct < 0.2 && hpPct > 0) {
+      // Gentle pulse — subtle heartbeat
+      const heartRate = 1.5 + (1 - hpPct / 0.2) * 1.5 // 1.5-3 Hz
       const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.001 * heartRate * Math.PI * 2)
-      const intensity = (1 - hpPct / 0.25) // 0 at 25%, 1 at 0%
-      this.vignetteAlpha = intensity * (0.15 + 0.2 * pulse)
+      const intensity = (1 - hpPct / 0.2) // 0 at 20%, 1 at 0%
+      this.vignetteAlpha = intensity * (0.05 + 0.07 * pulse)
     } else {
       this.vignetteAlpha = Math.max(0, this.vignetteAlpha - dt * 2)
     }
@@ -99,11 +99,11 @@ export class VFXManager {
     const cx = w / 2
     const cy = h / 2
 
-    const steps = 6
+    const steps = 4
     for (let i = steps; i >= 1; i--) {
       const outerPct = i / steps
       const a = alpha * outerPct * outerPct // quadratic falloff
-      this.vignetteGfx.fillStyle(0x880000, a)
+      this.vignetteGfx.fillStyle(0x660000, a)
       const outerInset = (1 - outerPct) * Math.min(cx, cy) * 1.2
       this.vignetteGfx.fillRect(outerInset, outerInset, w - outerInset * 2, h - outerInset * 2)
     }
@@ -159,7 +159,7 @@ export class VFXManager {
   // ── Desaturation ──────────────────────────────────────
 
   private updateDesaturation(dt: number, hpPct: number) {
-    const target = hpPct < 0.2 ? (1 - hpPct / 0.2) * 0.35 : 0
+    const target = hpPct < 0.15 ? (1 - hpPct / 0.15) * 0.12 : 0
     this.desatAmount += (target - this.desatAmount) * Math.min(1, dt * 4)
     this.desatOverlay.setAlpha(this.desatAmount)
   }

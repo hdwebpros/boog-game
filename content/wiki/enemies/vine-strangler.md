@@ -11,7 +11,7 @@ stats:
   damage: 12
   speed: 35
   ai: patrol
-  xp: 14
+  xp: 32
 ---
 
 ::enemy-infobox

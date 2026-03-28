@@ -63,7 +63,8 @@ Craft by hand (press **C** anywhere):
 | Item | Materials | Output |
 |------|-----------|--------|
 | Plant Fiber | 3 Leaves | 2 |
-| Vine Rope | 3 Plant Fiber + 2 Wood | 8 |
+| Plant Fiber (from Moss) | 3 Moss | 8 |
+| Vine Rope | 3 Plant Fiber + 1 Wood | 8 |
 | Healing Herb | 5 Leaves + 2 Plant Fiber | 1 |
 | Chest | 15 Wood | 1 |
 

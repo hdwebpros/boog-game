@@ -14,13 +14,13 @@ Equip a pickaxe and press **LMB** on a block to mine it. Use **RMB** to place bl
 
 ## Pickaxes
 
-| Pickaxe | ID | Tier | Speed | Mines Tier | Crafted At |
-|---------|----|------|-------|------------|------------|
-| [Wood Pickaxe](/wiki/items/tools/wood-pickaxe) | 120 | 0 | 1.5x | 0 | Workbench |
-| [Stone Pickaxe](/wiki/items/tools/stone-pickaxe) | 121 | 1 | 2.0x | 1 | Workbench Mk2 |
-| [Iron Pickaxe](/wiki/items/tools/iron-pickaxe) | 122 | 2 | 3.0x | 2 | Anvil |
-| [Diamond Pickaxe](/wiki/items/tools/diamond-pickaxe) | 123 | 3 | 4.0x | 3 | Tech Bench |
-| [Titanium Pickaxe](/wiki/items/tools/titanium-pickaxe) | 124 | 4 | 5.0x | 4 | Fusion Station |
+| | Pickaxe | ID | Tier | Speed | Mines Tier | Crafted At |
+|---|---------|----|------|-------|------------|------------|
+| ![](/sprites/item_120.png){width=24} | [Wood Pickaxe](/wiki/items/tools/wood-pickaxe) | 120 | 0 | 1.5x | 0 | Workbench |
+| ![](/sprites/item_121.png){width=24} | [Stone Pickaxe](/wiki/items/tools/stone-pickaxe) | 121 | 1 | 2.0x | 1 | Workbench Mk2 |
+| ![](/sprites/item_122.png){width=24} | [Iron Pickaxe](/wiki/items/tools/iron-pickaxe) | 122 | 2 | 3.0x | 2 | Anvil |
+| ![](/sprites/item_123.png){width=24} | [Diamond Pickaxe](/wiki/items/tools/diamond-pickaxe) | 123 | 3 | 4.0x | 3 | Tech Bench |
+| ![](/sprites/item_124.png){width=24} | [Titanium Pickaxe](/wiki/items/tools/titanium-pickaxe) | 124 | 4 | 5.0x | 4 | Fusion Station |
 
 ## Tool Progression
 
@@ -36,7 +36,7 @@ Pickaxes follow the same material tier system as weapons. Each tier unlocks mini
 
 In addition to pickaxes, Starfall has specialized tools for specific tasks:
 
-### [Tree Chomper](/wiki/items/tools/tree-chomper)
+### ![](/sprites/item_421.png){width=24} [Tree Chomper](/wiki/items/tools/tree-chomper)
 
 | Property | Value |
 |----------|-------|
@@ -48,7 +48,7 @@ In addition to pickaxes, Starfall has specialized tools for specific tasks:
 
 A fast tool for harvesting trees, leaves, and other soft blocks. Mines at 3x speed but limited to tier 0 blocks. Perfect for gathering large quantities of wood.
 
-### [Boring Drill](/wiki/items/tools/boring-drill)
+### ![](/sprites/item_420.png){width=24} [Boring Drill](/wiki/items/tools/boring-drill)
 
 | Property | Value |
 |----------|-------|

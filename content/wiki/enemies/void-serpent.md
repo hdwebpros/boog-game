@@ -11,7 +11,7 @@ stats:
   damage: 45
   speed: 120
   ai: emerge
-  xp: 150
+  xp: 380
 ---
 
 ::enemy-infobox

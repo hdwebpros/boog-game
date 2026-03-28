@@ -11,7 +11,7 @@ stats:
   damage: 16
   speed: 65
   ai: ambush
-  xp: 12
+  xp: 28
 ---
 
 ::enemy-infobox

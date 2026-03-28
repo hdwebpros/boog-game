@@ -98,6 +98,12 @@ export class SkillTreeManager {
     return xpForLevel(this.level + 1)
   }
 
+  /** Check if all skills in a branch at a specific tier are unlocked */
+  isBranchTierComplete(branch: SkillBranch, tier: number): boolean {
+    const tierSkills = SKILLS.filter(s => s.branch === branch && s.tier === tier && !s.superTree)
+    return tierSkills.length > 0 && tierSkills.every(s => this.unlockedSkills.has(s.id))
+  }
+
   /** Check if all skills in a branch (non-super) are unlocked */
   isBranchComplete(branch: SkillBranch): boolean {
     const branchSkills = SKILLS.filter(s => s.branch === branch && !s.superTree)
@@ -156,6 +162,9 @@ export class SkillTreeManager {
     return true
   }
 
+  /** Callback fired after a skill is unlocked (for external XP hooks) */
+  onSkillUnlocked: ((skillId: string) => void) | null = null
+
   /** Unlock a skill. Returns true if successful. */
   unlock(skillId: string): boolean {
     if (!this.canUnlock(skillId)) return false
@@ -163,6 +172,7 @@ export class SkillTreeManager {
     this.skillPoints -= skill.cost
     this.unlockedSkills.add(skillId)
     this.cachedModifiers = null // invalidate cache
+    if (this.onSkillUnlocked) this.onSkillUnlocked(skillId)
     return true
   }
 

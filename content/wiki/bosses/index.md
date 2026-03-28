@@ -13,15 +13,15 @@ Starfall features six main bosses and one post-game true final boss. Each main b
 
 Bosses are designed to be fought in a specific order. Each one is found deeper in the world and requires stronger gear than the last.
 
-| # | Boss | HP | Damage | Phases | Location | Drop |
-|---|------|----|--------|--------|----------|------|
-| 1 | [Vine Guardian](/wiki/bosses/vine-guardian) | 300 | 15-20 | 2 | Surface | Fuel Cell Casing |
-| 2 | [Deep Sea Leviathan](/wiki/bosses/deep-sea-leviathan) | 500 | 20-30 | 2 | Ocean | Thrust Regulator |
-| 3 | [Crystal Golem](/wiki/bosses/crystal-golem) | 800 | 30-50 | 3 | Underground | Pressure Valve |
-| 4 | [Magma Wyrm](/wiki/bosses/magma-wyrm) | 1,000 | 35-55 | 3 | Deep Underground | Energy Capacitor |
-| 5 | [Core Sentinel](/wiki/bosses/core-sentinel) | 1,200 | 40-60 | 3 | Core | Ignition Core |
-| 6 | [Mothership](/wiki/bosses/mothership) | 1,500 | 50-80 | 4 | Surface | Navigation Module |
-| 7 | [The Void Lord](/wiki/bosses/void-lord) | 5,000 | 80-150 | 4 | Overworld (post-game) | Trophy of the Void Lord |
+| # | | Boss | HP | Damage | Phases | Location | Drop |
+|---|---|------|----|--------|--------|----------|------|
+| 1 | ![](/sprites/boss_vine_guardian.png){width=32} | [Vine Guardian](/wiki/bosses/vine-guardian) | 300 | 15-20 | 2 | Surface | Fuel Cell Casing |
+| 2 | ![](/sprites/boss_deep_sea_leviathan.png){width=32} | [Deep Sea Leviathan](/wiki/bosses/deep-sea-leviathan) | 500 | 20-30 | 2 | Ocean | Thrust Regulator |
+| 3 | ![](/sprites/boss_crystal_golem.png){width=32} | [Crystal Golem](/wiki/bosses/crystal-golem) | 800 | 30-50 | 3 | Underground | Pressure Valve |
+| 4 | ![](/sprites/boss_magma_wyrm.png){width=32} | [Magma Wyrm](/wiki/bosses/magma-wyrm) | 1,000 | 35-55 | 3 | Deep Underground | Energy Capacitor |
+| 5 | ![](/sprites/boss_core_sentinel.png){width=32} | [Core Sentinel](/wiki/bosses/core-sentinel) | 1,200 | 40-60 | 3 | Core | Ignition Core |
+| 6 | ![](/sprites/boss_mothership.png){width=32} | [Mothership](/wiki/bosses/mothership) | 1,500 | 50-80 | 4 | Surface | Navigation Module |
+| 7 | ![](/sprites/boss_void_lord.png){width=32} | [The Void Lord](/wiki/bosses/void-lord) | 5,000 | 80-150 | 4 | Overworld (post-game) | Trophy of the Void Lord |
 
 **Note:** All boss HP and damage values in the table above are for Normal difficulty. Boss HP scales from 0.7x (Easy) to 1.8x (Hardcore), and boss damage scales from 0.6x to 1.6x. See [Difficulty](/wiki/mechanics/difficulty) for full details.
 

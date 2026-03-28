@@ -58,6 +58,12 @@ Craft at a **Workbench**:
 | Stone Leggings | 12 Stone | 1 |
 | Stone Boots | 8 Stone | 1 |
 
+### Utility
+
+| Item | Materials | Output |
+|------|-----------|--------|
+| [Sleep Chamber](/wiki/crafting/sleep-chamber) | 5 Iron Bar + 3 Glass + 10 Wood | 1 |
+
 ### Stations
 
 | Item | Materials | Output |

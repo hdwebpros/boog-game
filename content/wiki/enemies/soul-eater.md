@@ -11,7 +11,7 @@ stats:
   damage: 25
   speed: 160
   ai: swoop
-  xp: 90
+  xp: 220
 ---
 
 ::enemy-infobox

@@ -28,3 +28,17 @@ Starfall supports Valheim-style player-hosted multiplayer. One player hosts and 
 
 ### [Enchanting](/wiki/mechanics/enchanting)
 Enhance your weapons and armor with powerful enchantments. This system adds another layer of customization to your loadout and can make the difference in tough boss fights.
+
+### Climbing
+Vines can be climbed by pressing W/Up while touching them. Your character grabs on and can move up and down freely. Climbing uses a dedicated animation and does not consume stamina.
+
+### Spawn Points
+Craft a [Sleep Chamber](/wiki/crafting/sleep-chamber) and place it under a solid roof to set a custom respawn point. When you die, you will respawn at the Sleep Chamber instead of the default world spawn.
+
+### Progression XP
+In addition to XP from killing enemies, you earn bonus XP from:
+- **Discovering new items** — 10 XP per unique item found
+- **Reading runestones** — 40 XP per runestone
+- **Discovering new biomes** — XP for entering new biome zones
+- **Reaching depth milestones** — XP for exploring deeper layers
+- **Crafting new stations** — XP for building crafting stations
