@@ -85,6 +85,7 @@ Bring **Torches** (craft 4 from 1 Wood + 1 Plant Fiber) to light your way. Place
 | **W / Up Arrow** | Climb ladders |
 | **S / Down Arrow** | Descend ladders |
 | **Space / W** | Jump |
+| **Shift** | Dash / Dodge |
 | **Space (hold, airborne)** | Jetpack fly (when equipped) |
 
 ### Combat & Building

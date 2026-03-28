@@ -112,7 +112,7 @@ export class MenuScene extends Phaser.Scene {
     })
 
     // Controls
-    this.add.text(width / 2, height - 60, 'WASD/Arrows: Move | Space: Jump | LMB: Mine/Attack\nRMB: Place | C: Craft | Q: Use Item | F: Boss Summon | M: Map', {
+    this.add.text(width / 2, height - 60, 'WASD/Arrows: Move | Space: Jump | Shift: Dash | LMB: Mine/Attack\nRMB: Place | C: Craft | Q: Use Item | F: Boss Summon | M: Map', {
       fontSize: '10px', color: '#555555', fontFamily: 'monospace', align: 'center',
     }).setOrigin(0.5)
 
@@ -534,6 +534,7 @@ export class MenuScene extends Phaser.Scene {
     const leftCol = [
       ['WASD/Arrows', 'Move'],
       ['Space/W', 'Jump'],
+      ['Shift', 'Dash'],
       ['LMB', 'Mine/Attack'],
       ['RMB', 'Place Block'],
       ['1-9', 'Hotbar Slot'],

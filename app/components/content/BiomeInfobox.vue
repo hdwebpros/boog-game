@@ -60,7 +60,7 @@ const resourceList = computed(() =>
         :alt="p.title"
         width="64"
         height="64"
-        class="[image-rendering:pixelated]"
+        class="w-16 h-16 [image-rendering:pixelated]"
       />
     </div>
 

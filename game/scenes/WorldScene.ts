@@ -422,7 +422,7 @@ export class WorldScene extends Phaser.Scene {
       fontFamily: 'monospace',
     }).setScrollFactor(0).setDepth(100)
 
-    this.add.text(8, 24, 'WASD:Move LMB:Mine/Attack RMB:Place C:Craft E:Inv K:Skills F:Interact', {
+    this.add.text(8, 24, 'WASD:Move Shift:Dash LMB:Mine/Attack RMB:Place C:Craft E:Inv K:Skills F:Interact', {
       fontSize: '11px',
       color: '#444444',
       fontFamily: 'monospace',

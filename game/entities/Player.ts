@@ -45,8 +45,9 @@ const FALL_DMG_THRESHOLD = 450
 const FALL_DMG_FACTOR = 0.1
 
 // Mining
-const MINING_RANGE = 4.5 // tiles
+const MINING_RANGE = 3 // tiles
 const BASE_MINE_TIME = 400 // ms per hardness point
+const BARE_HAND_SPEED = 0.25 // bare-hand mining is 4x slower than base
 
 // Combat
 const MAX_HP = 100
@@ -56,10 +57,10 @@ const IFRAMES_DURATION = 500 // ms
 const RESPAWN_DELAY = 2000 // ms
 
 // Dash
-const DASH_SPEED = 600
-const DASH_DURATION = 150 // ms
-const DASH_COOLDOWN = 800 // ms
-const DASH_IFRAMES = 100 // brief invulnerability during dash
+const DASH_SPEED = 350
+const DASH_DURATION = 120 // ms
+const DASH_COOLDOWN = 1000 // ms
+const DASH_IFRAMES = 80 // brief invulnerability during dash
 
 // Combo system
 const COMBO_WINDOW = 1200 // ms to land next hit before combo resets
@@ -1763,8 +1764,16 @@ export class Player {
       if (isWeapon && (tileType === TileType.AIR || !props?.mineable)) return
 
       if (tileType !== TileType.AIR && props?.mineable) {
+        // Enforce pickaxe tier requirement — need a pickaxe whose miningTier >= tile tier
+        const toolMiningTier = (def?.category === ItemCategory.TOOL && def.miningTier !== undefined) ? def.miningTier : -1
+        if (props.tier > 0 && toolMiningTier < props.tier) {
+          this.resetMining()
+          return
+        }
+
         // Get mining speed multiplier from held tool + skills
-        const toolSpeed = (def?.category === ItemCategory.TOOL && def.miningSpeed) ? def.miningSpeed : 1
+        const isTool = def?.category === ItemCategory.TOOL && def.miningSpeed
+        const toolSpeed = isTool ? def.miningSpeed! : BARE_HAND_SPEED
         const skillMineSpeed = this.skills.getModifiers().mineSpeedMult
 
         if (tx === this.miningTX && ty === this.miningTY) {

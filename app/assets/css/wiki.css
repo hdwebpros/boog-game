@@ -101,3 +101,16 @@ body {
   box-shadow: 4px 4px 0 black;
   image-rendering: pixelated;
 }
+
+/* Inline thumbnails inside tables and lists — override prose block-level img */
+.prose td img,
+.prose li img {
+  display: inline-block;
+  margin: 0;
+  vertical-align: middle;
+  box-shadow: 2px 2px 0 black;
+  min-width: 64px;
+  min-height: 64px;
+  width: 64px;
+  height: 64px;
+}

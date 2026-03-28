@@ -37,6 +37,7 @@ Begin by punching trees to gather wood, then craft a workbench and wooden tools.
 |-----|--------|
 | WASD / Arrow Keys | Move |
 | Space / W | Jump |
+| Shift | Dash / Dodge |
 | Left Mouse Button | Mine block / Attack |
 | Right Mouse Button | Place block |
 | C | Open crafting menu |

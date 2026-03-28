@@ -19,10 +19,12 @@ A complete reference for every control and hotkey in Starfall. Print this page o
 | **W** or **Up Arrow** | Climb ladders / Move up |
 | **S** or **Down Arrow** | Descend ladders / Move down |
 | **Space** | Jump |
+| **Shift** | Dash (quick dodge in facing direction) |
 | **Space** (hold while airborne) | Activate jetpack (when equipped) |
 
 **Notes:**
 - You can also press **W** to jump.
+- **Shift** performs a short dash in the direction you are facing. It has a brief cooldown and grants a moment of invulnerability. Great for dodging enemy attacks.
 - Double Jump is available after unlocking the Double Jump skill in the Mobility branch.
 - Jetpack flight consumes fuel. The fuel bar recharges when you are standing on the ground.
 
@@ -135,6 +137,7 @@ The **F** key does different things depending on what you are near:
 
 ```
 MOVEMENT:     WASD / Arrows + Space (jump)
+DASH:         Shift (dodge in facing direction)
 ATTACK/MINE:  LMB (left click)
 PLACE:        RMB (right click)
 HOTBAR:       1-9, Scroll Wheel
@@ -158,6 +161,7 @@ FLY:          Space (hold, airborne, jetpack equipped)
 - **Switch to your weapon** before exploring. Getting caught with a pickaxe or block selected when an enemy appears wastes precious reaction time.
 - **Keep healing items in hotbar slots 8-9** so you can quickly press the number key, then **I** to heal during combat.
 - **Press Q to drop unwanted items** and free up inventory space while mining deep underground.
+- **Press Shift to dash** through danger. The brief invulnerability window can save your life against projectiles and boss attacks.
 - **Use the scroll wheel** for quick hotbar switching during combat -- it is faster than reaching for number keys.
 - **Press C near different stations** to see different recipe lists. Each station unlocks its own set of recipes.
 - **Place Torches** (RMB with torch selected) liberally underground. Light helps you spot ores and enemies.

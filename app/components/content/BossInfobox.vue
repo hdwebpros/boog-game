@@ -67,7 +67,7 @@ const stats = computed(() => {
         :alt="p.title"
         width="96"
         height="96"
-        class="[image-rendering:pixelated]"
+        class="w-24 h-24 [image-rendering:pixelated]"
       />
     </div>
 

@@ -47,7 +47,7 @@ const resultImgSrc = computed(() => {
             :alt="resultName || result || 'Result'"
             width="48"
             height="48"
-            class="[image-rendering:pixelated]"
+            class="w-12 h-12 [image-rendering:pixelated]"
           />
           <span v-else class="text-slate-500 text-xs">?</span>
         </div>

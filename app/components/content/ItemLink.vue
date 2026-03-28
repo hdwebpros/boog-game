@@ -25,7 +25,7 @@ const imgSrc = computed(() => {
       :alt="name"
       width="16"
       height="16"
-      class="[image-rendering:pixelated] inline-block"
+      class="w-4 h-4 [image-rendering:pixelated] inline-block"
     />
     <span>{{ name }}</span>
   </NuxtLink>
