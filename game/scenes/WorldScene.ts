@@ -5,7 +5,7 @@ import { Enemy } from '../entities/Enemy'
 import { Boss } from '../entities/Boss'
 import { FinalBoss } from '../entities/FinalBoss'
 import type { WorldData, AltarPlacement, RunestonePlacement } from '../world/WorldGenerator'
-import { TileType, TILE_SIZE, WORLD_WIDTH, UNDERGROUND_Y as UNDERGROUND_TILE_Y, DEEP_UNDERGROUND_Y, STATION_TILE_TYPE } from '../world/TileRegistry'
+import { TileType, TILE_SIZE, TILE_PROPERTIES, WORLD_WIDTH, UNDERGROUND_Y as UNDERGROUND_TILE_Y, DEEP_UNDERGROUND_Y, STATION_TILE_TYPE } from '../world/TileRegistry'
 import { CombatSystem } from '../systems/CombatSystem'
 import { EnemySpawner } from '../systems/EnemySpawner'
 import { BOSS_DEFS, ALTAR_DEFS, BossType } from '../data/bosses'
@@ -75,6 +75,11 @@ export class WorldScene extends Phaser.Scene {
   // POI discovery (runestones/altars visible on minimap when nearby)
   private discoveredPOIs: Set<string> = new Set() // "type:tx,ty" keys
 
+  // XP progression tracking
+  private discoveredBiomes: Set<number> = new Set() // SurfaceBiome enum values + 100+ for depth zones
+  private craftedStationTypes: Set<number> = new Set() // item IDs of stations placed
+  private depthMilestones: Set<number> = new Set() // depth milestone thresholds reached
+
   // Mystical Compass — rendering moved to UIScene, data provided via getCompassTarget()
 
   // Portal system
@@ -112,6 +117,7 @@ export class WorldScene extends Phaser.Scene {
   hasCompletedGame: boolean = false
   finalBoss: FinalBoss | null = null
   private voidPortalPromptText: Phaser.GameObjects.Text | null = null
+  private sleepChamberPrompt: Phaser.GameObjects.Text | null = null
   private worldSeed: string = ''
   private permadeathTriggered = false
   private activeDrills: BoringDrill[] = []
@@ -136,6 +142,9 @@ export class WorldScene extends Phaser.Scene {
     this.saveFailed = false
     this.discoveredAltars = new Set()
     this.usedRunestones = new Set()
+    this.discoveredBiomes = new Set()
+    this.craftedStationTypes = new Set()
+    this.depthMilestones = new Set()
     this.discoveredPOIs = new Set()
     this.permadeathTriggered = false
     this.activeDrills = []
@@ -295,6 +304,10 @@ export class WorldScene extends Phaser.Scene {
       // Restore progression flags
       if (saveData.hasVisitedVoid) this.hasVisitedVoid = true
       if (saveData.hasCompletedGame) this.hasCompletedGame = true
+      // Restore custom spawn point
+      if (saveData.spawnPointX != null && saveData.spawnPointY != null) {
+        this.player.setSpawn(saveData.spawnPointX, saveData.spawnPointY)
+      }
       this.registry.remove('saveData')
     }
 
@@ -654,6 +667,7 @@ export class WorldScene extends Phaser.Scene {
       this.checkNPCInteraction()
       this.checkPortalInteraction()
       this.checkVoidPortalInteraction()
+      this.checkSleepChamberInteraction()
 
       // Build list of all player positions for spawning, enemy AI, and despawn checks
       const allPlayerPositions: { x: number; y: number; id: number }[] = [
@@ -826,19 +840,21 @@ export class WorldScene extends Phaser.Scene {
           for (const drop of loot) {
             this.spawnDrop(enemy.sprite.x, enemy.sprite.y, drop.itemId, drop.count)
           }
-          // Grant XP to host
-          this.grantXP(enemy.def.xp, enemy.sprite.x, enemy.sprite.y)
-          // Broadcast XP to clients (Fix #4)
-          if (this.mp.isHost) {
-            this.mp.broadcastCombatEvent({
-              type: 'xp',
-              targetType: 'player',
-              targetId: 0,
-              sourceId: enemy.entityId,
-              amount: enemy.def.xp,
-              x: enemy.sprite.x,
-              y: enemy.sprite.y,
-            })
+          // Grant XP only if player actually dealt damage to this enemy
+          if (enemy.killedByPlayer) {
+            this.grantXP(enemy.def.xp, enemy.sprite.x, enemy.sprite.y)
+            // Broadcast XP to clients (Fix #4)
+            if (this.mp.isHost) {
+              this.mp.broadcastCombatEvent({
+                type: 'xp',
+                targetType: 'player',
+                targetId: 0,
+                sourceId: enemy.entityId,
+                amount: enemy.def.xp,
+                x: enemy.sprite.x,
+                y: enemy.sprite.y,
+              })
+            }
           }
           // Heal on kill (skill + ascension killHealPercent)
           const skillMods = this.player.skills.getModifiers()
@@ -920,6 +936,9 @@ export class WorldScene extends Phaser.Scene {
 
       // Portal interaction (works locally for clients)
       this.checkPortalInteraction()
+
+      // Sleep chamber spawn point (local only)
+      this.checkSleepChamberInteraction()
 
       // Client-side attack detection — send attack requests to host
       this.checkClientAttack(dt)
@@ -1808,6 +1827,104 @@ export class WorldScene extends Phaser.Scene {
     this.scene.start('BootScene')
   }
 
+  // ── Sleep Chamber Spawn Point ──────────────────────────
+
+  /** Check if player interacts with a placed Sleep Chamber to set spawn */
+  private checkSleepChamberInteraction() {
+    if (this.sleepChamberPrompt) this.sleepChamberPrompt.setVisible(false)
+    if (this.player.dead) return
+
+    const px = this.player.sprite.x
+    const py = this.player.sprite.y
+    const ptx = Math.floor(px / TILE_SIZE)
+    const pty = Math.floor(py / TILE_SIZE)
+
+    // Look for a nearby Sleep Chamber station (within 3 tiles)
+    const stations = this.chunkManager.getPlacedStations()
+    let nearChamber: { tx: number; ty: number } | null = null
+    for (const s of stations) {
+      if (s.itemId !== 422) continue
+      const dx = Math.abs(s.tx - ptx)
+      const dy = Math.abs(s.ty - pty)
+      if (dx <= 3 && dy <= 3) {
+        nearChamber = s
+        break
+      }
+    }
+
+    if (!nearChamber) return
+
+    // Check for a solid roof above the chamber (scan up to 6 tiles above)
+    // Roof must not be dirt, leaves, grass, or natural weak materials
+    const INVALID_ROOF = new Set([
+      TileType.AIR, TileType.DIRT, TileType.LEAVES, TileType.GRASS,
+      TileType.VOID_DIRT, TileType.VOID_GRASS, TileType.VOID_LEAVES,
+      TileType.JUNGLE_GRASS, TileType.SNOW, TileType.SAND,
+    ])
+    let hasRoof = false
+    for (let yOff = 1; yOff <= 6; yOff++) {
+      const roofTile = this.chunkManager.getTile(nearChamber.tx, nearChamber.ty - yOff)
+      if (roofTile !== TileType.AIR && !INVALID_ROOF.has(roofTile)) {
+        const props = TILE_PROPERTIES[roofTile]
+        if (props && props.solid) {
+          hasRoof = true
+          break
+        }
+      }
+    }
+
+    // Show prompt
+    if (!this.sleepChamberPrompt) {
+      this.sleepChamberPrompt = this.add.text(0, 0, '', {
+        fontSize: '12px', color: '#aaccff', fontFamily: 'monospace',
+        stroke: '#000000', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(200)
+    }
+
+    const chamberPx = nearChamber.tx * TILE_SIZE + TILE_SIZE / 2
+    const chamberPy = nearChamber.ty * TILE_SIZE - 12
+    this.sleepChamberPrompt.setPosition(chamberPx, chamberPy)
+    this.sleepChamberPrompt.setVisible(true)
+
+    if (!hasRoof) {
+      this.sleepChamberPrompt.setText('Needs a roof!')
+      this.sleepChamberPrompt.setColor('#ff6666')
+      return
+    }
+
+    // Check if this chamber is already the active spawn point
+    const currentSpawn = this.player.getSpawn()
+    const chamberSpawnX = nearChamber.tx * TILE_SIZE + TILE_SIZE / 2
+    const chamberSpawnY = nearChamber.ty * TILE_SIZE + TILE_SIZE / 2
+    const isActiveSpawn = Math.abs(currentSpawn.x - chamberSpawnX) < 1 && Math.abs(currentSpawn.y - chamberSpawnY) < 1
+
+    if (isActiveSpawn) {
+      this.sleepChamberPrompt.setText('Your sleep chamber')
+      this.sleepChamberPrompt.setColor('#44ccff')
+      return
+    }
+
+    this.sleepChamberPrompt.setText('Press F to set spawn')
+    this.sleepChamberPrompt.setColor('#aaccff')
+
+    if (Phaser.Input.Keyboard.JustDown(this.keyF)) {
+      this.player.setSpawn(chamberSpawnX, chamberSpawnY)
+
+      // Confirmation text
+      const confirmText = this.add.text(
+        this.cameras.main.centerX, this.cameras.main.centerY - 80,
+        'Spawn point set!',
+        {
+          fontSize: '18px', color: '#44ccff', fontFamily: 'monospace',
+          stroke: '#000000', strokeThickness: 4,
+        }
+      ).setOrigin(0.5).setScrollFactor(0).setDepth(500)
+      this.time.delayedCall(2000, () => confirmText.destroy())
+
+      AudioManager.get()?.play(SoundId.CRAFT_SUCCESS)
+    }
+  }
+
   // ── Void Lord Boss Summon ──────────────────────────────
 
   /** Check if player uses Void Lord Summon Token (item 370) */
@@ -2360,7 +2477,9 @@ export class WorldScene extends Phaser.Scene {
       this.hasVisitedVoid,
       this.hasCompletedGame,
       Array.from(this.player.inventory.trashFilter),
-      DifficultyManager.getDifficulty()
+      DifficultyManager.getDifficulty(),
+      this.player.getSpawn().x,
+      this.player.getSpawn().y
     )
   }
 
@@ -2566,6 +2685,9 @@ export class WorldScene extends Phaser.Scene {
         interpT: 1,
         sprite: null,
         nameText: null,
+        animTimer: 0,
+        animFrameIndex: 0,
+        lastAnimState: '',
       })
       this.mp.createRemotePlayerSprite(playerId, this)
 

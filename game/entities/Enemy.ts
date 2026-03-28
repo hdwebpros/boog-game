@@ -21,6 +21,7 @@ export class Enemy {
   intangible = false // when true, immune to damage and can't deal contact damage
   speedMult = 1 // modified by frost enchantment slow
   entityId = 0 // unique ID for multiplayer entity tracking
+  killedByPlayer = false // true if player dealt the killing blow (or any damage)
 
   private scene: Phaser.Scene
   private iFrames = 0
@@ -206,6 +207,7 @@ export class Enemy {
 
     if (this.hp <= 0) {
       this.alive = false
+      this.killedByPlayer = true
     }
   }
 

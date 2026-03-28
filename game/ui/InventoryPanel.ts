@@ -19,6 +19,29 @@ const INV_MAX_MAIN_ROWS = 4
 const INV_MAX_MAIN_SLOTS = INV_COLS * INV_MAX_MAIN_ROWS
 const INV_MAX_TOTAL_SLOTS = INV_MAX_MAIN_SLOTS + 10 // +hotbar
 
+const TIER_COLORS = ['#aaaaaa', '#55ff55', '#5599ff', '#bb55ff', '#ff8833', '#ff4444', '#ffd700']
+const ENCHANT_DESCS: Record<string, string> = {
+  ember: 'Burns enemies on hit',
+  frost: 'Slows enemies on hit',
+  storm: 'Chain lightning on hit',
+  void: 'Pierces enemy armor',
+  life: 'Steals HP on hit',
+  eternal: 'All enchantment effects',
+}
+
+function getSpeedLabel(ms: number): string {
+  if (ms <= 200) return 'Insane'
+  if (ms <= 350) return 'Very Fast'
+  if (ms <= 500) return 'Fast'
+  if (ms <= 700) return 'Average'
+  if (ms <= 1000) return 'Slow'
+  return 'Very Slow'
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 export class InventoryPanel {
   private scene: Phaser.Scene
   private invGfx!: Phaser.GameObjects.Graphics
@@ -29,6 +52,9 @@ export class InventoryPanel {
   private invSlotZones: Phaser.GameObjects.Zone[] = []
   private invVisible = false
   private invTooltipText!: Phaser.GameObjects.Text
+  private tooltipGfx!: Phaser.GameObjects.Graphics
+  private tooltipNameText!: Phaser.GameObjects.Text
+  private tooltipBodyText!: Phaser.GameObjects.Text
 
   // Armor panel
   private armorGfx!: Phaser.GameObjects.Graphics
@@ -135,6 +161,18 @@ export class InventoryPanel {
       stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0.5, 1).setDepth(315).setVisible(false)
 
+    this.tooltipGfx = this.scene.add.graphics().setDepth(400)
+    this.tooltipNameText = this.scene.add.text(0, 0, '', {
+      fontSize: '12px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 2,
+    }).setDepth(401).setVisible(false)
+    this.tooltipBodyText = this.scene.add.text(0, 0, '', {
+      fontSize: '10px', color: '#aaaaaa', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 1,
+      lineSpacing: 2,
+      wordWrap: { width: 220 },
+    }).setDepth(401).setVisible(false)
+
     // Armor panel
     this.armorGfx = this.scene.add.graphics().setDepth(310)
     const armorLabels = ['H', 'C', 'L', 'B']
@@ -225,6 +263,7 @@ export class InventoryPanel {
     this.armorGfx.clear()
     this.invTitle.setVisible(this.invVisible)
     this.invTooltipText.setVisible(false)
+    this.hideItemTooltip()
 
     // Dynamic row count based on effective inventory size
     const effMainSize = inv.getEffectiveMainSize()
@@ -392,42 +431,9 @@ export class InventoryPanel {
       }
     }
 
-    // Tooltip with stat comparison
+    // Rich tooltip
     if (hoveredItem) {
-      const def = getItemDef(hoveredItem.id)
-      const tileProps = TILE_PROPERTIES[hoveredItem.id as TileType]
-      let name = def?.name ?? tileProps?.name ?? `Item ${hoveredItem.id}`
-      if (hoveredItem.enchantment) {
-        const enchName = ENCHANTMENT_NAMES[hoveredItem.enchantment] ?? hoveredItem.enchantment
-        name = `${enchName} ${name}`
-        const eColor = ENCHANTMENT_COLORS[hoveredItem.enchantment]
-        if (eColor) this.invTooltipText.setColor(`#${eColor.toString(16).padStart(6, '0')}`)
-        else this.invTooltipText.setColor('#ffffff')
-      } else {
-        this.invTooltipText.setColor('#ffffff')
-      }
-      if (def?.defense) name += ` (+${def.defense} def)`
-      // Stat comparison arrows vs equipped
-      if (def) {
-        const equipped = inv.getSelectedItem()
-        const equippedDef = equipped ? getItemDef(equipped.id) : null
-        if (def.damage && equippedDef?.damage) {
-          const diff = def.damage - equippedDef.damage
-          if (diff > 0) name += ` \u2191${diff}`
-          else if (diff < 0) name += ` \u2193${Math.abs(diff)}`
-        }
-        if (def.defense && def.armorSlot) {
-          const currentArmor = inv.armorSlots[def.armorSlot]
-          const currentDef = currentArmor ? getItemDef(currentArmor.id) : null
-          const diff = def.defense - (currentDef?.defense ?? 0)
-          if (diff > 0) name += ` \u2191${diff}def`
-          else if (diff < 0) name += ` \u2193${Math.abs(diff)}def`
-        }
-      }
-      if (inv.trashFilter.has(hoveredItem.id)) name += ' [AUTO-TRASH]'
-      this.invTooltipText.setText(name)
-      this.invTooltipText.setPosition(width / 2, invY - 4)
-      this.invTooltipText.setVisible(true)
+      this.showItemTooltip(hoveredItem, pointer.x, pointer.y, inv)
     }
 
     // Auto-trash hint
@@ -470,11 +476,7 @@ export class InventoryPanel {
         this.armorGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
 
         if (item) {
-          const def = getItemDef(item.id)
-          if (def) {
-            this.invTooltipText.setText(`${def.name} (+${def.defense} def)`)
-            this.invTooltipText.setVisible(true)
-          }
+          this.showItemTooltip(item, pointer.x, pointer.y, inv)
         }
       }
 
@@ -548,12 +550,7 @@ export class InventoryPanel {
         this.armorGfx.fillRect(sx, sy, SLOT_SIZE, SLOT_SIZE)
 
         if (accItem) {
-          const aDef = getItemDef(accItem.id)
-          const aEff = ACCESSORY_EFFECTS[accItem.id]
-          if (aDef && aEff) {
-            this.invTooltipText.setText(`${aDef.name}: ${aEff.description}`)
-            this.invTooltipText.setVisible(true)
-          }
+          this.showItemTooltip(accItem, pointer.x, pointer.y, inv)
         }
 
         if (pointerJustDown) {
@@ -666,6 +663,150 @@ export class InventoryPanel {
     this.heldText.setText(held.count > 1 ? `${held.count}` : '')
     this.heldText.setPosition(cx + SLOT_SIZE / 2 - 6, cy + SLOT_SIZE / 2 - 6)
     this.heldText.setVisible(held.count > 1)
+  }
+
+  private showItemTooltip(item: ItemStack, px: number, py: number, inv: InventoryManager) {
+    const def = getItemDef(item.id)
+    const tileProps = TILE_PROPERTIES[item.id as TileType]
+
+    // -- Build name --
+    let name = def?.name ?? tileProps?.name ?? `Item ${item.id}`
+    let nameColor: string
+    if (item.enchantment) {
+      const enchName = ENCHANTMENT_NAMES[item.enchantment] ?? item.enchantment
+      name = `${enchName} ${name}`
+      const eColor = ENCHANTMENT_COLORS[item.enchantment]
+      nameColor = eColor ? `#${eColor.toString(16).padStart(6, '0')}` : '#ffffff'
+    } else {
+      nameColor = TIER_COLORS[def?.tier ?? 0] ?? '#aaaaaa'
+    }
+
+    // -- Build body lines --
+    const lines: string[] = []
+    const accEff = ACCESSORY_EFFECTS[item.id]
+
+    if (def) {
+      // Category / type line
+      if (def.category === 'weapon' && def.weaponStyle) {
+        lines.push(`${capitalize(def.weaponStyle)} Weapon`)
+      } else if (def.category === 'armor' && def.armorSlot) {
+        lines.push(`${capitalize(def.armorSlot)}`)
+      } else if (def.category === 'accessory') {
+        lines.push('Accessory')
+      } else if (def.category === 'consumable') {
+        lines.push('Consumable')
+      } else if (def.category === 'tool') {
+        lines.push('Tool')
+      } else if (def.category === 'station') {
+        lines.push('Crafting Station')
+      }
+
+      // Damage
+      if (def.damage) {
+        let dmgLine = `Damage: ${def.damage}`
+        const equipped = inv.getSelectedItem()
+        const equippedDef = equipped ? getItemDef(equipped.id) : null
+        if (equippedDef?.damage) {
+          const diff = def.damage - equippedDef.damage
+          if (diff > 0) dmgLine += `  \u2191${diff}`
+          else if (diff < 0) dmgLine += `  \u2193${Math.abs(diff)}`
+        }
+        lines.push(dmgLine)
+      }
+
+      // Defense
+      if (def.defense) {
+        let defLine = `Defense: +${def.defense}`
+        if (def.armorSlot) {
+          const currentArmor = inv.armorSlots[def.armorSlot]
+          const currentDef = currentArmor ? getItemDef(currentArmor.id) : null
+          const diff = def.defense - (currentDef?.defense ?? 0)
+          if (diff > 0) defLine += `  \u2191${diff}`
+          else if (diff < 0) defLine += `  \u2193${Math.abs(diff)}`
+        }
+        lines.push(defLine)
+      }
+
+      // Attack speed
+      if (def.attackSpeed) {
+        lines.push(`Speed: ${getSpeedLabel(def.attackSpeed)}`)
+      }
+
+      // Mana cost
+      if (def.manaCost) lines.push(`Mana: ${def.manaCost}`)
+
+      // Mining stats
+      if (def.miningSpeed) lines.push(`Mine Speed: ${def.miningSpeed}x`)
+      if (def.miningTier) lines.push(`Mine Tier: ${def.miningTier}`)
+
+      // Heal
+      if (def.healAmount) lines.push(`Heals ${def.healAmount} HP`)
+
+      // Thorns
+      if (def.thornsPct) lines.push(`Thorns: ${Math.round(def.thornsPct * 100)}%`)
+    }
+
+    // Accessory description
+    if (accEff) {
+      lines.push(accEff.description)
+    }
+
+    // Enchantment effect
+    if (item.enchantment) {
+      const desc = ENCHANT_DESCS[item.enchantment]
+      if (desc) lines.push(desc)
+    }
+
+    // Auto-trash
+    if (inv.trashFilter.has(item.id)) lines.push('[AUTO-TRASH]')
+
+    // -- Render tooltip panel --
+    this.tooltipNameText.setText(name)
+    this.tooltipNameText.setColor(nameColor)
+    this.tooltipBodyText.setText(lines.join('\n'))
+
+    const pad = 8
+    const nameW = this.tooltipNameText.width
+    const bodyW = lines.length > 0 ? this.tooltipBodyText.width : 0
+    const maxW = Math.max(nameW, bodyW, 100) + pad * 2
+    const nameH = this.tooltipNameText.height
+    const gap = lines.length > 0 ? 4 : 0
+    const bodyH = lines.length > 0 ? this.tooltipBodyText.height : 0
+    const totalH = pad + nameH + gap + bodyH + pad
+
+    // Position near cursor, clamped to screen
+    const { width: sw } = this.scene.scale
+    let tx = px + 16
+    let ty = py - totalH - 8
+    if (tx + maxW > sw - 4) tx = px - maxW - 8
+    if (ty < 4) ty = py + 24
+    if (tx < 4) tx = 4
+
+    this.tooltipGfx.clear()
+    this.tooltipGfx.fillStyle(0x0a0a1a, 0.95)
+    this.tooltipGfx.fillRect(tx, ty, maxW, totalH)
+    this.tooltipGfx.lineStyle(1, 0x555577)
+    this.tooltipGfx.strokeRect(tx, ty, maxW, totalH)
+
+    // Thin colored accent line at top
+    const accentColor = item.enchantment
+      ? (ENCHANTMENT_COLORS[item.enchantment] ?? 0x555577)
+      : (def?.tier ? parseInt((TIER_COLORS[def.tier] ?? '#555577').slice(1), 16) : 0x555577)
+    this.tooltipGfx.fillStyle(accentColor, 0.6)
+    this.tooltipGfx.fillRect(tx + 1, ty + 1, maxW - 2, 2)
+
+    this.tooltipNameText.setPosition(tx + pad, ty + pad)
+    this.tooltipNameText.setVisible(true)
+    if (lines.length > 0) {
+      this.tooltipBodyText.setPosition(tx + pad, ty + pad + nameH + gap)
+      this.tooltipBodyText.setVisible(true)
+    }
+  }
+
+  private hideItemTooltip() {
+    this.tooltipGfx.clear()
+    this.tooltipNameText.setVisible(false)
+    this.tooltipBodyText.setVisible(false)
   }
 
   private onInvSlotClick(slotIndex: number, pointer: Phaser.Input.Pointer) {

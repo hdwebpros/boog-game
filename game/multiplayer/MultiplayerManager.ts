@@ -52,6 +52,10 @@ export interface RemotePlayerState {
   interpT: number
   sprite: Phaser.GameObjects.Image | null
   nameText: Phaser.GameObjects.Text | null
+  // Animation state for frame cycling
+  animTimer: number
+  animFrameIndex: number
+  lastAnimState: string
 }
 
 export class MultiplayerManager {
@@ -374,31 +378,51 @@ export class MultiplayerManager {
       rp.x = rp.prevX + (rp.targetX - rp.prevX) * t
       rp.y = rp.prevY + (rp.targetY - rp.prevY) * t
 
-      // Update sprite position and action animation texture
+      // Update sprite position and animated texture (same anims as local player)
       if (rp.sprite) {
         rp.sprite.x = rp.x
         rp.sprite.y = rp.y
         rp.sprite.setFlipX(!rp.facingRight)
         rp.sprite.setAlpha(rp.dead ? 0.3 : 1)
 
-        // Swap texture for action animations
-        let desiredTex = ''
-        if (rp.actionAnim === 'mining') {
-          desiredTex = 'player_mine1'
-        } else if (rp.actionAnim === 'attacking') {
-          desiredTex = 'player_attack1'
-        } else if (Math.abs(rp.vx) > 1) {
-          desiredTex = 'player_idle1' // walk uses same base
-        } else {
-          desiredTex = 'player_idle1'
+        // Determine animation state
+        let animState = 'idle'
+        if (rp.actionAnim === 'mining' || rp.actionAnim === 'attacking') {
+          animState = 'attack'
+        } else if (rp.vy < -50) {
+          animState = 'jump'
+        } else if (rp.vy > 50) {
+          animState = 'fall'
+        } else if (Math.abs(rp.vx) > 10) {
+          animState = 'walk'
         }
-        if (desiredTex && rp.sprite.texture.key !== desiredTex && rp.sprite.scene.textures.exists(desiredTex)) {
+
+        // Reset frame index on state change
+        if (animState !== rp.lastAnimState) {
+          rp.lastAnimState = animState
+          rp.animFrameIndex = 0
+          rp.animTimer = 0
+        }
+
+        // Advance frame timer
+        const frameDurations: Record<string, number> = {
+          idle: 300, walk: 120, jump: 120, fall: 200, attack: 30,
+        }
+        const frameCounts: Record<string, number> = {
+          idle: 4, walk: 6, jump: 7, fall: 2, attack: 7,
+        }
+        const interval = frameDurations[animState] ?? 200
+        const count = frameCounts[animState] ?? 1
+        rp.animTimer += dt * 1000
+        if (rp.animTimer >= interval) {
+          rp.animTimer -= interval
+          rp.animFrameIndex = (rp.animFrameIndex + 1) % count
+        }
+
+        const desiredTex = `astro_${animState}_${rp.animFrameIndex}`
+        if (rp.sprite.texture.key !== desiredTex && rp.sprite.scene.textures.exists(desiredTex)) {
           rp.sprite.setTexture(desiredTex)
-          // Action sprites are 48x64, idle is 32x64 — rescale
-          const frame = rp.sprite.scene.textures.getFrame(desiredTex)
-          if (frame) {
-            rp.sprite.setScale(16 / frame.width, 32 / frame.height)
-          }
+          this.applyRemoteSpriteScale(rp.sprite)
         }
       }
       if (rp.nameText) {
@@ -407,20 +431,22 @@ export class MultiplayerManager {
     }
   }
 
+  /** Scale remote player sprite to match local player (same logic as Player.applySpriteScale) */
+  private applyRemoteSpriteScale(sprite: Phaser.GameObjects.Image) {
+    const h = sprite.frame.height
+    sprite.setScale(h > 32 ? 0.5 : 1)
+  }
+
   /** Create sprite for a remote player */
   createRemotePlayerSprite(id: number, scene: Phaser.Scene) {
     const rp = this._remotePlayers.get(id)
     if (!rp || rp.sprite) return
 
-    const texKey = scene.textures.exists('player_idle1') ? 'player_idle1' : 'player'
+    const texKey = scene.textures.exists('astro_idle_0') ? 'astro_idle_0' : (scene.textures.exists('player_idle1') ? 'player_idle1' : 'player')
     rp.sprite = scene.add.image(rp.x, rp.y, texKey)
     rp.sprite.setOrigin(0.5, 0.5)
     rp.sprite.setDepth(10)
-    // Scale to match local player (16x32 display)
-    const frame = scene.textures.getFrame(texKey)
-    if (frame) {
-      rp.sprite.setScale(16 / frame.width, 32 / frame.height)
-    }
+    this.applyRemoteSpriteScale(rp.sprite)
     // Tint slightly to differentiate
     rp.sprite.setTint(0xaaddff)
 
@@ -488,6 +514,9 @@ export class MultiplayerManager {
             interpT: 0,
             sprite: null,
             nameText: null,
+            animTimer: 0,
+            animFrameIndex: 0,
+            lastAnimState: '',
           }
           this._remotePlayers.set(snap.id, rp)
           if (this.scene) {

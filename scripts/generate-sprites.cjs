@@ -814,6 +814,24 @@ const ITEMS = [
     desc: 'titanium boots armor inventory icon for a 2D side-scrolling game. Sleek silver-white titanium boots with smooth design and blue accents, top-tier footwear. Pixel art item sprite.',
   },
 
+  // ─── ARMOR: BARBED ───────────────────────────────────────────
+  {
+    name: 'item_220', label: 'barbed_helmet',
+    desc: 'barbed helmet armor inventory icon for a 2D side-scrolling game. Green thorny helmet covered in sharp spikes and barbs, dark green metal with protruding thorns, menacing spiked headgear that hurts attackers. Pixel art item sprite.',
+  },
+  {
+    name: 'item_221', label: 'barbed_chestplate',
+    desc: 'barbed chestplate armor inventory icon for a 2D side-scrolling game. Green thorny chest armor covered in sharp spikes and barbs, dark green metal breastplate with protruding thorns on shoulders and front, menacing spiked body armor that hurts attackers. Pixel art item sprite.',
+  },
+  {
+    name: 'item_222', label: 'barbed_leggings',
+    desc: 'barbed leggings armor inventory icon for a 2D side-scrolling game. Green thorny leg guards covered in sharp spikes and barbs, dark green metal leg armor with protruding thorns along the sides, menacing spiked leg protection that hurts attackers. Pixel art item sprite.',
+  },
+  {
+    name: 'item_223', label: 'barbed_boots',
+    desc: 'barbed boots armor inventory icon for a 2D side-scrolling game. Green thorny boots covered in sharp spikes and barbs, dark green metal boots with protruding thorns, menacing spiked footwear that hurts attackers. Pixel art item sprite.',
+  },
+
   // ─── SHARDS & ENCHANTING ───────────────────────────────────
   {
     name: 'item_230', label: 'ember_shard',

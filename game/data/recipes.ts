@@ -31,8 +31,8 @@ export const RECIPES: Recipe[] = [
   { id: 'wood_bow',     station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 6 }, { itemId: 105, count: 3 }], output: { itemId: 140, count: 1 } },
   // Boss summon items removed — bosses are now summoned at altars with ingredients
   { id: 'plant_fiber',  station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.LEAVES, count: 3 }], output: { itemId: 105, count: 2 } },
-  { id: 'plant_fiber_moss', station: StationType.WORKBENCH, inputs: [{ itemId: TileType.MOSS, count: 3 }], output: { itemId: 105, count: 5 } },
-  { id: 'vine_rope',   station: StationType.WORKBENCH,  inputs: [{ itemId: 105, count: 3 }, { itemId: TileType.WOOD, count: 2 }], output: { itemId: TileType.VINE, count: 8 } },
+  { id: 'plant_fiber_moss', station: StationType.WORKBENCH, inputs: [{ itemId: TileType.MOSS, count: 3 }], output: { itemId: 105, count: 8 } },
+  { id: 'vine_rope',   station: StationType.WORKBENCH,  inputs: [{ itemId: 105, count: 3 }, { itemId: TileType.WOOD, count: 1 }], output: { itemId: TileType.VINE, count: 8 } },
   { id: 'healing_herb', station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.LEAVES, count: 5 }, { itemId: 105, count: 2 }], output: { itemId: 190, count: 1 } },
   { id: 'wood_helmet',  station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 8 }], output: { itemId: 200, count: 1 } },
   { id: 'wood_chest',   station: StationType.WORKBENCH,  inputs: [{ itemId: TileType.WOOD, count: 12 }], output: { itemId: 201, count: 1 } },
@@ -183,6 +183,9 @@ export const RECIPES: Recipe[] = [
 
   // ── Tree Chomper (crafted at Anvil) ───────────────────
   { id: 'tree_chomper', station: StationType.ANVIL, inputs: [{ itemId: 100, count: 6 }, { itemId: TileType.WOOD, count: 10 }, { itemId: TileType.LEAVES, count: 5 }], output: { itemId: 421, count: 1 } },
+
+  // ── Sleep Chamber (crafted at Workbench Mk2) ────────
+  { id: 'sleep_chamber', station: StationType.WORKBENCH_2, inputs: [{ itemId: 100, count: 5 }, { itemId: 104, count: 3 }, { itemId: TileType.WOOD, count: 10 }], output: { itemId: 422, count: 1 } },
 ]
 
 // Station item ID → StationType mapping

@@ -628,6 +628,15 @@ export class Player {
     this.lastEquipHash = '' // force redraw
   }
 
+  setSpawn(x: number, y: number) {
+    this.spawnX = x
+    this.spawnY = y
+  }
+
+  getSpawn() {
+    return { x: this.spawnX, y: this.spawnY }
+  }
+
   private useConsumable() {
     const item = this.inventory.getSelectedItem()
     if (!item) return
@@ -1439,14 +1448,40 @@ export class Player {
       }
       this.sprite.setOrigin(0.5, 0.5)
     } else if (this.actionAnim === 'attacking') {
-      // Sword swing cycle (astro attack frames or fallback)
+      // Check if using a ranged weapon — use bow frames instead of attack frames
+      const sel = this.inventory.getSelectedItem()
+      const selDef = sel ? getItemDef(sel.id) : undefined
+      const isRanged = selDef?.weaponStyle === 'ranged'
       const t = this.actionAnimTimer
-      const attackFrames = ['astro_attack_0', 'astro_attack_1', 'astro_attack_2', 'astro_attack_3', 'astro_attack_4', 'astro_attack_5', 'astro_attack_6']
-      const idx = Math.min(attackFrames.length - 1, Math.floor((1 - t / 200) * attackFrames.length))
-      newFrame = attackFrames[idx]!
-      if (!this.scene.textures.exists(newFrame)) {
-        newFrame = t > 50 ? 'player_attack1' : 'player_attack2'
+      if (isRanged) {
+        const bowFrames = ['astro_bow_0', 'astro_bow_1', 'astro_bow_2', 'astro_bow_3', 'astro_bow_4', 'astro_bow_5', 'astro_bow_6']
+        const idx = Math.min(bowFrames.length - 1, Math.floor((1 - t / 200) * bowFrames.length))
+        newFrame = bowFrames[idx]!
+        if (!this.scene.textures.exists(newFrame)) {
+          newFrame = t > 50 ? 'player_attack1' : 'player_attack2'
+        }
+      } else {
+        // Sword swing cycle (astro attack frames or fallback)
+        const attackFrames = ['astro_attack_0', 'astro_attack_1', 'astro_attack_2', 'astro_attack_3', 'astro_attack_4', 'astro_attack_5', 'astro_attack_6']
+        const idx = Math.min(attackFrames.length - 1, Math.floor((1 - t / 200) * attackFrames.length))
+        newFrame = attackFrames[idx]!
+        if (!this.scene.textures.exists(newFrame)) {
+          newFrame = t > 50 ? 'player_attack1' : 'player_attack2'
+        }
       }
+      this.sprite.setOrigin(0.5, 0.5)
+    } else if (this.isClimbing) {
+      // Climbing vines
+      const climbFrames = ['astro_climb_0', 'astro_climb_1', 'astro_climb_2', 'astro_climb_3', 'astro_climb_4', 'astro_climb_5', 'astro_climb_6']
+      if (this.vy !== 0) {
+        this.walkTimer += dt * 1000
+        if (this.walkTimer > 120) {
+          this.walkTimer = 0
+          this.walkFrameIndex = (this.walkFrameIndex + 1) % climbFrames.length
+        }
+      }
+      newFrame = climbFrames[this.walkFrameIndex % climbFrames.length]!
+      if (!this.scene.textures.exists(newFrame)) newFrame = 'player_walk2'
       this.sprite.setOrigin(0.5, 0.5)
     } else if (!this.isGrounded && this.vy < -50) {
       // Jumping
@@ -1607,8 +1642,10 @@ export class Player {
         this.heldItemSprite.setVisible(true)
         const dir = this.facingRight ? 1 : -1
 
+        const isBow = selDef.weaponStyle === 'ranged' && /bow/i.test(selDef.name)
         const isSwinging = (this.actionAnim === 'attacking' && selDef.weaponStyle === 'melee')
           || (this.actionAnim === 'mining' && selDef.category === ItemCategory.TOOL)
+        const isBowAttacking = this.actionAnim === 'attacking' && isBow
         if (isSwinging) {
           // Swing the held item — pivot from shoulder, synced to arm frames
           // t goes from 1 (windup) to 0 (end of swing)
@@ -1637,12 +1674,22 @@ export class Player {
           this.heldItemSprite.setRotation(this.facingRight ? swingRot : -swingRot)
           this.heldItemSprite.setScale(0.45)
           this.heldItemSprite.setFlipX(!this.facingRight)
+        } else if (isBowAttacking) {
+          // Bow attack — position at extended arm, bridge faces away from player
+          const t = this.actionAnimTimer / 100
+          const extendX = dir * (8 + 6 * (1 - t))
+          const extendY = -4 - 2 * (1 - t)
+          this.heldItemSprite.setPosition(this.sprite.x + extendX, this.sprite.y + extendY)
+          const bowRot = 10 * (Math.PI / 180) * dir
+          this.heldItemSprite.setRotation(bowRot)
+          this.heldItemSprite.setFlipX(this.facingRight)
+          this.heldItemSprite.setScale(0.45)
         } else {
           // Idle held position — tool held at the player's hand
           const restAngle = -45 * (Math.PI / 180)
           const restRot = restAngle + Math.PI / 4 // 0° at rest (vertical)
           this.heldItemSprite.setPosition(this.sprite.x + dir * 6, this.sprite.y + 2)
-          this.heldItemSprite.setFlipX(!this.facingRight)
+          this.heldItemSprite.setFlipX(isBow ? this.facingRight : !this.facingRight)
           this.heldItemSprite.setRotation(this.facingRight ? restRot : -restRot)
           this.heldItemSprite.setScale(0.4)
         }

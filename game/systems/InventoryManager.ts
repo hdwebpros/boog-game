@@ -37,6 +37,7 @@ export class InventoryManager {
   discoveredItems: Set<number> = new Set()
   trashFilter: Set<number> = new Set()
   onNewItemDiscovered: ((id: number) => void) | null = null
+  onInventoryFull: (() => void) | null = null
 
   /** Effective main inventory size — 30 base, +10 with Explorer's Belt */
   getEffectiveMainSize(): number {
@@ -97,6 +98,7 @@ export class InventoryManager {
         count -= toAdd
         continue
       }
+      if (this.onInventoryFull) this.onInventoryFull()
       return false // completely full
     }
 

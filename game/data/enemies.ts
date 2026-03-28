@@ -92,7 +92,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.PATROL,
     biomeYMin: SURFACE,
     biomeYMax: UNDERGROUND,
-    xp: 5,
+    xp: 12,
     loot: [
       { itemId: 105, count: 2, chance: 0.5 },  // plant fiber
       { itemId: 190, count: 1, chance: 0.2 },   // healing herb
@@ -111,7 +111,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.SWOOP,
     biomeYMin: UNDERGROUND,
     biomeYMax: DEEP,
-    xp: 8,
+    xp: 18,
     loot: [
       { itemId: 190, count: 1, chance: 0.3 },
     ],
@@ -129,7 +129,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.CHARGE,
     biomeYMin: UNDERGROUND,
     biomeYMax: CORE,
-    xp: 20,
+    xp: 45,
     loot: [
       { itemId: 3, count: 5, chance: 0.8 },     // stone
       { itemId: 6, count: 2, chance: 0.3 },      // iron ore
@@ -149,7 +149,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: SURFACE - 10,
     biomeYMax: UNDERGROUND,
     oceanOnly: true,
-    xp: 12,
+    xp: 25,
     loot: [
       { itemId: 12, count: 3, chance: 0.5 },    // coral
       { itemId: 190, count: 1, chance: 0.4 },
@@ -169,7 +169,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: SURFACE - 10,
     biomeYMax: UNDERGROUND,
     oceanOnly: true,
-    xp: 2,
+    xp: 5,
     loot: [
       { itemId: 11, count: 1, chance: 0.6 },    // sand
     ],
@@ -187,7 +187,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.EMERGE,
     biomeYMin: DEEP,
     biomeYMax: WORLD_HEIGHT,
-    xp: 25,
+    xp: 60,
     loot: [
       { itemId: 8, count: 2, chance: 0.4 },     // titanium ore
       { itemId: 191, count: 1, chance: 0.3 },   // cooked meat
@@ -206,7 +206,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.RANGED,
     biomeYMin: CORE,
     biomeYMax: WORLD_HEIGHT,
-    xp: 30,
+    xp: 75,
     loot: [
       { itemId: 13, count: 2, chance: 0.5 },    // carbon fiber
       { itemId: 102, count: 1, chance: 0.15 },  // titanium bar
@@ -226,7 +226,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: SURFACE - 10,
     biomeYMax: UNDERGROUND,
     nightOnly: true,
-    xp: 15,
+    xp: 35,
     loot: [
       { itemId: 190, count: 2, chance: 0.5 },   // healing herb
       { itemId: 105, count: 3, chance: 0.4 },   // plant fiber
@@ -248,7 +248,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.PATROL,
     biomeYMin: UNDERGROUND,
     biomeYMax: DEEP,
-    xp: 10,
+    xp: 25,
     loot: [
       { itemId: 105, count: 3, chance: 0.6 },   // plant fiber
       { itemId: 190, count: 1, chance: 0.3 },   // healing herb
@@ -269,7 +269,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.PATROL,
     biomeYMin: 0,
     biomeYMax: WORLD_HEIGHT,
-    xp: 3,
+    xp: 6,
     loot: [
       { itemId: 105, count: 1, chance: 0.3 },   // plant fiber
     ],
@@ -289,7 +289,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.PHASE,
     biomeYMin: DEEP,
     biomeYMax: CORE,
-    xp: 22,
+    xp: 50,
     loot: [
       { itemId: 101, count: 1, chance: 0.25 },  // diamond
       { itemId: 190, count: 1, chance: 0.4 },   // healing herb
@@ -308,7 +308,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.AMBUSH,
     biomeYMin: UNDERGROUND,
     biomeYMax: DEEP + 100,
-    xp: 18,
+    xp: 40,
     loot: [
       { itemId: 100, count: 2, chance: 0.5 },   // iron bar
       { itemId: 101, count: 1, chance: 0.2 },   // diamond
@@ -328,7 +328,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.SWOOP,
     biomeYMin: SURFACE - 10,
     biomeYMax: DEEP,
-    xp: 10,
+    xp: 22,
     loot: [
       { itemId: 105, count: 2, chance: 0.5 },   // plant fiber
       { itemId: 190, count: 1, chance: 0.3 },   // healing herb
@@ -348,7 +348,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     ai: EnemyAI.CHARGE,
     biomeYMin: UNDERGROUND,
     biomeYMax: DEEP + 200,
-    xp: 15,
+    xp: 35,
     loot: [
       { itemId: 6, count: 2, chance: 0.5 },     // iron ore
       { itemId: 100, count: 1, chance: 0.2 },   // iron bar
@@ -372,7 +372,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: SURFACE - 10,
     biomeYMax: UNDERGROUND,
     surfaceBiome: SurfaceBiome.SNOW,
-    xp: 12,
+    xp: 28,
     loot: [
       { itemId: 191, count: 1, chance: 0.4 },   // cooked meat
       { itemId: 105, count: 2, chance: 0.5 },   // plant fiber
@@ -392,7 +392,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: SURFACE - 10,
     biomeYMax: UNDERGROUND,
     surfaceBiome: SurfaceBiome.SNOW,
-    xp: 8,
+    xp: 18,
     loot: [
       { itemId: 21, count: 2, chance: 0.5 },    // ice
       { itemId: 190, count: 1, chance: 0.3 },   // healing herb
@@ -412,7 +412,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: SURFACE - 10,
     biomeYMax: UNDERGROUND,
     surfaceBiome: SurfaceBiome.DESERT,
-    xp: 14,
+    xp: 30,
     loot: [
       { itemId: 11, count: 3, chance: 0.5 },    // sand
       { itemId: 191, count: 1, chance: 0.3 },   // cooked meat
@@ -432,7 +432,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: SURFACE - 10,
     biomeYMax: UNDERGROUND,
     surfaceBiome: SurfaceBiome.DESERT,
-    xp: 10,
+    xp: 22,
     loot: [
       { itemId: 27, count: 2, chance: 0.5 },    // sandstone
       { itemId: 190, count: 1, chance: 0.3 },   // healing herb
@@ -452,7 +452,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: SURFACE - 10,
     biomeYMax: UNDERGROUND,
     surfaceBiome: SurfaceBiome.JUNGLE,
-    xp: 12,
+    xp: 28,
     loot: [
       { itemId: 105, count: 3, chance: 0.6 },   // plant fiber
       { itemId: 190, count: 1, chance: 0.4 },   // healing herb
@@ -472,7 +472,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: SURFACE - 10,
     biomeYMax: UNDERGROUND,
     surfaceBiome: SurfaceBiome.JUNGLE,
-    xp: 14,
+    xp: 32,
     loot: [
       { itemId: 4, count: 3, chance: 0.6 },     // wood
       { itemId: 105, count: 4, chance: 0.7 },   // plant fiber
@@ -492,7 +492,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: SURFACE - 20,
     biomeYMax: UNDERGROUND,
     surfaceBiome: SurfaceBiome.MOUNTAINS,
-    xp: 10,
+    xp: 22,
     loot: [
       { itemId: 191, count: 1, chance: 0.4 },   // cooked meat
       { itemId: 105, count: 2, chance: 0.3 },   // plant fiber
@@ -515,7 +515,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: 0,
     biomeYMax: WORLD_HEIGHT,
     voidDimension: true,
-    xp: 80,
+    xp: 200,
     loot: [
       { itemId: 350, count: 3, chance: 0.6 },   // Void Essence
       { itemId: 352, count: 2, chance: 0.3 },   // Soul Fragment
@@ -535,7 +535,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: 0,
     biomeYMax: WORLD_HEIGHT,
     voidDimension: true,
-    xp: 120,
+    xp: 300,
     loot: [
       { itemId: 352, count: 3, chance: 0.5 },   // Soul Fragment
       { itemId: 353, count: 1, chance: 0.1 },   // Chaos Shard
@@ -555,7 +555,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: 0,
     biomeYMax: WORLD_HEIGHT,
     voidDimension: true,
-    xp: 60,
+    xp: 150,
     loot: [
       { itemId: 350, count: 2, chance: 0.5 },   // Void Essence
       { itemId: 351, count: 1, chance: 0.2 },   // Hellfire Core
@@ -575,7 +575,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: 0,
     biomeYMax: WORLD_HEIGHT,
     voidDimension: true,
-    xp: 200,
+    xp: 500,
     loot: [
       { itemId: 354, count: 2, chance: 0.3 },   // Abyssal Ingot
       { itemId: 353, count: 1, chance: 0.15 },  // Chaos Shard
@@ -595,7 +595,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: 0,
     biomeYMax: WORLD_HEIGHT,
     voidDimension: true,
-    xp: 90,
+    xp: 220,
     loot: [
       { itemId: 352, count: 4, chance: 0.7 },   // Soul Fragment
     ],
@@ -614,7 +614,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: 0,
     biomeYMax: WORLD_HEIGHT,
     voidDimension: true,
-    xp: 150,
+    xp: 380,
     loot: [
       { itemId: 350, count: 5, chance: 0.8 },   // Void Essence
       { itemId: 355, count: 1, chance: 0.05 },  // Dimensional Fabric
@@ -634,7 +634,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: 0,
     biomeYMax: WORLD_HEIGHT,
     voidDimension: true,
-    xp: 180,
+    xp: 450,
     loot: [
       { itemId: 353, count: 2, chance: 0.25 },  // Chaos Shard
       { itemId: 355, count: 1, chance: 0.08 },  // Dimensional Fabric
@@ -654,7 +654,7 @@ export const ENEMY_DEFS: Record<EnemyType, EnemyDef> = {
     biomeYMin: 0,
     biomeYMax: WORLD_HEIGHT,
     voidDimension: true,
-    xp: 220,
+    xp: 550,
     loot: [
       { itemId: 354, count: 2, chance: 0.4 },   // Abyssal Ingot
       { itemId: 353, count: 1, chance: 0.2 },   // Chaos Shard

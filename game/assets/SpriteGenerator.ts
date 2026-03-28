@@ -1661,6 +1661,37 @@ function makeTileStationArcaneAnvil(): PixelGrid {
   return g
 }
 
+function makeTileStationSleepChamber(): PixelGrid {
+  const g = makeGrid(16, 16)
+  const hull = 0x4466aa
+  const dark = darken(hull, 0.3)
+  const glass = 0x88ccff
+  const glassDark = darken(glass, 0.2)
+  const light = 0x44ddff
+  // Base platform
+  for (let x = 1; x <= 14; x++) { g[14]![x] = dark; g[15]![x] = darken(hull, 0.4) }
+  // Chamber body (pod shape)
+  for (let y = 5; y <= 13; y++)
+    for (let x = 2; x <= 13; x++)
+      g[y]![x] = hull
+  // Rounded top
+  for (let x = 3; x <= 12; x++) g[4]![x] = hull
+  for (let x = 5; x <= 10; x++) g[3]![x] = hull
+  // Glass window (viewing port)
+  for (let y = 6; y <= 10; y++)
+    for (let x = 4; x <= 11; x++)
+      g[y]![x] = glass
+  for (let y = 7; y <= 9; y++)
+    for (let x = 5; x <= 10; x++)
+      g[y]![x] = glassDark
+  // Status light
+  g[4]![7] = light; g[4]![8] = light
+  g[12]![4] = light; g[12]![11] = light
+  // Frame edges
+  for (let y = 5; y <= 13; y++) { g[y]![1] = dark; g[y]![14] = dark }
+  return g
+}
+
 function makeTileChest(): PixelGrid {
   const g = makeGrid(16, 16)
   const wood = 0x8b5a2b
@@ -1949,12 +1980,21 @@ function makeBossMothership(): PixelGrid {
 // ─── PROJECTILE TEXTURES ───────────────────────────────────
 
 function makeProjectileArrow(): PixelGrid {
-  const g = makeGrid(5, 5)
-  g[0]![2] = 0xffffff
-  g[1]![1] = 0xeeeeee; g[1]![2] = 0xffffff; g[1]![3] = 0xeeeeee
-  g[2]![2] = 0xffffff
-  g[3]![2] = 0xddccaa
-  g[4]![2] = 0xddccaa
+  const g = makeGrid(12, 5)
+  const wood = 0x8b6b3a
+  const woodLight = 0xa0824e
+  const white = 0xffffff
+  const gray = 0xcccccc
+  // Arrowhead (right side, pointing right)
+  g[2]![11] = gray    // tip
+  g[1]![10] = gray; g[2]![10] = white; g[3]![10] = gray
+  g[2]![9] = gray
+  // Shaft (wood colored, horizontal)
+  for (let x = 3; x <= 8; x++) g[2]![x] = (x % 2 === 0) ? wood : woodLight
+  // Fletching / wings (white, left side)
+  g[0]![1] = white; g[1]![1] = white; g[1]![2] = white
+  g[4]![1] = white; g[3]![1] = white; g[3]![2] = white
+  g[2]![0] = wood; g[2]![1] = wood; g[2]![2] = wood // nock
   return g
 }
 
@@ -3754,6 +3794,7 @@ export function generateAllSprites(scene: Phaser.Scene) {
     [TileType.NETHER_BRICK]: makeTileNetherBrick,
     [TileType.SOUL_SAND]: makeTileSoulSand,
     [TileType.VOID_PORTAL_BLOCK]: makeTileVoidPortalBlock,
+    [TileType.STATION_SLEEP_CHAMBER]: makeTileStationSleepChamber,
   }
 
   for (const [type, maker] of Object.entries(tileMakers)) {
@@ -3901,6 +3942,9 @@ export function generateAllSprites(scene: Phaser.Scene) {
   for (const [id, maker] of Object.entries(itemMakers)) {
     drawToTexture(scene, `item_${id}`, maker())
   }
+
+  // Sleep chamber item icon
+  drawToTexture(scene, 'item_422', makeTileStationSleepChamber())
 
   // Void forge item icon
   drawToTexture(scene, 'item_321', makeTileStationVoidForge())

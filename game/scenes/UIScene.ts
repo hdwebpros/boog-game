@@ -13,6 +13,7 @@ import { InventoryPanel } from '../ui/InventoryPanel'
 import { SkillTreePanel } from '../ui/SkillTreePanel'
 import { ShopPanel } from '../ui/ShopPanel'
 import { ChestPanel } from '../ui/ChestPanel'
+import { SLOT_SIZE } from '../ui/UIContext'
 import { WorldMapPanel } from '../ui/WorldMapPanel'
 import type { Waypoint } from '../ui/WorldMapPanel'
 
@@ -56,6 +57,9 @@ export class UIScene extends Phaser.Scene {
   // Shard Compass HUD (up to 5 shard compasses stacked)
   private shardCompassGfx!: Phaser.GameObjects.Graphics
   private shardCompassTexts: Phaser.GameObjects.Text[] = []
+
+  // Inventory full warning
+  private invFullText!: Phaser.GameObjects.Text
 
   constructor() {
     super({ key: 'UIScene' })
@@ -173,8 +177,14 @@ export class UIScene extends Phaser.Scene {
       this.shardCompassTexts.push(txt)
     }
 
-    // Biome banner
+    // Inventory full warning (above hotbar)
     const { width } = this.scale
+    this.invFullText = this.add.text(width / 2, this.scale.height - SLOT_SIZE - 24, 'Inventory Full!', {
+      fontSize: '14px', color: '#ff4444', fontFamily: 'monospace',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5, 1).setDepth(210).setAlpha(0)
+
+    // Biome banner
     this.biomeBannerText = this.add.text(width / 2, 80, '', {
       fontSize: '24px', color: '#ffffff', fontFamily: 'monospace',
       stroke: '#000000', strokeThickness: 4,
@@ -275,6 +285,20 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
+  private showInventoryFull() {
+    this.tweens.killTweensOf(this.invFullText)
+    this.invFullText.setAlpha(1)
+    this.tweens.add({
+      targets: this.invFullText,
+      alpha: 0,
+      duration: 600,
+      delay: 1500,
+      ease: 'Sine.easeOut',
+    })
+  }
+
+  private invFullBound = false
+
   override update() {
     const worldScene = this.scene.get('WorldScene') as any
     if (!worldScene?.getPlayer) return
@@ -282,6 +306,11 @@ export class UIScene extends Phaser.Scene {
     if (!player) return
     const chunks = worldScene.getChunkManager()
     const inv: InventoryManager = player.inventory
+
+    if (!this.invFullBound) {
+      inv.onInventoryFull = () => this.showInventoryFull()
+      this.invFullBound = true
+    }
 
     // Shared pointer state
     const pointer = this.input.activePointer

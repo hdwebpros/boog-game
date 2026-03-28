@@ -61,6 +61,7 @@ export enum TileType {
   SOUL_SAND = 59,
   VOID_PORTAL_BLOCK = 60,
   STATION_BREWING_STAND = 61,
+  STATION_SLEEP_CHAMBER = 62,
 }
 
 export interface TileProperties {
@@ -141,6 +142,7 @@ export const TILE_PROPERTIES: Record<TileType, TileProperties> = {
   [TileType.SOUL_SAND]:          { name: 'Soul Sand',     color: 0x5a4a3a, hardness: 1,  solid: true,  mineable: true,  tier: 0 },
   [TileType.VOID_PORTAL_BLOCK]:  { name: 'Void Portal',   color: 0x9900ff, hardness: 99, solid: false, mineable: true,  tier: 99, transparent: true },
   [TileType.STATION_BREWING_STAND]: { name: 'Brewing Stand', color: 0x884488, hardness: 3, solid: true, mineable: true, tier: 1 },
+  [TileType.STATION_SLEEP_CHAMBER]: { name: 'Sleep Chamber', color: 0x4466aa, hardness: 3, solid: true, mineable: true, tier: 1, lightRadius: 32, lightColor: 0x4488cc },
 }
 
 /** Map station item IDs to their tile types */
@@ -157,6 +159,7 @@ export const STATION_TILE_TYPE: Record<number, TileType> = {
   320: TileType.VOID_PORTAL_BLOCK,
   321: TileType.NETHER_BRICK,
   118: TileType.STATION_BREWING_STAND,
+  422: TileType.STATION_SLEEP_CHAMBER,
 }
 
 /** Map non-station item IDs (100+) to their tile types for placement */
@@ -176,6 +179,7 @@ export const TILE_TO_ITEM: Partial<Record<TileType, number>> = {
   [TileType.CELESTIAL_BANNER]: 311,
   [TileType.STARFALL_FLOWER]: 312,
   [TileType.SKY_CRYSTAL_LAMP]: 313,
+  [TileType.STATION_SLEEP_CHAMBER]: 422,
 }
 
 export const TILE_SIZE = 16

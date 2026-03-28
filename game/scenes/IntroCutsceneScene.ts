@@ -33,6 +33,7 @@ export class IntroCutsceneScene extends Phaser.Scene {
   preload() {
     this.load.image('astro_fall_0', '/sprites/astro_fall_0.png')
     this.load.image('astro_fall_1', '/sprites/astro_fall_1.png')
+    this.load.image('shuttle', '/sprites/shuttle.png')
   }
 
   create() {
@@ -131,35 +132,12 @@ export class IntroCutsceneScene extends Phaser.Scene {
   // ── Shuttle construction ──────────────────────────────────────
 
   private buildShuttle(_width: number, height: number) {
-    const hull = this.add.graphics()
+    // Shuttle PNG — nose points upper-right, exhaust flame lower-left
+    const shuttleImg = this.add.image(0, 0, 'shuttle').setOrigin(0.5)
 
-    // Main fuselage — light gray
-    hull.fillStyle(0xc0c7d1)
-    hull.fillRoundedRect(-40, -10, 80, 20, 5)
-
-    // Cockpit window — bright blue
-    hull.fillStyle(0x4db3ff)
-    hull.fillRoundedRect(28, -6, 14, 12, 3)
-
-    // Top fin — darker gray
-    hull.fillStyle(0x8c949e)
-    hull.fillTriangle(-15, -10, -28, -28, 8, -10)
-
-    // Bottom fin
-    hull.fillStyle(0x8c949e)
-    hull.fillTriangle(-15, 10, -28, 28, 8, 10)
-
-    // Engine nozzle
-    hull.fillStyle(0x666666)
-    hull.fillRect(-44, -7, 8, 14)
-
-    // Engine exhaust glow
     this.engineGlow = this.add.graphics()
-    this.engineGlow.fillStyle(0x66b3ff, 0.7)
-    this.engineGlow.fillEllipse(-52, 0, 20, 12)
 
-    this.shuttle = this.add.container(-100, height * 0.4, [hull, this.engineGlow])
-    this.shuttle.setScale(2)
+    this.shuttle = this.add.container(-150, height * 0.4, [this.engineGlow, shuttleImg])
     this.shuttle.setDepth(10)
   }
 

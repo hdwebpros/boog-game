@@ -40,6 +40,10 @@ export class Projectile {
       )
     }
     this.sprite.setDepth(55) // above darkness overlay (depth 50) so always visible
+    // Rotate arrow/projectile to match travel direction
+    if (this.sprite instanceof Phaser.GameObjects.Image) {
+      this.sprite.setRotation(Math.atan2(config.vy, config.vx))
+    }
     this.vx = config.vx
     this.vy = config.vy
     this.damage = config.damage

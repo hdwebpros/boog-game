@@ -147,11 +147,16 @@ export interface SaveData {
   waypoints?: Waypoint[]
   portals?: PortalData[]
   discoveredPOIs?: string[]
+  discoveredBiomes?: number[]
+  craftedStationTypes?: number[]
+  depthMilestones?: number[]
   activeBuffs?: { type: string; remaining: number; duration: number }[]
   hasVisitedVoid?: boolean
   hasCompletedGame?: boolean
   trashFilter?: number[]
   difficulty?: string
+  spawnPointX?: number
+  spawnPointY?: number
   timestamp: number
 }
 
@@ -181,11 +186,16 @@ export class SaveManager {
     waypoints?: Waypoint[],
     portals?: PortalData[],
     discoveredPOIs?: string[],
+    discoveredBiomes?: number[],
+    craftedStationTypes?: number[],
+    depthMilestones?: number[],
     activeBuffs?: { type: string; remaining: number; duration: number }[],
     hasVisitedVoid?: boolean,
     hasCompletedGame?: boolean,
     trashFilter?: number[],
-    difficulty?: string
+    difficulty?: string,
+    spawnPointX?: number,
+    spawnPointY?: number
   ): Promise<boolean> {
     try {
       const timestamp = Date.now()
@@ -217,11 +227,16 @@ export class SaveManager {
         waypoints,
         portals,
         discoveredPOIs,
+        discoveredBiomes,
+        craftedStationTypes,
+        depthMilestones,
         activeBuffs,
         hasVisitedVoid,
         hasCompletedGame,
         trashFilter,
         difficulty,
+        spawnPointX,
+        spawnPointY,
         timestamp,
       }
       await idbPut(slotId, data)

@@ -308,6 +308,9 @@ export const ITEMS: Record<number, ItemDef> = {
 
   // ── Tree Chomper ──────────────────────────────────────
   421: { id: 421, name: 'Tree Chomper', category: ItemCategory.TOOL, stackSize: 1, tier: 2, color: 0x4a8c3f, miningSpeed: 3, miningTier: 0 },
+
+  // ── Sleep Chamber ────────────────────────────────────
+  422: { id: 422, name: 'Sleep Chamber', category: ItemCategory.STATION, stackSize: 1, tier: 1, color: 0x4466aa, tileType: TileType.STATION_SLEEP_CHAMBER },
 }
 
 export function getItemDef(id: number): ItemDef | undefined {
