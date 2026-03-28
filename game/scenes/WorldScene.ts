@@ -297,6 +297,16 @@ export class WorldScene extends Phaser.Scene {
       if (saveData.discoveredPOIs) {
         for (const key of saveData.discoveredPOIs) this.discoveredPOIs.add(key)
       }
+      // Restore XP progression tracking
+      if (saveData.discoveredBiomes) {
+        for (const b of saveData.discoveredBiomes) this.discoveredBiomes.add(b)
+      }
+      if (saveData.craftedStationTypes) {
+        for (const s of saveData.craftedStationTypes) this.craftedStationTypes.add(s)
+      }
+      if (saveData.depthMilestones) {
+        for (const d of saveData.depthMilestones) this.depthMilestones.add(d)
+      }
       // Restore active buffs
       if (saveData.activeBuffs) {
         this.player.buffs.deserialize(saveData.activeBuffs as any)
@@ -2473,6 +2483,9 @@ export class WorldScene extends Phaser.Scene {
       waypoints,
       this.chunkManager.getPortalData(),
       Array.from(this.discoveredPOIs),
+      Array.from(this.discoveredBiomes),
+      Array.from(this.craftedStationTypes),
+      Array.from(this.depthMilestones),
       this.player.buffs.serialize(),
       this.hasVisitedVoid,
       this.hasCompletedGame,
